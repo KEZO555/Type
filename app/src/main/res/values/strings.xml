@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Light Keyboard</string>
+    <string name="setup_title">Light Keyboard</string>
+    <string name="setup_blurb">A minimal black-and-white keyboard for the Light Phone. Two quick steps:</string>
+    <string name="setup_step1">1. Enable Light Keyboard</string>
+    <string name="setup_step2">2. Choose it as your keyboard</string>
+    <string name="setup_enabled">✓ Enabled</string>
+    <string name="setup_done">Setup complete. It will appear in every text field. Swipe down on the keyboard to close it.</string>
+    <string name="setup_autocorrect">Autocorrect</string>
+    <string name="setup_autocorrect_sub">Fix misspellings as you type. English uses the phone\'s built-in dictionary; Hebrew uses a dictionary built into the app.</string>
+    <string name="setup_languages">Languages</string>
+    <string name="setup_languages_sub">English and Hebrew. Press and hold the space bar to switch between them — the space bar shows the current one (EN / עב). Each has its own dictionary, autocorrect, and voice input.</string>
+    <string name="setup_voice">Voice dictation</string>
+    <string name="setup_voice_sub">English is private and on-device (downloads 40 MB once). Hebrew uses the phone\'s own voice service, which may need a connection.</string>
+    <string name="setup_voice_clear">Delete voice model (frees ~40 MB)</string>
+
+    <!-- IME subtype labels (system language switcher). -->
+    <string name="subtype_en">English</string>
+    <string name="subtype_he">עברית</string>
+</resources>

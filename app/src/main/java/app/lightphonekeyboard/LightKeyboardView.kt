@@ -76,14 +76,17 @@ class LightKeyboardView @JvmOverloads constructor(
         const val MIC = "__MIC__"       // (icon reused by the voice listening overlay)
         const val SYMBOLS = "123"
         const val LETTERS = "ABC"
-        const val MORE = "#+="
+        const val MORE = "=\\<"
+        const val COMMA = ","
     }
 
-    // Bottom row, shared by every letters/symbols layer: [layer toggle] · emoji · globe · space · . ·
-    // enter. The toggle is "123" on the letters layer and "ABC" on the symbols layers.
-    private val bottomRowTail = listOf(Key.EMOJI, Key.GLOBE, Key.SPACE, Key.PERIOD, Key.ENTER)
-    private fun bottomRow(): List<String> =
-        listOf(if (layer == Layer.LETTERS) Key.SYMBOLS else Key.LETTERS) + bottomRowTail
+    // Bottom row: [layer toggle] · [emoji|comma] · globe · space · . · enter. On the letters layer the
+    // second key is the emoji key; on the symbols layers it's a comma (matching the system keyboard).
+    private fun bottomRow(): List<String> {
+        val toggle = if (layer == Layer.LETTERS) Key.SYMBOLS else Key.LETTERS
+        val second = if (layer == Layer.LETTERS) Key.EMOJI else Key.COMMA
+        return listOf(toggle, second, Key.GLOBE, Key.SPACE, Key.PERIOD, Key.ENTER)
+    }
 
     private object Layout {
         val letters = listOf(
@@ -100,15 +103,17 @@ class LightKeyboardView @JvmOverloads constructor(
         )
         // Optional persistent number row (prepended to the letters layers when enabled in setup).
         val numberRow = listOf("1", "2", "3", "4", "5", "6", "7", "8", "9", "0")
+        // Symbols page 1, matching the system keyboard. =\< leads to page 2 (more).
         val symbols = listOf(
             listOf("1", "2", "3", "4", "5", "6", "7", "8", "9", "0"),
-            listOf("-", "/", ":", ";", "(", ")", "$", "&", "@", "\""),
-            listOf(Key.MORE, ".", ",", "?", "!", "'", Key.BACKSPACE),
+            listOf("@", "#", "$", "_", "&", "-", "+", "(", ")", "/"),
+            listOf(Key.MORE, "*", "\"", "'", ":", ";", "!", "?", Key.BACKSPACE),
         )
+        // Symbols page 2 (the less-common marks); 123 leads back to page 1.
         val more = listOf(
-            listOf("[", "]", "{", "}", "#", "%", "^", "*", "+", "="),
-            listOf("_", "\\", "|", "~", "<", ">", "€", "£", "¥"),
-            listOf(Key.SYMBOLS, ".", ",", "?", "!", "'", Key.BACKSPACE),
+            listOf("~", "`", "|", "•", "√", "π", "÷", "×", "¶", "∆"),
+            listOf("£", "¢", "€", "¥", "^", "°", "=", "{", "}", "\\"),
+            listOf(Key.SYMBOLS, "%", "©", "®", "™", "[", "]", "<", ">", Key.BACKSPACE),
         )
         // The eight curated favourites first, then the twenty most-common emoji. Laid out as a grid
         // in the emoji panel (see layoutEmoji).
@@ -345,12 +350,11 @@ class LightKeyboardView @JvmOverloads constructor(
             }
         }
 
-        // Control row for the emoji panel: back-to-letters, globe, space, backspace, enter.
+        // Minimal control row for the emoji panel: back-to-letters, space, backspace.
         val i = emojiGridRows
         val bandTop = padTop + i * rowPitch
         val visTop = bandTop + keyGap
-        val controlRow = listOf(Key.LETTERS, Key.GLOBE, Key.SPACE, Key.BACKSPACE, Key.ENTER)
-        layoutRow(controlRow, bandTop, h, visTop, visTop + rowKeyH, w)
+        layoutRow(listOf(Key.LETTERS, Key.SPACE, Key.BACKSPACE), bandTop, h, visTop, visTop + rowKeyH, w)
     }
 
     /** The curated emoji set, with recently-used ones pulled to the front (same 28 glyphs, reordered). */

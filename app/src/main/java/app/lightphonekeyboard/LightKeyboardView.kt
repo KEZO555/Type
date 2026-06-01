@@ -100,10 +100,12 @@ class LightKeyboardView @JvmOverloads constructor(
             listOf(Key.SYMBOLS, ".", ",", "?", "!", "'", Key.BACKSPACE),
             listOf(Key.LETTERS, Key.GLOBE, Key.SPACE, Key.ENTER, Key.MIC),
         )
-        // Curated set — laid out as a centred grid in the emoji panel (see layoutEmoji).
+        // The eight curated favourites first, then the twenty most-common emoji. Laid out as a grid
+        // in the emoji panel (see layoutEmoji).
         val emoji = listOf(
-            "🧞‍♂️", "🦾", "🪬", "👾",
-            "🫶🏻", "🌸", "🫠", "🤌🏻",
+            "🧞‍♂️", "🦾", "🪬", "👾", "🫶🏻", "🌸", "🫠", "🤌🏻",
+            "😀", "😂", "🥹", "😍", "😎", "😭", "🥰", "😘", "😉", "🙃",
+            "👍", "🙏", "🙌", "👀", "🔥", "❤️", "✨", "🎉", "💯", "🤔",
         )
     }
 
@@ -148,15 +150,15 @@ class LightKeyboardView @JvmOverloads constructor(
     private val letterKeys = ArrayList<PlacedKey>()   // a-z keys only, for the accuracy model
 
     // --- metrics (px) ---
-    private val padTop = dpf(8)
+    private val padTop = dpf(3)
     private val padBottom = dpf(10)
     private val padSide = dpf(6)
     private val keyGap = dpf(3)        // half the visible gutter; applied as an inset on each side
     private val rowKeyH = dpf(43)
     private val rowPitch = rowKeyH + keyGap * 2   // ~49dp per row
 
-    private val emojiCols = 4
-    private val emojiGridRows = (Layout.emoji.size + emojiCols - 1) / emojiCols  // 8 / 4 = 2
+    private val emojiCols = 10
+    private val emojiGridRows = (Layout.emoji.size + emojiCols - 1) / emojiCols  // 28 / 10 = 3
 
     // --- paints / icon cache ---
     private val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -201,7 +203,7 @@ class LightKeyboardView @JvmOverloads constructor(
         // keeps a constant height and doesn't jump when you switch to emoji.
         val rowCount = when {
             listening -> Layout.letters.size           // keep height constant while listening
-            layer == Layer.EMOJI -> Layout.letters.size
+            layer == Layer.EMOJI -> emojiGridRows + 1  // emoji rows + control row (= 4, same as letters)
             else -> currentRows.size
         }
         val h = padTop + rowCount * rowPitch + padBottom
@@ -266,23 +268,18 @@ class LightKeyboardView @JvmOverloads constructor(
     }
 
     private fun layoutEmoji() {
-        // The curated emoji set is laid out as a centred grid in the rows above a normal control row.
-        // Total row count matches the letters layer, so the keyboard height never jumps. The control
-        // row carries the globe (to keep cycling back to letters), space, backspace, enter, and mic.
+        // Emoji grid fills the rows above a normal control row, using the same row geometry as the
+        // letters layer so the keyboard height never jumps. The control row mirrors the letters bottom
+        // row — a layer key, then the globe at the SAME index, then space — so the globe never moves;
+        // it just swaps enter for backspace (deleting an emoji is what you want here).
         val w = width.toFloat()
         val h = height.toFloat()
         val drawW = w - padSide * 2
         val glyphs = Layout.emoji
-        val controlRowIndex = Layout.letters.size - 1            // last row = controls
-
-        // Grid centred vertically in the area above the control row band.
-        val areaBottom = padTop + controlRowIndex * rowPitch
-        val gridH = emojiGridRows * rowPitch
-        val topOffset = (areaBottom - gridH) / 2f
         for (r in 0 until emojiGridRows) {
-            val bandTop = topOffset + r * rowPitch
-            val bandBottom = topOffset + (r + 1) * rowPitch
-            val visTop = bandTop + keyGap
+            val bandTop = if (r == 0) 0f else padTop + r * rowPitch
+            val bandBottom = padTop + (r + 1) * rowPitch
+            val visTop = padTop + r * rowPitch + keyGap
             val visBottom = visTop + rowKeyH
             for (c in 0 until emojiCols) {
                 val idx = r * emojiCols + c
@@ -301,10 +298,11 @@ class LightKeyboardView @JvmOverloads constructor(
             }
         }
 
-        // Control row, same geometry as a letters-layer bottom row.
-        val bandTop = padTop + controlRowIndex * rowPitch
+        // Control row, same geometry + key positions as a letters bottom row (globe pinned at index 1).
+        val i = emojiGridRows
+        val bandTop = padTop + i * rowPitch
         val visTop = bandTop + keyGap
-        val controlRow = listOf(Key.GLOBE, Key.SPACE, Key.BACKSPACE, Key.ENTER, Key.MIC)
+        val controlRow = listOf(Key.LETTERS, Key.GLOBE, Key.SPACE, Key.BACKSPACE, Key.MIC)
             .let { if (Prefs.voiceEnabled(context)) it else it.filter { k -> k != Key.MIC } }
         layoutRow(controlRow, bandTop, h, visTop, visTop + rowKeyH, w)
     }
@@ -381,7 +379,7 @@ class LightKeyboardView @JvmOverloads constructor(
             }
             return
         }
-        val size = if (layer == Layer.EMOJI) spf(32) else if (id.length == 1) spf(23) else spf(16)
+        val size = if (layer == Layer.EMOJI) spf(20) else if (id.length == 1) spf(23) else spf(16)
         textPaint.textSize = size
         val baseline = pk.vis.centerY() - (textPaint.descent() + textPaint.ascent()) / 2f
         canvas.drawText(labelFor(id), pk.vis.centerX(), baseline, textPaint)

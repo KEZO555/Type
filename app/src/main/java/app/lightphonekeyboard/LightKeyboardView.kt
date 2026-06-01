@@ -167,8 +167,8 @@ class LightKeyboardView @JvmOverloads constructor(
     private val padBottom = dpf(10)
     private val padSide = dpf(6)
     private val keyGap = dpf(3)        // half the visible gutter; applied as an inset on each side
-    private val rowKeyH = dpf(48)
-    private val rowPitch = rowKeyH + keyGap * 2   // ~54dp per row
+    private val rowKeyH = dpf(43)
+    private val rowPitch = rowKeyH + keyGap * 2   // ~49dp per row
 
     private val emojiCols = 8
     private val emojiRowCount = (Layout.emoji.size + emojiCols - 1) / emojiCols  // 24 / 8 = 3
@@ -376,19 +376,10 @@ class LightKeyboardView @JvmOverloads constructor(
     private fun drawKey(canvas: Canvas, pk: PlacedKey) {
         val id = pk.id
         if (id == Key.SPACE) {
-            // The space bar carries the language label (EN / עב) centered, with the classic Light
-            // line to either side. The label both shows the active letters language and hints that
-            // a long press here switches it.
-            val cx = pk.vis.centerX()
+            // Plain centred line, matching the LightOS keyboard. (Long-press switches language; the
+            // letters changing to Hebrew is the cue — no label clutter on the bar itself.)
             val y = pk.vis.centerY()
-            val tag = if (lang == Lang.HE) "עב" else "EN"
-            textPaint.textSize = spf(13)
-            val half = textPaint.measureText(tag) / 2f
-            val gap = dpf(10)
-            canvas.drawRect(pk.vis.left + dpf(28), y - dpf(1), cx - half - gap, y + dpf(1), spacePaint)
-            canvas.drawRect(cx + half + gap, y - dpf(1), pk.vis.right - dpf(28), y + dpf(1), spacePaint)
-            val baseline = y - (textPaint.descent() + textPaint.ascent()) / 2f
-            canvas.drawText(tag, cx, baseline, textPaint)
+            canvas.drawRect(pk.vis.left + dpf(28), y - dpf(1), pk.vis.right - dpf(28), y + dpf(1), spacePaint)
             return
         }
         val icon = iconFor(id)
@@ -402,7 +393,7 @@ class LightKeyboardView @JvmOverloads constructor(
             }
             return
         }
-        val size = if (layer == Layer.EMOJI) spf(30) else if (id.length == 1) spf(26) else spf(18)
+        val size = if (layer == Layer.EMOJI) spf(26) else if (id.length == 1) spf(23) else spf(16)
         textPaint.textSize = size
         val baseline = pk.vis.centerY() - (textPaint.descent() + textPaint.ascent()) / 2f
         canvas.drawText(labelFor(id), pk.vis.centerX(), baseline, textPaint)

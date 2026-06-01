@@ -80,12 +80,15 @@ class LightKeyboardView @JvmOverloads constructor(
         const val COMMA = ","
     }
 
-    // Bottom row: [layer toggle] · [emoji|comma] · globe · space · . · enter. On the letters layer the
-    // second key is the emoji key; on the symbols layers it's a comma (matching the system keyboard).
+    // One bottom row in every mode, same key positions throughout: [toggle] · [emoji|comma] · globe ·
+    // space · [. | ⌫] · enter. Only the context-appropriate keys change — the layer toggle (123/ABC),
+    // the second key (emoji on letters, comma elsewhere), and the fifth (period normally, but backspace
+    // in the emoji panel, which has no letter row to delete from).
     private fun bottomRow(): List<String> {
         val toggle = if (layer == Layer.LETTERS) Key.SYMBOLS else Key.LETTERS
         val second = if (layer == Layer.LETTERS) Key.EMOJI else Key.COMMA
-        return listOf(toggle, second, Key.GLOBE, Key.SPACE, Key.PERIOD, Key.ENTER)
+        val fifth = if (layer == Layer.EMOJI) Key.BACKSPACE else Key.PERIOD
+        return listOf(toggle, second, Key.GLOBE, Key.SPACE, fifth, Key.ENTER)
     }
 
     private object Layout {
@@ -350,11 +353,11 @@ class LightKeyboardView @JvmOverloads constructor(
             }
         }
 
-        // Minimal control row for the emoji panel: back-to-letters, space, backspace.
+        // Same bottom row as every other mode (here the fifth key is backspace, so you can delete).
         val i = emojiGridRows
         val bandTop = padTop + i * rowPitch
         val visTop = bandTop + keyGap
-        layoutRow(listOf(Key.LETTERS, Key.SPACE, Key.BACKSPACE), bandTop, h, visTop, visTop + rowKeyH, w)
+        layoutRow(bottomRow(), bandTop, h, visTop, visTop + rowKeyH, w)
     }
 
     /** The curated emoji set, with recently-used ones pulled to the front (same 28 glyphs, reordered). */
@@ -530,7 +533,9 @@ class LightKeyboardView @JvmOverloads constructor(
 
     private fun weightFor(id: String): Float = when (id) {
         Key.SPACE -> 5f
-        Key.SYMBOLS, Key.LETTERS, Key.MORE -> 1.4f
+        // Only the bottom-row layer toggle is wide. =\< stays normal width so the symbols row-3
+        // backspace lines up with the letters row-3 backspace.
+        Key.SYMBOLS, Key.LETTERS -> 1.4f
         else -> 1f
     }
 
@@ -865,6 +870,7 @@ class LightKeyboardView @JvmOverloads constructor(
             Key.EMOJI -> { layer = Layer.EMOJI; rebuild() }
             Key.MIC -> listener?.onMic()
             Key.PERIOD -> { listener?.onText("."); return true }   // long-press → voice (handled in touch)
+            Key.COMMA -> { listener?.onText(","); return true }
             Key.SPACE -> {
                 val now = System.currentTimeMillis()
                 if (now - lastSpaceTapMs < DOUBLE_TAP_MS) {   // double-tap → ". "

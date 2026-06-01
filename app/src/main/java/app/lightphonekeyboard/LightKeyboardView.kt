@@ -66,8 +66,7 @@ class LightKeyboardView @JvmOverloads constructor(
         const val BACKSPACE = "__BKSP__"
         const val SPACE = "__SPACE__"
         const val ENTER = "__ENTER__"
-        const val EMOJI = "__EMOJI__"
-        const val EMOJI_BACK = "__EMOJI_BACK__"
+        const val GLOBE = "__GLOBE__"   // cycles English → Hebrew → emoji
         const val MIC = "__MIC__"
         const val SYMBOLS = "123"
         const val LETTERS = "ABC"
@@ -79,7 +78,7 @@ class LightKeyboardView @JvmOverloads constructor(
             listOf("q", "w", "e", "r", "t", "y", "u", "i", "o", "p"),
             listOf("a", "s", "d", "f", "g", "h", "j", "k", "l"),
             listOf(Key.SHIFT, "z", "x", "c", "v", "b", "n", "m", Key.BACKSPACE),
-            listOf(Key.SYMBOLS, Key.EMOJI, Key.SPACE, Key.ENTER, Key.MIC),
+            listOf(Key.SYMBOLS, Key.GLOBE, Key.SPACE, Key.ENTER, Key.MIC),
         )
         // Hebrew (standard Israeli SI-1452 letter positions, finals included; no case → no shift key).
         // 8 / 10 / 9 letters + backspace, exactly the 27 forms א..ת.
@@ -87,24 +86,24 @@ class LightKeyboardView @JvmOverloads constructor(
             listOf("ק", "ר", "א", "ט", "ו", "ן", "ם", "פ"),
             listOf("ש", "ד", "ג", "כ", "ע", "י", "ח", "ל", "ך", "ף"),
             listOf("ז", "ס", "ב", "ה", "נ", "מ", "צ", "ת", "ץ", Key.BACKSPACE),
-            listOf(Key.SYMBOLS, Key.EMOJI, Key.SPACE, Key.ENTER, Key.MIC),
+            listOf(Key.SYMBOLS, Key.GLOBE, Key.SPACE, Key.ENTER, Key.MIC),
         )
         val symbols = listOf(
             listOf("1", "2", "3", "4", "5", "6", "7", "8", "9", "0"),
             listOf("-", "/", ":", ";", "(", ")", "$", "&", "@", "\""),
             listOf(Key.MORE, ".", ",", "?", "!", "'", Key.BACKSPACE),
-            listOf(Key.LETTERS, Key.EMOJI, Key.SPACE, Key.ENTER, Key.MIC),
+            listOf(Key.LETTERS, Key.GLOBE, Key.SPACE, Key.ENTER, Key.MIC),
         )
         val more = listOf(
             listOf("[", "]", "{", "}", "#", "%", "^", "*", "+", "="),
             listOf("_", "\\", "|", "~", "<", ">", "€", "£", "¥"),
             listOf(Key.SYMBOLS, ".", ",", "?", "!", "'", Key.BACKSPACE),
-            listOf(Key.LETTERS, Key.EMOJI, Key.SPACE, Key.ENTER, Key.MIC),
+            listOf(Key.LETTERS, Key.GLOBE, Key.SPACE, Key.ENTER, Key.MIC),
         )
+        // Curated set — laid out as a centred grid in the emoji panel (see layoutEmoji).
         val emoji = listOf(
-            "😅", "😊", "🙃", "😍", "😜", "😂", "😭", "😎",
-            "🙌", "👍", "👎", "🤞", "✌️", "👌", "👋", "🙏",
-            "✨", "🔥", "❤️", "💔", "🏆", "🎯", "👑", "👀",
+            "🧞‍♂️", "🦾", "🪬", "👾",
+            "🫶🏻", "🌸", "🫠", "🤌🏻",
         )
     }
 
@@ -139,20 +138,6 @@ class LightKeyboardView @JvmOverloads constructor(
         }
     }
 
-    // Space held → switch language. The space committed on touch-down (commit-on-down, as every key)
-    // is retracted when the long-press fires, so a held space toggles EN⇄HE instead of leaving a space.
-    private var spacePointerId = -1
-    private var spaceLongFired = false
-    private val spaceLongPress = Runnable {
-        if (spacePointerId != -1 && !spaceLongFired && !dismissedThisGesture) {
-            spaceLongFired = true
-            if (firstPointerId == spacePointerId) firstKeyRetractable = false  // don't double-retract on dismiss
-            tap()
-            listener?.onBackspace()   // retract the space committed on down
-            toggleLang()
-        }
-    }
-
     /** One key with its (gapless) hit rect and its inset, drawn-to rect. */
     private class PlacedKey(val id: String, val hit: RectF, val vis: RectF) {
         val cx get() = vis.centerX()
@@ -170,8 +155,8 @@ class LightKeyboardView @JvmOverloads constructor(
     private val rowKeyH = dpf(43)
     private val rowPitch = rowKeyH + keyGap * 2   // ~49dp per row
 
-    private val emojiCols = 8
-    private val emojiRowCount = (Layout.emoji.size + emojiCols - 1) / emojiCols  // 24 / 8 = 3
+    private val emojiCols = 4
+    private val emojiGridRows = (Layout.emoji.size + emojiCols - 1) / emojiCols  // 8 / 4 = 2
 
     // --- paints / icon cache ---
     private val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -212,11 +197,11 @@ class LightKeyboardView @JvmOverloads constructor(
 
     override fun onMeasure(widthSpec: Int, heightSpec: Int) {
         val w = MeasureSpec.getSize(widthSpec)
-        // Emoji has 3 glyph rows + 1 back-chevron row = 4, same pitch as the letter layers, so the
-        // keyboard keeps a constant height and doesn't jump when you switch to emoji.
+        // The emoji panel is laid out to the same row count as the letters layer, so the keyboard
+        // keeps a constant height and doesn't jump when you switch to emoji.
         val rowCount = when {
             listening -> Layout.letters.size           // keep height constant while listening
-            layer == Layer.EMOJI -> emojiRowCount + 1
+            layer == Layer.EMOJI -> Layout.letters.size
             else -> currentRows.size
         }
         val h = padTop + rowCount * rowPitch + padBottom
@@ -281,44 +266,47 @@ class LightKeyboardView @JvmOverloads constructor(
     }
 
     private fun layoutEmoji() {
-        // Same vertical metrics as the letter layers (padTop / rowPitch / rowKeyH), so the emoji panel
-        // is the exact same height and switching layers never resizes the keyboard.
+        // The curated emoji set is laid out as a centred grid in the rows above a normal control row.
+        // Total row count matches the letters layer, so the keyboard height never jumps. The control
+        // row carries the globe (to keep cycling back to letters), space, backspace, enter, and mic.
         val w = width.toFloat()
         val h = height.toFloat()
         val drawW = w - padSide * 2
-        val rows = Layout.emoji.chunked(emojiCols)
-        for (i in rows.indices) {
-            val bandTop = if (i == 0) 0f else padTop + i * rowPitch
-            val bandBottom = padTop + (i + 1) * rowPitch
-            val visTop = padTop + i * rowPitch + keyGap
+        val glyphs = Layout.emoji
+        val controlRowIndex = Layout.letters.size - 1            // last row = controls
+
+        // Grid centred vertically in the area above the control row band.
+        val areaBottom = padTop + controlRowIndex * rowPitch
+        val gridH = emojiGridRows * rowPitch
+        val topOffset = (areaBottom - gridH) / 2f
+        for (r in 0 until emojiGridRows) {
+            val bandTop = topOffset + r * rowPitch
+            val bandBottom = topOffset + (r + 1) * rowPitch
+            val visTop = bandTop + keyGap
             val visBottom = visTop + rowKeyH
-            rows[i].forEachIndexed { j, glyph ->
-                val cellLeft = padSide + drawW * (j.toFloat() / emojiCols)
-                val cellRight = padSide + drawW * ((j + 1).toFloat() / emojiCols)
-                val hitLeft = if (j == 0) 0f else cellLeft
-                val hitRight = if (j == emojiCols - 1) w else cellRight
+            for (c in 0 until emojiCols) {
+                val idx = r * emojiCols + c
+                if (idx >= glyphs.size) break
+                val cellLeft = padSide + drawW * (c.toFloat() / emojiCols)
+                val cellRight = padSide + drawW * ((c + 1).toFloat() / emojiCols)
+                val hitLeft = if (c == 0) 0f else cellLeft
+                val hitRight = if (c == emojiCols - 1) w else cellRight
                 placed.add(
                     PlacedKey(
-                        glyph,
+                        glyphs[idx],
                         RectF(hitLeft, bandTop, hitRight, bandBottom),
                         RectF(cellLeft, visTop, cellRight, visBottom),
                     ),
                 )
             }
         }
-        // Back-to-letters chevron: its own row band (hit spans the full width), drawn as a centered chevron.
-        val backTop = padTop + rows.size * rowPitch
-        val boxW = dpf(64)
-        val boxH = dpf(48)
-        val cx = w / 2f
-        val cy = backTop + keyGap + rowKeyH / 2f
-        placed.add(
-            PlacedKey(
-                Key.EMOJI_BACK,
-                RectF(0f, backTop, w, h),
-                RectF(cx - boxW / 2f, cy - boxH / 2f, cx + boxW / 2f, cy + boxH / 2f),
-            ),
-        )
+
+        // Control row, same geometry as a letters-layer bottom row.
+        val bandTop = padTop + controlRowIndex * rowPitch
+        val visTop = bandTop + keyGap
+        val controlRow = listOf(Key.GLOBE, Key.SPACE, Key.BACKSPACE, Key.ENTER, Key.MIC)
+            .let { if (Prefs.voiceEnabled(context)) it else it.filter { k -> k != Key.MIC } }
+        layoutRow(controlRow, bandTop, h, visTop, visTop + rowKeyH, w)
     }
 
     // ------------------------------------------------------------------ drawing
@@ -393,7 +381,7 @@ class LightKeyboardView @JvmOverloads constructor(
             }
             return
         }
-        val size = if (layer == Layer.EMOJI) spf(26) else if (id.length == 1) spf(23) else spf(16)
+        val size = if (layer == Layer.EMOJI) spf(32) else if (id.length == 1) spf(23) else spf(16)
         textPaint.textSize = size
         val baseline = pk.vis.centerY() - (textPaint.descent() + textPaint.ascent()) / 2f
         canvas.drawText(labelFor(id), pk.vis.centerX(), baseline, textPaint)
@@ -409,20 +397,20 @@ class LightKeyboardView @JvmOverloads constructor(
     }
 
     private fun iconFor(id: String): Int? = when (id) {
-        Key.EMOJI -> R.drawable.ic_kb_emoji
+        Key.GLOBE -> R.drawable.ic_kb_globe
         Key.BACKSPACE -> R.drawable.ic_kb_backspace
         Key.ENTER -> R.drawable.ic_kb_enter
-        Key.EMOJI_BACK -> R.drawable.ic_kb_chevron_down
         Key.MIC -> R.drawable.ic_kb_mic
         Key.SHIFT -> if (shifted) R.drawable.ic_kb_chevron_down else R.drawable.ic_kb_chevron_up
         else -> null
     }
 
+    // Smaller inset = larger glyph. Backspace / enter / mic / globe sit close to the letter glyphs in
+    // size; shift keeps a touch more breathing room for its caps-lock underline.
     private fun padFor(id: String): Float = when (id) {
-        Key.SHIFT -> dpf(9)
-        Key.BACKSPACE, Key.EMOJI_BACK -> dpf(10)
-        Key.MIC -> dpf(9)
-        else -> dpf(7)
+        Key.SHIFT -> dpf(7)
+        Key.BACKSPACE, Key.ENTER, Key.MIC, Key.GLOBE -> dpf(4)
+        else -> dpf(6)
     }
 
     // Only English has letter case; Hebrew letters are returned verbatim (uppercase() is a no-op on
@@ -471,7 +459,6 @@ class LightKeyboardView @JvmOverloads constructor(
                         if (dy > dpf(60) && dy > abs(dx) * 1.5f) {
                             dismissedThisGesture = true
                             stopBackspaceRepeat()
-                            stopSpaceLongPress()
                             // The first tap already committed a char on down; retract it so the swipe
                             // doesn't leave a stray letter behind.
                             if (firstKeyRetractable) listener?.onBackspace()
@@ -487,14 +474,12 @@ class LightKeyboardView @JvmOverloads constructor(
                 val pid = ev.getPointerId(ev.actionIndex)
                 pressed.remove(pid)
                 if (pid == backspacePointerId) stopBackspaceRepeat()
-                if (pid == spacePointerId) stopSpaceLongPress()
                 invalidate()
             }
 
             MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                 pressed.clear()
                 stopBackspaceRepeat()
-                stopSpaceLongPress()
                 invalidate()
             }
         }
@@ -516,23 +501,12 @@ class LightKeyboardView @JvmOverloads constructor(
             removeCallbacks(backspaceRepeat)
             postDelayed(backspaceRepeat, BACKSPACE_INITIAL_DELAY_MS)
         }
-        if (key.id == Key.SPACE) {               // space committed on down; arm hold-to-switch-language
-            spacePointerId = pointerId
-            spaceLongFired = false
-            removeCallbacks(spaceLongPress)
-            postDelayed(spaceLongPress, SPACE_LONGPRESS_MS)
-        }
         return retractable
     }
 
     private fun stopBackspaceRepeat() {
         backspacePointerId = -1
         removeCallbacks(backspaceRepeat)
-    }
-
-    private fun stopSpaceLongPress() {
-        spacePointerId = -1
-        removeCallbacks(spaceLongPress)
     }
 
     /** Tiled rects always contain the point; the nearest-center fallback only covers off-surface taps. */
@@ -657,8 +631,7 @@ class LightKeyboardView @JvmOverloads constructor(
             Key.SHIFT -> { onShift(); rebuild() }
             Key.BACKSPACE -> listener?.onBackspace()
             Key.ENTER -> listener?.onEnter()
-            Key.EMOJI -> { layer = Layer.EMOJI; rebuild() }
-            Key.EMOJI_BACK -> { layer = Layer.LETTERS; rebuild() }
+            Key.GLOBE -> cycleMode()
             Key.SYMBOLS -> { layer = Layer.SYMBOLS; rebuild() }
             Key.MORE -> { layer = Layer.MORE; rebuild() }
             Key.LETTERS -> { layer = Layer.LETTERS; rebuild() }
@@ -673,14 +646,25 @@ class LightKeyboardView @JvmOverloads constructor(
         return false
     }
 
-    /** Long-press on space: switch the letters layer between English and Hebrew, snap back to the
-     *  letters view, and tell the host (so it swaps autocorrect engine + dictation backend). Hebrew is
-     *  caseless, so any pending shift/caps state is cleared on the way in. */
-    private fun toggleLang() {
-        lang = if (lang == Lang.HE) Lang.EN else Lang.HE
-        if (lang == Lang.HE) { shifted = false; capsLock = false }
-        layer = Layer.LETTERS
-        listener?.onLanguageChange(lang == Lang.HE)
+    /** Globe key: cycle English letters → Hebrew letters → emoji → English … One key handles both
+     *  language switching and the emoji panel. The host is told on each language change so it can swap
+     *  autocorrect engine + dictation backend; entering emoji leaves the language as-is. */
+    private fun cycleMode() {
+        // Current position in the 3-cycle: 0 = English, 1 = Hebrew, 2 = emoji.
+        val mode = if (layer == Layer.EMOJI) 2 else if (lang == Lang.HE) 1 else 0
+        when ((mode + 1) % 3) {
+            1 -> {                                  // → Hebrew letters
+                lang = Lang.HE; shifted = false; capsLock = false
+                layer = Layer.LETTERS
+                listener?.onLanguageChange(true)
+            }
+            2 -> layer = Layer.EMOJI                // → emoji (language unchanged)
+            else -> {                               // → English letters
+                lang = Lang.EN
+                layer = Layer.LETTERS
+                listener?.onLanguageChange(false)
+            }
+        }
         rebuild()
     }
 
@@ -696,8 +680,8 @@ class LightKeyboardView @JvmOverloads constructor(
         lastShiftTapMs = now
     }
 
-    /** Set the letters language from outside (e.g. an OS input-subtype switch). Unlike the space-bar
-     *  long-press, this does NOT re-notify the host — the host is the one driving the change. */
+    /** Set the letters language from outside (e.g. an OS input-subtype switch). Unlike the globe key,
+     *  this does NOT re-notify the host — the host is the one driving the change. */
     fun setLanguage(hebrew: Boolean) {
         val want = if (hebrew) Lang.HE else Lang.EN
         if (lang == want) return
@@ -710,13 +694,11 @@ class LightKeyboardView @JvmOverloads constructor(
     /** Reset to the default letters/uppercase view (called when a new field gains focus). */
     fun reset() {
         stopBackspaceRepeat()
-        stopSpaceLongPress()
         layer = Layer.LETTERS; shifted = true; capsLock = false; listening = false; rebuild()
     }
 
     override fun onDetachedFromWindow() {
         stopBackspaceRepeat()
-        stopSpaceLongPress()
         super.onDetachedFromWindow()
     }
 
@@ -758,7 +740,6 @@ class LightKeyboardView @JvmOverloads constructor(
     private val BACKSPACE_CHAR_INTERVAL_MS = 95L    // per-character repeat rate
     private val BACKSPACE_WORD_AFTER_MS = 1500L     // after this long holding, delete whole words
     private val BACKSPACE_WORD_INTERVAL_MS = 190L   // per-word repeat rate
-    private val SPACE_LONGPRESS_MS = 400L           // hold space this long → switch language
 
     private fun dpf(v: Int): Float = v * resources.displayMetrics.density
     private fun spf(v: Int): Float =

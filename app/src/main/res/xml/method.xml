@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- IME metadata. Two B/W subtypes — English and Hebrew — so the system language switcher knows we
-     handle both. In-keyboard a long-press on the space bar toggles them; the IME also reacts to an OS
-     subtype switch. -->
+     handle both. In-keyboard the globe key cycles English → Hebrew → emoji; the IME also reacts to an
+     OS subtype switch. -->
 <input-method xmlns:android="http://schemas.android.com/apk/res/android"
     android:supportsSwitchingToNextInputMethod="true">
     <subtype

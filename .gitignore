@@ -35,3 +35,6 @@ result
 config.local.env
 release-keystore.jks
 light-keyboard-*.apk
+
+# Local Claude session/memory data — never commit
+.claude/

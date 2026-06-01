@@ -70,29 +70,33 @@ class LightKeyboardView @JvmOverloads constructor(
         const val BACKSPACE = "__BKSP__"
         const val SPACE = "__SPACE__"
         const val ENTER = "__ENTER__"
-        const val GLOBE = "__GLOBE__"   // cycles English → Hebrew → emoji
-        const val MIC = "__MIC__"
+        const val GLOBE = "__GLOBE__"   // switches English ⇄ Hebrew
+        const val EMOJI = "__EMOJI__"   // opens the emoji panel
+        const val PERIOD = "."          // period; long-press starts voice dictation
+        const val MIC = "__MIC__"       // (icon reused by the voice listening overlay)
         const val SYMBOLS = "123"
         const val LETTERS = "ABC"
         const val MORE = "#+="
     }
+
+    // Bottom row, shared by every letters/symbols layer: [layer toggle] · emoji · globe · space · . ·
+    // enter. The toggle is "123" on the letters layer and "ABC" on the symbols layers.
+    private val bottomRowTail = listOf(Key.EMOJI, Key.GLOBE, Key.SPACE, Key.PERIOD, Key.ENTER)
+    private fun bottomRow(): List<String> =
+        listOf(if (layer == Layer.LETTERS) Key.SYMBOLS else Key.LETTERS) + bottomRowTail
 
     private object Layout {
         val letters = listOf(
             listOf("q", "w", "e", "r", "t", "y", "u", "i", "o", "p"),
             listOf("a", "s", "d", "f", "g", "h", "j", "k", "l"),
             listOf(Key.SHIFT, "z", "x", "c", "v", "b", "n", "m", Key.BACKSPACE),
-            listOf(Key.SYMBOLS, Key.GLOBE, Key.SPACE, Key.ENTER, Key.MIC),
         )
-        // Hebrew (standard Israeli SI-1452 letter positions, finals included; no case → no shift key).
-        // 8 / 10 / 9 letters + backspace, exactly the 27 forms א..ת.
-        // Backspace sits on the LEFT in Hebrew — that's where the most-recently-typed letter ends up
-        // in right-to-left text, so deleting feels natural.
+        // Hebrew (standard Israeli layout, finals included; no case → no shift key). Row 1 leads with
+        // geresh + maqaf so all three rows are full width, matching the system Hebrew keyboard.
         val hebrew = listOf(
-            listOf("ק", "ר", "א", "ט", "ו", "ן", "ם", "פ"),
+            listOf("׳", "־", "ק", "ר", "א", "ט", "ו", "ן", "ם", "פ"),
             listOf("ש", "ד", "ג", "כ", "ע", "י", "ח", "ל", "ך", "ף"),
-            listOf(Key.BACKSPACE, "ז", "ס", "ב", "ה", "נ", "מ", "צ", "ת", "ץ"),
-            listOf(Key.SYMBOLS, Key.GLOBE, Key.SPACE, Key.ENTER, Key.MIC),
+            listOf("ז", "ס", "ב", "ה", "נ", "מ", "צ", "ת", "ץ", Key.BACKSPACE),
         )
         // Optional persistent number row (prepended to the letters layers when enabled in setup).
         val numberRow = listOf("1", "2", "3", "4", "5", "6", "7", "8", "9", "0")
@@ -100,13 +104,11 @@ class LightKeyboardView @JvmOverloads constructor(
             listOf("1", "2", "3", "4", "5", "6", "7", "8", "9", "0"),
             listOf("-", "/", ":", ";", "(", ")", "$", "&", "@", "\""),
             listOf(Key.MORE, ".", ",", "?", "!", "'", Key.BACKSPACE),
-            listOf(Key.LETTERS, Key.GLOBE, Key.SPACE, Key.ENTER, Key.MIC),
         )
         val more = listOf(
             listOf("[", "]", "{", "}", "#", "%", "^", "*", "+", "="),
             listOf("_", "\\", "|", "~", "<", ">", "€", "£", "¥"),
             listOf(Key.SYMBOLS, ".", ",", "?", "!", "'", Key.BACKSPACE),
-            listOf(Key.LETTERS, Key.GLOBE, Key.SPACE, Key.ENTER, Key.MIC),
         )
         // The eight curated favourites first, then the twenty most-common emoji. Laid out as a grid
         // in the emoji panel (see layoutEmoji).
@@ -175,6 +177,26 @@ class LightKeyboardView @JvmOverloads constructor(
         val niqqud = listOf('ַ', 'ָ', 'ֶ', 'ֵ', 'ִ', 'ֹ', 'ְ', 'ּ')
     }
 
+    // Per-key corner hints (numbers on the top row, symbols below), drawn small and typable via
+    // long-press — matching the system keyboard's layout.
+    private object Hint {
+        val en = mapOf(
+            'q' to "1", 'w' to "2", 'e' to "3", 'r' to "4", 't' to "5",
+            'y' to "6", 'u' to "7", 'i' to "8", 'o' to "9", 'p' to "0",
+            'a' to "@", 's' to "#", 'd' to "$", 'f' to "_", 'g' to "&",
+            'h' to "-", 'j' to "+", 'k' to "(", 'l' to ")",
+            'z' to "*", 'x' to "\"", 'c' to "'", 'v' to ":", 'b' to ";", 'n' to "!", 'm' to "?",
+        )
+        val he = mapOf(
+            '׳' to "1", '־' to "2", 'ק' to "3", 'ר' to "4", 'א' to "5",
+            'ט' to "6", 'ו' to "7", 'ן' to "8", 'ם' to "9", 'פ' to "0",
+            'ש' to "@", 'ד' to "#", 'ג' to "₪", 'כ' to "_", 'ע' to "&",
+            'י' to "-", 'ח' to "+", 'ל' to "(", 'ך' to ")", 'ף' to "/",
+            'ז' to "`", 'ס' to "*", 'ב' to "\"", 'ה' to "'", 'נ' to ";",
+            'מ' to ":", 'צ' to "!", 'ת' to "?", 'ץ' to "\\",
+        )
+    }
+
     /** One key with its (gapless) hit rect and its inset, drawn-to rect. */
     private class PlacedKey(val id: String, val hit: RectF, val vis: RectF) {
         val cx get() = vis.centerX()
@@ -226,6 +248,7 @@ class LightKeyboardView @JvmOverloads constructor(
 
     private val currentRows: List<List<String>>
         get() {
+            if (layer == Layer.EMOJI) return emptyList()   // emoji is laid out separately
             var rows = when (layer) {
                 Layer.LETTERS -> if (lang == Lang.HE) Layout.hebrew else Layout.letters
                 Layer.SYMBOLS -> Layout.symbols
@@ -236,8 +259,7 @@ class LightKeyboardView @JvmOverloads constructor(
             if (layer == Layer.LETTERS && Prefs.numberRow(context)) {
                 rows = listOf(Layout.numberRow) + rows
             }
-            // Mic key only when voice dictation is turned on; otherwise the bottom row is 4 keys.
-            return if (Prefs.voiceEnabled(context)) rows else rows.map { row -> row.filter { it != Key.MIC } }
+            return rows + listOf(bottomRow())   // shared [toggle] · emoji · globe · space · . · enter
         }
 
     // ------------------------------------------------------------------ layout
@@ -343,12 +365,11 @@ class LightKeyboardView @JvmOverloads constructor(
             }
         }
 
-        // Control row, same geometry + key positions as a letters bottom row (globe pinned at index 1).
+        // Control row for the emoji panel: back-to-letters, globe, space, backspace, enter.
         val i = emojiGridRows
         val bandTop = padTop + i * rowPitch
         val visTop = bandTop + keyGap
-        val controlRow = listOf(Key.LETTERS, Key.GLOBE, Key.SPACE, Key.BACKSPACE, Key.MIC)
-            .let { if (Prefs.voiceEnabled(context)) it else it.filter { k -> k != Key.MIC } }
+        val controlRow = listOf(Key.LETTERS, Key.GLOBE, Key.SPACE, Key.BACKSPACE, Key.ENTER)
         layoutRow(controlRow, bandTop, h, visTop, visTop + rowKeyH, w)
     }
 
@@ -380,7 +401,7 @@ class LightKeyboardView @JvmOverloads constructor(
         val opts = popupOptions
         val k = popupKey ?: return
         if (opts.isEmpty()) return
-        val cellW = dpf(POPUP_CELL_DP)
+        val cellW = popupCellW(opts.size)
         val cellH = dpf(POPUP_CELL_H_DP)
         val totalW = cellW * opts.size
         val left = popupLeft(totalW)
@@ -448,8 +469,8 @@ class LightKeyboardView @JvmOverloads constructor(
     private fun drawKey(canvas: Canvas, pk: PlacedKey) {
         val id = pk.id
         if (id == Key.SPACE) {
-            // Plain centred line, matching the LightOS keyboard. (Long-press switches language; the
-            // letters changing to Hebrew is the cue — no label clutter on the bar itself.)
+            // Plain centred line, matching the LightOS keyboard. (Double-tap inserts ". "; a horizontal
+            // drag moves the caret — no label clutter on the bar itself.)
             val y = pk.vis.centerY()
             canvas.drawRect(pk.vis.left + dpf(28), y - dpf(1), pk.vis.right - dpf(28), y + dpf(1), spacePaint)
             return
@@ -469,6 +490,16 @@ class LightKeyboardView @JvmOverloads constructor(
         textPaint.textSize = size
         val baseline = pk.vis.centerY() - (textPaint.descent() + textPaint.ascent()) / 2f
         canvas.drawText(labelFor(id), pk.vis.centerX(), baseline, textPaint)
+        // Small corner hint (the long-press number/symbol), top-right — like the system keyboard.
+        val hint = hintFor(id)
+        if (hint != null) {
+            textPaint.textSize = spf(11)
+            textPaint.textAlign = Paint.Align.RIGHT
+            textPaint.color = Color.argb(150, 255, 255, 255)
+            canvas.drawText(hint, pk.vis.right - dpf(5), pk.vis.top + dpf(14), textPaint)
+            textPaint.color = Color.WHITE
+            textPaint.textAlign = Paint.Align.CENTER
+        }
     }
 
     private fun drawIcon(canvas: Canvas, res: Int, vis: RectF, pad: Float) {
@@ -482,6 +513,7 @@ class LightKeyboardView @JvmOverloads constructor(
 
     private fun iconFor(id: String): Int? = when (id) {
         Key.GLOBE -> R.drawable.ic_kb_globe
+        Key.EMOJI -> R.drawable.ic_kb_emoji
         Key.BACKSPACE -> R.drawable.ic_kb_backspace
         Key.ENTER -> R.drawable.ic_kb_enter
         Key.MIC -> R.drawable.ic_kb_mic
@@ -489,11 +521,11 @@ class LightKeyboardView @JvmOverloads constructor(
         else -> null
     }
 
-    // Smaller inset = larger glyph. Backspace / enter / mic / globe sit close to the letter glyphs in
-    // size; shift keeps a touch more breathing room for its caps-lock underline.
+    // Smaller inset = larger glyph. The control icons sit close to the letter glyphs in size; shift
+    // keeps a touch more breathing room for its caps-lock underline.
     private fun padFor(id: String): Float = when (id) {
         Key.SHIFT -> dpf(7)
-        Key.BACKSPACE, Key.ENTER, Key.MIC, Key.GLOBE -> dpf(4)
+        Key.BACKSPACE, Key.ENTER, Key.GLOBE, Key.EMOJI -> dpf(4)
         else -> dpf(6)
     }
 
@@ -627,7 +659,8 @@ class LightKeyboardView @JvmOverloads constructor(
             spaceDownX = x
             spaceSwiping = false
         }
-        if (alternatesFor(key.id) != null) {     // letter with accents/niqqud → arm the long-press popup
+        // Long-press: a letter → accents/niqqud popup; the period → voice dictation.
+        if (alternatesFor(key.id) != null || (key.id == Key.PERIOD && Prefs.voiceEnabled(context))) {
             longPressPointerId = pointerId
             longPressCandidate = key
             removeCallbacks(altLongPress)
@@ -643,22 +676,36 @@ class LightKeyboardView @JvmOverloads constructor(
 
     // ------------------------------------------------------------------ alternates popup
 
-    /** The popup options for [id] (base first), or null if the key has no alternates. */
+    /** The small corner label for a letter key (number on the top row, symbol below), or null. */
+    private fun hintFor(id: String): String? {
+        if (layer != Layer.LETTERS || id.length != 1) return null
+        return if (lang == Lang.HE) Hint.he[id[0]] else Hint.en[id[0].lowercaseChar()]
+    }
+
+    /** The long-press popup options for [id] (base first, then the hint symbol, then accents/niqqud),
+     *  or null if the key has nothing extra. */
     private fun alternatesFor(id: String): List<String>? {
         if (layer != Layer.LETTERS || id.length != 1) return null
         val ch = id[0]
-        return when {
-            lang == Lang.HE && ch in spec -> listOf(id) + Alt.niqqud.map { id + it }
+        val accents: List<String> = when {
+            lang == Lang.HE && ch in spec -> Alt.niqqud.map { id + it }
             lang == Lang.EN -> Alt.en[ch.lowercaseChar()]?.let { extra ->
-                val cased = if (shifted) extra.uppercase() else extra
-                listOf(labelFor(id)) + cased.map { it.toString() }
-            }
-            else -> null
+                (if (shifted) extra.uppercase() else extra).map { it.toString() }
+            } ?: emptyList()
+            else -> emptyList()
         }
+        val extras = listOfNotNull(hintFor(id)) + accents
+        return if (extras.isEmpty()) null else listOf(labelFor(id)) + extras
     }
 
     private fun showAltPopup() {
         val k = longPressCandidate ?: return
+        // Long-press the period → start voice dictation (retract the '.' committed on down).
+        if (k.id == Key.PERIOD) {
+            endAltLongPress()
+            if (Prefs.voiceEnabled(context)) { tap(); listener?.onBackspace(); listener?.onMic() }
+            return
+        }
         val opts = alternatesFor(k.id) ?: return
         popupActive = true
         popupKey = k
@@ -668,11 +715,15 @@ class LightKeyboardView @JvmOverloads constructor(
         invalidate()
     }
 
+    /** Popup cell width, shrunk to fit the screen when there are many options. */
+    private fun popupCellW(n: Int): Float =
+        minOf(dpf(POPUP_CELL_DP), (width - padSide * 2) / n.coerceAtLeast(1))
+
     /** Pick the option under finger x (cells are laid out left-to-right, centred over the key). */
     private fun updatePopupSelection(x: Float) {
         val opts = popupOptions
         if (opts.isEmpty()) return
-        val cellW = dpf(POPUP_CELL_DP)
+        val cellW = popupCellW(opts.size)
         val totalW = cellW * opts.size
         val left = popupLeft(totalW)
         popupIndex = (((x - left) / cellW).toInt()).coerceIn(0, opts.size - 1)
@@ -826,11 +877,13 @@ class LightKeyboardView @JvmOverloads constructor(
             Key.SHIFT -> { onShift(); rebuild() }
             Key.BACKSPACE -> listener?.onBackspace()
             Key.ENTER -> listener?.onEnter()
-            Key.GLOBE -> cycleMode()
             Key.SYMBOLS -> { layer = Layer.SYMBOLS; rebuild() }
             Key.MORE -> { layer = Layer.MORE; rebuild() }
             Key.LETTERS -> { layer = Layer.LETTERS; rebuild() }
+            Key.GLOBE -> toggleLang()
+            Key.EMOJI -> { layer = Layer.EMOJI; rebuild() }
             Key.MIC -> listener?.onMic()
+            Key.PERIOD -> { listener?.onText("."); return true }   // long-press → voice (handled in touch)
             Key.SPACE -> {
                 val now = System.currentTimeMillis()
                 if (now - lastSpaceTapMs < DOUBLE_TAP_MS) {   // double-tap → ". "
@@ -855,25 +908,13 @@ class LightKeyboardView @JvmOverloads constructor(
         return false
     }
 
-    /** Globe key: cycle English letters → Hebrew letters → emoji → English … One key handles both
-     *  language switching and the emoji panel. The host is told on each language change so it can swap
-     *  autocorrect engine + dictation backend; entering emoji leaves the language as-is. */
-    private fun cycleMode() {
-        // Current position in the 3-cycle: 0 = English, 1 = Hebrew, 2 = emoji.
-        val mode = if (layer == Layer.EMOJI) 2 else if (lang == Lang.HE) 1 else 0
-        when ((mode + 1) % 3) {
-            1 -> {                                  // → Hebrew letters
-                lang = Lang.HE; shifted = false; capsLock = false
-                layer = Layer.LETTERS
-                listener?.onLanguageChange(true)
-            }
-            2 -> layer = Layer.EMOJI                // → emoji (language unchanged)
-            else -> {                               // → English letters
-                lang = Lang.EN
-                layer = Layer.LETTERS
-                listener?.onLanguageChange(false)
-            }
-        }
+    /** Globe key: switch the letters between English and Hebrew (and snap back to the letters view if
+     *  we were in emoji/symbols). The host is told so it can swap autocorrect engine + dictation. */
+    private fun toggleLang() {
+        lang = if (lang == Lang.HE) Lang.EN else Lang.HE
+        if (lang == Lang.HE) { shifted = false; capsLock = false }
+        layer = Layer.LETTERS
+        listener?.onLanguageChange(lang == Lang.HE)
         rebuild()
     }
 

@@ -8,8 +8,8 @@ system keyboard you can set as the default, so every app on a modified Light Pho
 
 Optional autocorrect and optional voice dictation. Swipe down on the keyboard to hide it.
 
-**English and Hebrew.** The globe key cycles English → Hebrew → emoji. Each language has its own
-dictionary, autocorrect, and voice input:
+**English and Hebrew.** The globe key switches between them; the emoji key opens emoji. Each language
+has its own dictionary, autocorrect, and voice input:
 
 | | English | Hebrew |
 |---|---|---|
@@ -42,9 +42,9 @@ Open Light Keyboard. The setup screen holds everything:
 
 The settings below it:
 
-- **Languages**: English and Hebrew. The globe key (bottom row) cycles English → Hebrew → emoji.
-  Hebrew is caseless, so there's no shift key — just the 27 letter forms in the standard Israeli
-  arrangement.
+- **Languages**: English and Hebrew. The globe key (bottom row) switches between them; the emoji key
+  opens emoji. Hebrew is caseless, so there's no shift key — just the 27 letter forms in the standard
+  Israeli arrangement.
 - **Autocorrect** (on by default): fixes misspellings as you type. English uses your phone's built-in
   dictionary; Hebrew uses a dictionary bundled into the app (no Hebrew spell checker is needed on the
   phone). Turn it off to type exactly what you tap.
@@ -58,9 +58,11 @@ That is the whole setup.
 
 ## Gestures
 
-- **Globe** — cycles English → Hebrew → emoji. Recently-used emoji float to the front.
-- **Long-press a letter** — accents in English (`a → à á â ä …`), vowel points (niqqud) in Hebrew.
-  Slide to a choice and release.
+- **Globe** — switches English ⇄ Hebrew. **Emoji key** — opens the emoji panel (recently-used float
+  to the front).
+- **Long-press a letter** — its corner number/symbol, plus accents in English (`a → à á â ä …`) or
+  vowel points (niqqud) in Hebrew. Slide to a choice and release.
+- **Long-press the period** — starts voice dictation.
 - **Double-tap space** — inserts `. ` (sentence end).
 - **Swipe the space bar** — moves the cursor left/right.
 - **Hold backspace** — repeats, then deletes whole words after a longer hold.

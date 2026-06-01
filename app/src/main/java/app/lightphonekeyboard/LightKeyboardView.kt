@@ -177,26 +177,6 @@ class LightKeyboardView @JvmOverloads constructor(
         val niqqud = listOf('ַ', 'ָ', 'ֶ', 'ֵ', 'ִ', 'ֹ', 'ְ', 'ּ')
     }
 
-    // Per-key corner hints (numbers on the top row, symbols below), drawn small and typable via
-    // long-press — matching the system keyboard's layout.
-    private object Hint {
-        val en = mapOf(
-            'q' to "1", 'w' to "2", 'e' to "3", 'r' to "4", 't' to "5",
-            'y' to "6", 'u' to "7", 'i' to "8", 'o' to "9", 'p' to "0",
-            'a' to "@", 's' to "#", 'd' to "$", 'f' to "_", 'g' to "&",
-            'h' to "-", 'j' to "+", 'k' to "(", 'l' to ")",
-            'z' to "*", 'x' to "\"", 'c' to "'", 'v' to ":", 'b' to ";", 'n' to "!", 'm' to "?",
-        )
-        val he = mapOf(
-            '׳' to "1", '־' to "2", 'ק' to "3", 'ר' to "4", 'א' to "5",
-            'ט' to "6", 'ו' to "7", 'ן' to "8", 'ם' to "9", 'פ' to "0",
-            'ש' to "@", 'ד' to "#", 'ג' to "₪", 'כ' to "_", 'ע' to "&",
-            'י' to "-", 'ח' to "+", 'ל' to "(", 'ך' to ")", 'ף' to "/",
-            'ז' to "`", 'ס' to "*", 'ב' to "\"", 'ה' to "'", 'נ' to ";",
-            'מ' to ":", 'צ' to "!", 'ת' to "?", 'ץ' to "\\",
-        )
-    }
-
     /** One key with its (gapless) hit rect and its inset, drawn-to rect. */
     private class PlacedKey(val id: String, val hit: RectF, val vis: RectF) {
         val cx get() = vis.centerX()
@@ -486,19 +466,23 @@ class LightKeyboardView @JvmOverloads constructor(
             }
             return
         }
-        val size = if (layer == Layer.EMOJI) spf(20) else if (id.length == 1) spf(23) else spf(16)
+        // Emoji glyphs are large; everything else (letters, the layer toggle, the period) is normal.
+        val size = when {
+            layer == Layer.EMOJI && id in Layout.emoji -> spf(20)
+            id.length == 1 -> spf(23)
+            else -> spf(18)
+        }
         textPaint.textSize = size
         val baseline = pk.vis.centerY() - (textPaint.descent() + textPaint.ascent()) / 2f
         canvas.drawText(labelFor(id), pk.vis.centerX(), baseline, textPaint)
-        // Small corner hint (the long-press number/symbol), top-right — like the system keyboard.
-        val hint = hintFor(id)
-        if (hint != null) {
-            textPaint.textSize = spf(11)
-            textPaint.textAlign = Paint.Align.RIGHT
-            textPaint.color = Color.argb(150, 255, 255, 255)
-            canvas.drawText(hint, pk.vis.right - dpf(5), pk.vis.top + dpf(14), textPaint)
-            textPaint.color = Color.WHITE
-            textPaint.textAlign = Paint.Align.CENTER
+        // The period doubles as the voice key (long-press) — show a small mic so it's discoverable.
+        if (id == Key.PERIOD && Prefs.voiceEnabled(context)) {
+            val s = dpf(15)
+            val d = iconCache.getOrPut(R.drawable.ic_kb_mic) { context.getDrawable(R.drawable.ic_kb_mic)!! }
+            val cx = pk.vis.centerX()
+            val top = pk.vis.top + dpf(2)
+            d.setBounds((cx - s / 2f).toInt(), top.toInt(), (cx + s / 2f).toInt(), (top + s).toInt())
+            d.draw(canvas)
         }
     }
 
@@ -521,11 +505,12 @@ class LightKeyboardView @JvmOverloads constructor(
         else -> null
     }
 
-    // Smaller inset = larger glyph. The control icons sit close to the letter glyphs in size; shift
-    // keeps a touch more breathing room for its caps-lock underline.
+    // Smaller inset = larger glyph. The bottom-row icons (globe / emoji / enter) are roomy so they
+    // read clearly; shift keeps a touch more breathing room for its caps-lock underline.
     private fun padFor(id: String): Float = when (id) {
         Key.SHIFT -> dpf(7)
-        Key.BACKSPACE, Key.ENTER, Key.GLOBE, Key.EMOJI -> dpf(4)
+        Key.GLOBE, Key.EMOJI, Key.ENTER -> dpf(2)
+        Key.BACKSPACE -> dpf(4)
         else -> dpf(6)
     }
 
@@ -676,14 +661,7 @@ class LightKeyboardView @JvmOverloads constructor(
 
     // ------------------------------------------------------------------ alternates popup
 
-    /** The small corner label for a letter key (number on the top row, symbol below), or null. */
-    private fun hintFor(id: String): String? {
-        if (layer != Layer.LETTERS || id.length != 1) return null
-        return if (lang == Lang.HE) Hint.he[id[0]] else Hint.en[id[0].lowercaseChar()]
-    }
-
-    /** The long-press popup options for [id] (base first, then the hint symbol, then accents/niqqud),
-     *  or null if the key has nothing extra. */
+    /** The long-press popup options for [id] (base first, then accents/niqqud), or null if none. */
     private fun alternatesFor(id: String): List<String>? {
         if (layer != Layer.LETTERS || id.length != 1) return null
         val ch = id[0]
@@ -694,8 +672,7 @@ class LightKeyboardView @JvmOverloads constructor(
             } ?: emptyList()
             else -> emptyList()
         }
-        val extras = listOfNotNull(hintFor(id)) + accents
-        return if (extras.isEmpty()) null else listOf(labelFor(id)) + extras
+        return if (accents.isEmpty()) null else listOf(labelFor(id)) + accents
     }
 
     private fun showAltPopup() {

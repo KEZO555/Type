@@ -1,11 +1,11 @@
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="24dp" android:height="24dp"
     android:viewportWidth="24" android:viewportHeight="24">
-    <!-- Minimal globe: outline circle + one meridian + the equator. Cycles English → Hebrew → emoji. -->
-    <path android:strokeColor="#FFFFFF" android:strokeWidth="1.7" android:fillColor="#00000000"
+    <!-- Minimal globe: a thin circle, one meridian, one equator. Switches English ⇄ Hebrew. -->
+    <path android:strokeColor="#FFFFFF" android:strokeWidth="1.5" android:fillColor="#00000000"
         android:pathData="M12,3 A9,9 0 1 0 12,21 A9,9 0 1 0 12,3 Z" />
-    <path android:strokeColor="#FFFFFF" android:strokeWidth="1.7" android:fillColor="#00000000"
-        android:pathData="M12,3 A4.6,9 0 0 0 12,21 A4.6,9 0 0 0 12,3 Z" />
-    <path android:strokeColor="#FFFFFF" android:strokeWidth="1.7" android:strokeLineCap="round"
+    <path android:strokeColor="#FFFFFF" android:strokeWidth="1.5" android:fillColor="#00000000"
+        android:pathData="M12,3 A3.6,9 0 0 0 12,21 A3.6,9 0 0 0 12,3 Z" />
+    <path android:strokeColor="#FFFFFF" android:strokeWidth="1.5" android:strokeLineCap="round"
         android:pathData="M3,12 H21" />
 </vector>

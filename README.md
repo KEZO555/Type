@@ -27,7 +27,7 @@ English path. The English experience stays fully on-device.)
 
 1. Install Obtainium.
 2. Add an app, and give it this repository:
-   `https://github.com/adam-weber/light-keyboard`
+   `https://github.com/KEZO555/light-keyboard`
 3. It installs the latest release, and tells you when there is a new one.
 
 ### Or by hand

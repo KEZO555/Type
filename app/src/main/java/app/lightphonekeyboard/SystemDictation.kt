@@ -63,8 +63,12 @@ class SystemDictation(private val context: Context) {
             putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
             putExtra(RecognizerIntent.EXTRA_LANGUAGE, locale)
             putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, locale)
+            // Some recognizers read only the IETF tag from this extra.
+            putExtra("android.speech.extra.EXTRA_ADDITIONAL_LANGUAGES", arrayOf(locale))
             putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
-            putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true)   // on-device pack if installed
+            // NOTE: do NOT prefer offline — there's no on-device Hebrew pack, so forcing offline made
+            // it fall back to the device language (English). Online recognition handles he-IL.
+            putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, false)
             putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, context.packageName)
         }
         try {

@@ -65,6 +65,7 @@ That is the whole setup.
 - **Long-press the period** — starts voice dictation.
 - **Double-tap space** — inserts `. ` (sentence end).
 - **Swipe the space bar** — moves the cursor left/right.
+- **Long-press the space bar** — opens an edit menu: select all · copy · cut · paste.
 - **Hold backspace** — repeats, then deletes whole words after a longer hold.
 - **Swipe down** — hides the keyboard.
 

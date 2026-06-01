@@ -61,6 +61,11 @@ class LightKeyboardView @JvmOverloads constructor(
         fun onDoubleSpace()
         /** Space-bar swipe — move the caret by [steps] (negative = left, positive = right). */
         fun onCursorMove(steps: Int)
+        /** Edit actions from the long-press-space menu. */
+        fun onSelectAll()
+        fun onCopy()
+        fun onCut()
+        fun onPaste()
     }
 
     var listener: Listener? = null
@@ -166,7 +171,11 @@ class LightKeyboardView @JvmOverloads constructor(
     private var popupOptions: List<String> = emptyList()
     private var popupIndex = 0
     private var popupKey: PlacedKey? = null
+    private var popupEdit = false                 // true = edit menu (actions), false = text alternates
     private val altLongPress = Runnable { showAltPopup() }
+
+    // Long-press the space bar → an edit menu. Indices match EDIT_ACTIONS order.
+    private val EDIT_ACTIONS = listOf("Select all", "Copy", "Cut", "Paste")
 
     // Space-bar gestures: double-tap → ". ", horizontal drag → move the caret.
     private var spacePointerId = -1
@@ -398,7 +407,7 @@ class LightKeyboardView @JvmOverloads constructor(
         val card = RectF(left, top, left + totalW, top + cellH)
         canvas.drawRoundRect(card, r, r, popupBgPaint)
         canvas.drawRoundRect(card, r, r, popupBorderPaint)
-        textPaint.textSize = spf(22)
+        textPaint.textSize = if (popupEdit) spf(14) else spf(22)   // word labels need smaller text
         for (j in opts.indices) {
             val cl = left + cellW * j
             if (j == popupIndex) {
@@ -564,7 +573,7 @@ class LightKeyboardView @JvmOverloads constructor(
                 // 1) Alternates popup open → the long-press pointer's x selects the option.
                 if (popupActive) {
                     val pidx = ev.findPointerIndex(longPressPointerId)
-                    if (pidx >= 0) { updatePopupSelection(ev.getX(pidx)); invalidate() }
+                    if (pidx >= 0) { updatePopupSelection(ev.getX(pidx), ev.getY(pidx)); invalidate() }
                     return true
                 }
                 // 2) Space-bar horizontal drag → caret movement.
@@ -629,8 +638,15 @@ class LightKeyboardView @JvmOverloads constructor(
         var moved = false
         while (x - spaceSwipeRefX >= SPACE_SWIPE_STEP) { listener?.onCursorMove(1); spaceSwipeRefX += SPACE_SWIPE_STEP; moved = true }
         while (x - spaceSwipeRefX <= -SPACE_SWIPE_STEP) { listener?.onCursorMove(-1); spaceSwipeRefX -= SPACE_SWIPE_STEP; moved = true }
-        if (moved) tap()
+        if (moved) cursorTick()
         return true
+    }
+
+    /** A gentle tick for caret movement — much softer than the key-press haptic. */
+    private fun cursorTick() {
+        val effect = if (android.os.Build.VERSION.SDK_INT >= 27)
+            HapticFeedbackConstants.TEXT_HANDLE_MOVE else HapticFeedbackConstants.CLOCK_TICK
+        performHapticFeedback(effect)
     }
 
     /** Resolve the key under a pointer, commit it immediately, and light it up. */
@@ -653,8 +669,11 @@ class LightKeyboardView @JvmOverloads constructor(
             spaceDownX = x
             spaceSwiping = false
         }
-        // Long-press: a letter → accents/niqqud popup; the period → voice dictation.
-        if (alternatesFor(key.id) != null || (key.id == Key.PERIOD && Prefs.voiceEnabled(context))) {
+        // Long-press: a letter → accents/niqqud popup; the period → voice; space → edit menu.
+        if (alternatesFor(key.id) != null ||
+            (key.id == Key.PERIOD && Prefs.voiceEnabled(context)) ||
+            key.id == Key.SPACE
+        ) {
             longPressPointerId = pointerId
             longPressCandidate = key
             removeCallbacks(altLongPress)
@@ -692,34 +711,56 @@ class LightKeyboardView @JvmOverloads constructor(
             if (Prefs.voiceEnabled(context)) { tap(); listener?.onBackspace(); listener?.onMic() }
             return
         }
-        val opts = alternatesFor(k.id) ?: return
+        // Long-press space → edit menu. Retract the space committed on down; it wasn't wanted.
+        if (k.id == Key.SPACE) {
+            if (firstPointerId == spacePointerId && firstKeyRetractable) {
+                listener?.onBackspace(); firstKeyRetractable = false
+            }
+            popupEdit = true
+            popupOptions = EDIT_ACTIONS
+        } else {
+            popupEdit = false
+            popupOptions = alternatesFor(k.id) ?: return
+        }
         popupActive = true
         popupKey = k
-        popupOptions = opts
-        popupIndex = 0
+        popupIndex = if (popupEdit) -1 else 0     // edit: nothing selected until you slide into it
         tap()
         invalidate()
     }
 
-    /** Popup cell width, shrunk to fit the screen when there are many options. */
-    private fun popupCellW(n: Int): Float =
-        minOf(dpf(POPUP_CELL_DP), (width - padSide * 2) / n.coerceAtLeast(1))
+    /** Popup cell width. The edit menu uses wide cells (word labels); alternates use compact cells. */
+    private fun popupCellW(n: Int): Float {
+        val avail = (width - padSide * 2) / n.coerceAtLeast(1)
+        return if (popupEdit) avail else minOf(dpf(POPUP_CELL_DP), avail)
+    }
 
-    /** Pick the option under finger x (cells are laid out left-to-right, centred over the key). */
-    private fun updatePopupSelection(x: Float) {
+    /** Pick the option under finger x. For the edit menu, only select once the finger slides up into
+     *  the menu (above the key) — so a plain hold-and-release doesn't fire an action. */
+    private fun updatePopupSelection(x: Float, y: Float) {
         val opts = popupOptions
         if (opts.isEmpty()) return
+        if (popupEdit && (popupKey == null || y > popupKey!!.vis.top)) { popupIndex = -1; return }
         val cellW = popupCellW(opts.size)
         val totalW = cellW * opts.size
         val left = popupLeft(totalW)
         popupIndex = (((x - left) / cellW).toInt()).coerceIn(0, opts.size - 1)
     }
 
-    /** Commit the selected alternate (index 0 is the base char, already typed → no change) and reset. */
+    /** Commit the popup selection and reset. For the edit menu, run the chosen action; for text
+     *  alternates, index 0 is the base char (already typed → no change). */
     private fun commitPopupAndReset() {
         if (popupActive) {
             val opts = popupOptions
-            if (popupIndex in 1 until opts.size) {
+            if (popupEdit) {
+                when (popupIndex) {
+                    0 -> listener?.onSelectAll()
+                    1 -> listener?.onCopy()
+                    2 -> listener?.onCut()
+                    3 -> listener?.onPaste()
+                }
+                tap()
+            } else if (popupIndex in 1 until opts.size) {
                 listener?.onBackspace()              // retract the base committed on down
                 listener?.onText(opts[popupIndex])
                 tap()
@@ -732,7 +773,9 @@ class LightKeyboardView @JvmOverloads constructor(
         removeCallbacks(altLongPress)
         longPressPointerId = -1
         longPressCandidate = null
-        if (popupActive) { popupActive = false; popupKey = null; popupOptions = emptyList(); invalidate() }
+        if (popupActive) {
+            popupActive = false; popupEdit = false; popupKey = null; popupOptions = emptyList(); invalidate()
+        }
     }
 
     /** Left edge of the popup card, clamped on-screen. */

@@ -4,6 +4,7 @@ import android.content.Context
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
+import java.io.File
 
 /**
  * Bundled, fully-offline Hebrew dictionary + autocorrect. The device has no Hebrew spell checker on a
@@ -22,9 +23,19 @@ object HebrewDictionary {
     /** The 27 Hebrew letter forms (alef..tav, finals included) used to generate edit candidates. */
     private const val ALPHABET = "אבגדהוזחטיךכלםמןנסעףפץצקרשת"
 
+    // Learned words the user actually types. They become "known" (so they stop being autocorrected
+    // away) and can be suggested. Each typed occurrence raises its count; the count maps to an
+    // effective frequency via LEARN_WEIGHT so a word you use a lot competes with common dictionary
+    // words. Persisted to internal storage.
+    private const val LEARNED_FILE = "he_learned.txt"
+    private const val LEARN_WEIGHT = 50_000L
+    private const val MAX_LEARNED = 2000
+
     private val main = Handler(Looper.getMainLooper())
     private val freq = HashMap<String, Long>(48_000)
+    private val learned = HashMap<String, Long>()
     private val memo = HashMap<String, String?>()   // word -> fix (null = checked, no correction)
+    private var appContext: Context? = null
 
     @Volatile
     var ready = false
@@ -36,10 +47,12 @@ object HebrewDictionary {
         if (ready || loading) return
         loading = true
         val app = context.applicationContext
+        appContext = app
         Thread {
             try {
                 load(app)
-                main.post { ready = true; loading = false; Log.i(TAG, "loaded ${freq.size} words") }
+                loadLearned(app)
+                main.post { ready = true; loading = false; Log.i(TAG, "loaded ${freq.size}+${learned.size} words") }
             } catch (e: Throwable) {
                 main.post { loading = false }
                 Log.e(TAG, "load failed", e)
@@ -59,7 +72,59 @@ object HebrewDictionary {
         }
     }
 
-    fun isWord(w: String): Boolean = freq.containsKey(w)
+    private fun loadLearned(context: Context) {
+        val f = File(context.filesDir, LEARNED_FILE)
+        if (!f.exists()) return
+        f.bufferedReader(Charsets.UTF_8).useLines { lines ->
+            lines.forEach { line ->
+                val sp = line.indexOf(' ')
+                if (sp <= 0) return@forEach
+                val w = line.substring(0, sp)
+                val c = line.substring(sp + 1).toLongOrNull() ?: return@forEach
+                learned[w] = c
+            }
+        }
+    }
+
+    fun isWord(w: String): Boolean = freq.containsKey(w) || learned.containsKey(w)
+
+    /** Effective frequency for ranking: dictionary count, else a learned word's count × LEARN_WEIGHT. */
+    private fun effectiveFreq(w: String): Long? =
+        freq[w] ?: learned[w]?.let { it * LEARN_WEIGHT }
+
+    /**
+     * Remember a word the user typed (and kept). It becomes known and rankable. Hebrew letters only,
+     * length 2..15. Persisted (debounced) to internal storage.
+     */
+    fun learn(context: Context, word: String) {
+        if (word.length !in 2..15 || word.any { it < 'א' || it > 'ת' }) return
+        appContext = context.applicationContext
+        val isNew = !isWord(word)
+        learned[word] = (learned[word] ?: 0L) + 1L
+        if (isNew) memo.clear() else memo.remove(word)   // a newly-known word changes corrections
+        scheduleSave()
+    }
+
+    private val saveRunnable = Runnable { writeLearned() }
+    private fun scheduleSave() {
+        main.removeCallbacks(saveRunnable)
+        main.postDelayed(saveRunnable, 4000)   // coalesce bursts of typing into one write
+    }
+
+    private fun writeLearned() {
+        val ctx = appContext ?: return
+        val snapshot = ArrayList(learned.entries)
+        Thread {
+            try {
+                val top = snapshot.sortedByDescending { it.value }.take(MAX_LEARNED)
+                val sb = StringBuilder(top.size * 12)
+                for (e in top) sb.append(e.key).append(' ').append(e.value).append('\n')
+                File(ctx.filesDir, LEARNED_FILE).writeText(sb.toString(), Charsets.UTF_8)
+            } catch (e: Throwable) {
+                Log.e(TAG, "save learned failed", e)
+            }
+        }.start()
+    }
 
     /**
      * Best correction for [word], or null if it's already a word / too short / nothing confident.
@@ -70,14 +135,14 @@ object HebrewDictionary {
         if (!ready || word.length < 3) return null
         memo[word]?.let { return it }
         if (memo.containsKey(word)) return null
-        if (freq.containsKey(word)) { memo[word] = null; return null }
+        if (isWord(word)) { memo[word] = null; return null }   // known (dictionary or learned) → leave it
 
         val e1 = edits1(word)
         var best = bestKnown(e1)
         if (best == null) {
             // edit distance 2, bounded: only the known words reachable from e1's edits.
             val e2known = HashSet<String>()
-            for (w in e1) for (c in edits1(w)) if (freq.containsKey(c)) e2known.add(c)
+            for (w in e1) for (c in edits1(w)) if (isWord(c)) e2known.add(c)
             best = bestKnown(e2known)
         }
         val fix = best?.takeIf { !it.equals(word, ignoreCase = false) }
@@ -85,12 +150,12 @@ object HebrewDictionary {
         return fix
     }
 
-    /** The most frequent dictionary word in [candidates], or null if none are known. */
+    /** The most frequent known word (dictionary or learned) in [candidates], or null if none. */
     private fun bestKnown(candidates: Collection<String>): String? {
         var best: String? = null
         var bestFreq = -1L
         for (c in candidates) {
-            val f = freq[c] ?: continue
+            val f = effectiveFreq(c) ?: continue
             if (f > bestFreq) { bestFreq = f; best = c }
         }
         return best

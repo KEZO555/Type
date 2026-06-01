@@ -43,9 +43,11 @@ class LightImeService : InputMethodService(), LightKeyboardView.Listener, SpellC
     private var hebrew = false
 
     // Revert-on-backspace: after a correction the text before the cursor ends with [undoFrom];
-    // the next backspace restores [undoTo] instead of deleting a character.
+    // the next backspace restores [undoTo] instead of deleting a character. [undoWord] is the word the
+    // user originally typed — learned if they revert (a strong "I meant this" signal).
     private var undoFrom: String? = null
     private var undoTo: String? = null
+    private var undoWord: String? = null
 
     private var micActive = false
 
@@ -147,8 +149,8 @@ class LightImeService : InputMethodService(), LightKeyboardView.Listener, SpellC
         }
         // A word terminator: snap a trailing medial Hebrew letter to its final form, then autocorrect.
         fixFinalForWordEnd()
-        val original = if (autocorrectOn()) trailingWord() else ""
-        val fix = autocorrectFix(original)
+        val original = trailingWord()
+        val fix = if (autocorrectOn()) autocorrectFix(original) else null
         if (fix != null && !fix.equals(original, ignoreCase = true)) {
             val cased = applyCase(original, fix)
             ic.beginBatchEdit()
@@ -158,9 +160,11 @@ class LightImeService : InputMethodService(), LightKeyboardView.Listener, SpellC
             ic.endBatchEdit()
             undoFrom = cased + s     // arm revert: text now ends with the fix + terminator
             undoTo = original + s
+            undoWord = original      // if the user reverts, learn what they actually typed
         } else {
             clearUndo()
             ic.commitText(s, 1)
+            learnHebrew(original)    // user typed this word and kept it — remember it
         }
     }
 
@@ -170,12 +174,14 @@ class LightImeService : InputMethodService(), LightKeyboardView.Listener, SpellC
         val to = undoTo
         if (from != null && to != null) {
             val before = ic.getTextBeforeCursor(from.length, 0)?.toString()
+            val word = undoWord
             clearUndo()
             if (before == from) {   // only revert if the corrected text is still sitting there
                 ic.beginBatchEdit()
                 ic.deleteSurroundingText(from.length, 0)
                 ic.commitText(to, 1)
                 ic.endBatchEdit()
+                if (word != null) learnHebrew(word)   // user rejected the fix — learn their word
                 return
             }
         }
@@ -216,16 +222,16 @@ class LightImeService : InputMethodService(), LightKeyboardView.Listener, SpellC
         val ic = currentInputConnection ?: return
         fixFinalForWordEnd()
         // Fix the last word before firing the action / newline.
-        if (autocorrectOn()) {
-            val original = trailingWord()
-            val fix = autocorrectFix(original)
-            if (fix != null && !fix.equals(original, ignoreCase = true)) {
-                val cased = applyCase(original, fix)
-                ic.beginBatchEdit()
-                ic.deleteSurroundingText(original.length, 0)
-                ic.commitText(cased, 1)
-                ic.endBatchEdit()
-            }
+        val original = trailingWord()
+        val fix = if (autocorrectOn()) autocorrectFix(original) else null
+        if (fix != null && !fix.equals(original, ignoreCase = true)) {
+            val cased = applyCase(original, fix)
+            ic.beginBatchEdit()
+            ic.deleteSurroundingText(original.length, 0)
+            ic.commitText(cased, 1)
+            ic.endBatchEdit()
+        } else {
+            learnHebrew(original)   // user kept this word — remember it
         }
         clearUndo()
         // Honor the field's action (Send/Search/Go); otherwise insert a newline.
@@ -255,6 +261,12 @@ class LightImeService : InputMethodService(), LightKeyboardView.Listener, SpellC
             ic.commitText(" ", 1)            // nothing to punctuate — just a space
         }
     }
+
+    // Edit menu (long-press space). The platform performs these against the focused field.
+    override fun onSelectAll() { currentInputConnection?.performContextMenuAction(android.R.id.selectAll) }
+    override fun onCopy() { currentInputConnection?.performContextMenuAction(android.R.id.copy) }
+    override fun onCut() { currentInputConnection?.performContextMenuAction(android.R.id.cut) }
+    override fun onPaste() { clearUndo(); currentInputConnection?.performContextMenuAction(android.R.id.paste) }
 
     /** Space-bar swipe → nudge the caret one character per step (negative = left). */
     override fun onCursorMove(steps: Int) {
@@ -411,6 +423,11 @@ class LightImeService : InputMethodService(), LightKeyboardView.Listener, SpellC
         return if (hebrew) HebrewDictionary.correct(word) else corrections[word]
     }
 
+    /** Teach the Hebrew dictionary a word the user typed (no-op outside Hebrew). */
+    private fun learnHebrew(word: String) {
+        if (hebrew && word.length >= 2) HebrewDictionary.learn(this, word)
+    }
+
     /** Ask the device spell checker about [word] (once); the answer lands in [corrections]. */
     private fun requestCheck(word: String) {
         if (!autocorrectOn() || hebrew) return    // Hebrew is corrected synchronously, no warming needed
@@ -471,6 +488,7 @@ class LightImeService : InputMethodService(), LightKeyboardView.Listener, SpellC
     private fun clearUndo() {
         undoFrom = null
         undoTo = null
+        undoWord = null
     }
 
     companion object {

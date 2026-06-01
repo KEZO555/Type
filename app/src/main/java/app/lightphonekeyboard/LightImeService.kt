@@ -4,6 +4,7 @@ import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.inputmethodservice.InputMethodService
+import android.view.KeyEvent
 import android.view.View
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodSubtype
@@ -14,6 +15,7 @@ import android.view.textservice.SuggestionsInfo
 import android.view.textservice.TextInfo
 import android.view.textservice.TextServicesManager
 import java.util.Locale
+import kotlin.math.abs
 
 /**
  * The system keyboard. Once enabled + selected as default, it appears in every text field on the
@@ -130,6 +132,8 @@ class LightImeService : InputMethodService(), LightKeyboardView.Listener, SpellC
         val ic = currentInputConnection ?: return
         if (s.length == 1 && isWordChar(s[0])) {
             clearUndo()
+            // A letter continues the word, so a preceding Hebrew *final* form is no longer word-final.
+            fixMedialBeforeTyping()
             ic.commitText(s, 1)
             requestCheck(trailingWord())   // keep the spell checker warm on the growing word
             return
@@ -141,7 +145,8 @@ class LightImeService : InputMethodService(), LightKeyboardView.Listener, SpellC
             ic.commitText(s, 1)
             return
         }
-        // A word terminator: try to fix the word, then commit [s].
+        // A word terminator: snap a trailing medial Hebrew letter to its final form, then autocorrect.
+        fixFinalForWordEnd()
         val original = if (autocorrectOn()) trailingWord() else ""
         val fix = autocorrectFix(original)
         if (fix != null && !fix.equals(original, ignoreCase = true)) {
@@ -209,6 +214,7 @@ class LightImeService : InputMethodService(), LightKeyboardView.Listener, SpellC
 
     override fun onEnter() {
         val ic = currentInputConnection ?: return
+        fixFinalForWordEnd()
         // Fix the last word before firing the action / newline.
         if (autocorrectOn()) {
             val original = trailingWord()
@@ -233,6 +239,56 @@ class LightImeService : InputMethodService(), LightKeyboardView.Listener, SpellC
 
     override fun onDismiss() {
         requestHideSelf(0) // swipe-down closes the keyboard, the proper Android way
+    }
+
+    /** Double-tap space → turn a trailing "<letter> " into "<letter>. " (only after a word char). */
+    override fun onDoubleSpace() {
+        val ic = currentInputConnection ?: return
+        clearUndo()
+        val before = ic.getTextBeforeCursor(2, 0)?.toString().orEmpty()
+        if (before.length == 2 && before[1] == ' ' && before[0].isLetterOrDigit()) {
+            ic.beginBatchEdit()
+            ic.deleteSurroundingText(1, 0)   // remove the lone trailing space
+            ic.commitText(". ", 1)
+            ic.endBatchEdit()
+        } else {
+            ic.commitText(" ", 1)            // nothing to punctuate — just a space
+        }
+    }
+
+    /** Space-bar swipe → nudge the caret one character per step (negative = left). */
+    override fun onCursorMove(steps: Int) {
+        val ic = currentInputConnection ?: return
+        clearUndo()
+        val key = if (steps < 0) KeyEvent.KEYCODE_DPAD_LEFT else KeyEvent.KEYCODE_DPAD_RIGHT
+        repeat(abs(steps)) {
+            ic.sendKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, key))
+            ic.sendKeyEvent(KeyEvent(KeyEvent.ACTION_UP, key))
+        }
+    }
+
+    // Hebrew letters with distinct word-final forms. Typed text uses the medial form; we snap to the
+    // final form at a word end, and back to medial when the word turns out to continue.
+    private val medialToFinal = mapOf('כ' to 'ך', 'מ' to 'ם', 'נ' to 'ן', 'פ' to 'ף', 'צ' to 'ץ')
+    private val finalToMedial = mapOf('ך' to 'כ', 'ם' to 'מ', 'ן' to 'נ', 'ף' to 'פ', 'ץ' to 'צ')
+
+    /** At a word end: if the last letter is a medial form with a final variant, snap it to final. */
+    private fun fixFinalForWordEnd() {
+        if (!hebrew) return
+        val ic = currentInputConnection ?: return
+        val before = ic.getTextBeforeCursor(1, 0)?.toString().orEmpty()
+        val fin = before.firstOrNull()?.let { medialToFinal[it] } ?: return
+        ic.beginBatchEdit(); ic.deleteSurroundingText(1, 0); ic.commitText(fin.toString(), 1); ic.endBatchEdit()
+    }
+
+    /** Before appending a letter: if a final form sits before the cursor, the word continues, so
+     *  convert it back to its medial form. */
+    private fun fixMedialBeforeTyping() {
+        if (!hebrew) return
+        val ic = currentInputConnection ?: return
+        val before = ic.getTextBeforeCursor(1, 0)?.toString().orEmpty()
+        val med = before.firstOrNull()?.let { finalToMedial[it] } ?: return
+        ic.beginBatchEdit(); ic.deleteSurroundingText(1, 0); ic.commitText(med.toString(), 1); ic.endBatchEdit()
     }
 
     // Never take over the whole screen with the big white "extract" editor (it appears in landscape by

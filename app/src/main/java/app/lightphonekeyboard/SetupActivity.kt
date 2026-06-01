@@ -93,7 +93,11 @@ class SetupActivity : AppCompatActivity() {
             Prefs.setAutocorrect(this, it)
         }
         val autocorrectSub = label(getString(R.string.setup_autocorrect_sub), 14f, R.color.gray)
-        // Languages: informational — a long-press on the keyboard's space bar does the switching.
+        val numberRowToggle = toggle(R.string.setup_number_row, Prefs.numberRow(this)) {
+            Prefs.setNumberRow(this, it)
+        }
+        val numberRowSub = label(getString(R.string.setup_number_row_sub), 14f, R.color.gray)
+        // Languages: informational — the globe key on the keyboard cycles English → Hebrew → emoji.
         val languagesView = label(getString(R.string.setup_languages), 20f, R.color.white)
         val languagesSub = label(getString(R.string.setup_languages_sub), 14f, R.color.gray)
         // Voice dictation — turning it on downloads the offline model once.
@@ -105,7 +109,8 @@ class SetupActivity : AppCompatActivity() {
         listOf(
             titleView, blurbView, step1, step2, doneView,
             languagesView, languagesSub,
-            autocorrectToggle, autocorrectSub, voiceToggle!!, voiceSub, voiceStatus!!, clearVoiceBtn!!,
+            autocorrectToggle, autocorrectSub, numberRowToggle, numberRowSub,
+            voiceToggle!!, voiceSub, voiceStatus!!, clearVoiceBtn!!,
         ).forEach { root.addView(it) }
         refreshVoice()
 

@@ -57,6 +57,10 @@ class LightKeyboardView @JvmOverloads constructor(
         /** Globe key toggled the letters language (true = Hebrew). Lets the host pick the right
          *  autocorrect engine and dictation backend. */
         fun onLanguageChange(hebrew: Boolean)
+        /** Double-tap on space — turn the trailing space into ". " (sentence end). */
+        fun onDoubleSpace()
+        /** Space-bar swipe — move the caret by [steps] (negative = left, positive = right). */
+        fun onCursorMove(steps: Int)
     }
 
     var listener: Listener? = null
@@ -82,12 +86,16 @@ class LightKeyboardView @JvmOverloads constructor(
         )
         // Hebrew (standard Israeli SI-1452 letter positions, finals included; no case → no shift key).
         // 8 / 10 / 9 letters + backspace, exactly the 27 forms א..ת.
+        // Backspace sits on the LEFT in Hebrew — that's where the most-recently-typed letter ends up
+        // in right-to-left text, so deleting feels natural.
         val hebrew = listOf(
             listOf("ק", "ר", "א", "ט", "ו", "ן", "ם", "פ"),
             listOf("ש", "ד", "ג", "כ", "ע", "י", "ח", "ל", "ך", "ף"),
-            listOf("ז", "ס", "ב", "ה", "נ", "מ", "צ", "ת", "ץ", Key.BACKSPACE),
+            listOf(Key.BACKSPACE, "ז", "ס", "ב", "ה", "נ", "מ", "צ", "ת", "ץ"),
             listOf(Key.SYMBOLS, Key.GLOBE, Key.SPACE, Key.ENTER, Key.MIC),
         )
+        // Optional persistent number row (prepended to the letters layers when enabled in setup).
+        val numberRow = listOf("1", "2", "3", "4", "5", "6", "7", "8", "9", "0")
         val symbols = listOf(
             listOf("1", "2", "3", "4", "5", "6", "7", "8", "9", "0"),
             listOf("-", "/", ":", ";", "(", ")", "$", "&", "@", "\""),
@@ -140,6 +148,33 @@ class LightKeyboardView @JvmOverloads constructor(
         }
     }
 
+    // Long-press a letter → a popup of alternates (English accents / Hebrew niqqud). The base char is
+    // committed on down as usual; choosing a non-base option retracts it and commits the choice.
+    private var longPressPointerId = -1
+    private var longPressCandidate: PlacedKey? = null
+    private var popupActive = false
+    private var popupOptions: List<String> = emptyList()
+    private var popupIndex = 0
+    private var popupKey: PlacedKey? = null
+    private val altLongPress = Runnable { showAltPopup() }
+
+    // Space-bar gestures: double-tap → ". ", horizontal drag → move the caret.
+    private var spacePointerId = -1
+    private var spaceDownX = 0f
+    private var spaceSwiping = false
+    private var spaceSwipeRefX = 0f
+    private var lastSpaceTapMs = 0L
+
+    // English accent alternates, and the Hebrew niqqud (vowel points) offered on any Hebrew letter.
+    private object Alt {
+        val en = mapOf(
+            'a' to "àáâäãå", 'e' to "èéêëē", 'i' to "ìíîïī", 'o' to "òóôöõø",
+            'u' to "ùúûü", 'n' to "ñ", 'c' to "ç", 's' to "ß", 'y' to "ýÿ", 'z' to "ž",
+        )
+        // Combining marks: patah, qamats, segol, tsere, hiriq, holam, sheva, dagesh.
+        val niqqud = listOf('ַ', 'ָ', 'ֶ', 'ֵ', 'ִ', 'ֹ', 'ְ', 'ּ')
+    }
+
     /** One key with its (gapless) hit rect and its inset, drawn-to rect. */
     private class PlacedKey(val id: String, val hit: RectF, val vis: RectF) {
         val cx get() = vis.centerX()
@@ -167,6 +202,12 @@ class LightKeyboardView @JvmOverloads constructor(
     }
     private val spacePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.WHITE }
     private val pressPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.argb(70, 255, 255, 255) }
+    // Alternates popup: a dark rounded card with a white border; the selected cell is filled white.
+    private val popupBgPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.rgb(28, 28, 28) }
+    private val popupBorderPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.WHITE; style = Paint.Style.STROKE; strokeWidth = 1.5f * resources.displayMetrics.density
+    }
+    private val popupSelPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.WHITE }
     private val iconCache = HashMap<Int, Drawable>()
 
     // --- touch tracking ---
@@ -185,11 +226,15 @@ class LightKeyboardView @JvmOverloads constructor(
 
     private val currentRows: List<List<String>>
         get() {
-            val rows = when (layer) {
+            var rows = when (layer) {
                 Layer.LETTERS -> if (lang == Lang.HE) Layout.hebrew else Layout.letters
                 Layer.SYMBOLS -> Layout.symbols
                 Layer.MORE -> Layout.more
                 Layer.EMOJI -> emptyList()
+            }
+            // Optional persistent number row sits above the letters (the symbols layer has its own).
+            if (layer == Layer.LETTERS && Prefs.numberRow(context)) {
+                rows = listOf(Layout.numberRow) + rows
             }
             // Mic key only when voice dictation is turned on; otherwise the bottom row is 4 keys.
             return if (Prefs.voiceEnabled(context)) rows else rows.map { row -> row.filter { it != Key.MIC } }
@@ -275,7 +320,7 @@ class LightKeyboardView @JvmOverloads constructor(
         val w = width.toFloat()
         val h = height.toFloat()
         val drawW = w - padSide * 2
-        val glyphs = Layout.emoji
+        val glyphs = displayedEmoji()
         for (r in 0 until emojiGridRows) {
             val bandTop = if (r == 0) 0f else padTop + r * rowPitch
             val bandBottom = padTop + (r + 1) * rowPitch
@@ -307,6 +352,13 @@ class LightKeyboardView @JvmOverloads constructor(
         layoutRow(controlRow, bandTop, h, visTop, visTop + rowKeyH, w)
     }
 
+    /** The curated emoji set, with recently-used ones pulled to the front (same 28 glyphs, reordered). */
+    private fun displayedEmoji(): List<String> {
+        val recents = Prefs.recentEmoji(context).filter { it in Layout.emoji }
+        if (recents.isEmpty()) return Layout.emoji
+        return recents + Layout.emoji.filter { it !in recents }
+    }
+
     // ------------------------------------------------------------------ drawing
 
     override fun onDraw(canvas: Canvas) {
@@ -319,6 +371,40 @@ class LightKeyboardView @JvmOverloads constructor(
             }
             drawKey(canvas, pk)
         }
+        if (popupActive) drawAltPopup(canvas)
+    }
+
+    /** The alternates popup: a card of option cells above the long-pressed key (below it for the top
+     *  row, where there's no room above). The selected cell is filled; slide to it and release. */
+    private fun drawAltPopup(canvas: Canvas) {
+        val opts = popupOptions
+        val k = popupKey ?: return
+        if (opts.isEmpty()) return
+        val cellW = dpf(POPUP_CELL_DP)
+        val cellH = dpf(POPUP_CELL_H_DP)
+        val totalW = cellW * opts.size
+        val left = popupLeft(totalW)
+        var top = k.vis.top - dpf(8) - cellH
+        if (top < 0f) top = k.vis.bottom + dpf(8)     // top row → drop the card below the key
+        val r = dpf(8)
+        val card = RectF(left, top, left + totalW, top + cellH)
+        canvas.drawRoundRect(card, r, r, popupBgPaint)
+        canvas.drawRoundRect(card, r, r, popupBorderPaint)
+        textPaint.textSize = spf(22)
+        for (j in opts.indices) {
+            val cl = left + cellW * j
+            if (j == popupIndex) {
+                val inset = dpf(3)
+                val ir = dpf(6)
+                canvas.drawRoundRect(cl + inset, top + inset, cl + cellW - inset, top + cellH - inset, ir, ir, popupSelPaint)
+                textPaint.color = Color.BLACK
+            } else {
+                textPaint.color = Color.WHITE
+            }
+            val baseline = card.centerY() - (textPaint.descent() + textPaint.ascent()) / 2f
+            canvas.drawText(opts[j], cl + cellW / 2f, baseline, textPaint)
+        }
+        textPaint.color = Color.WHITE     // restore for subsequent draws
     }
 
     /** The voice-dictation surface: a big centered mic, the live status/partial text, and a hint. */
@@ -449,6 +535,18 @@ class LightKeyboardView @JvmOverloads constructor(
             }
 
             MotionEvent.ACTION_MOVE -> {
+                // 1) Alternates popup open → the long-press pointer's x selects the option.
+                if (popupActive) {
+                    val pidx = ev.findPointerIndex(longPressPointerId)
+                    if (pidx >= 0) { updatePopupSelection(ev.getX(pidx)); invalidate() }
+                    return true
+                }
+                // 2) Space-bar horizontal drag → caret movement.
+                if (spacePointerId != -1) {
+                    val sidx = ev.findPointerIndex(spacePointerId)
+                    if (sidx >= 0 && handleSpaceSwipe(ev.getX(sidx))) return true
+                }
+                // 3) Otherwise, the first pointer's downward swipe dismisses the keyboard.
                 if (!dismissedThisGesture) {
                     val idx = ev.findPointerIndex(firstPointerId)
                     if (idx >= 0) {
@@ -457,6 +555,7 @@ class LightKeyboardView @JvmOverloads constructor(
                         if (dy > dpf(60) && dy > abs(dx) * 1.5f) {
                             dismissedThisGesture = true
                             stopBackspaceRepeat()
+                            endAltLongPress()
                             // The first tap already committed a char on down; retract it so the swipe
                             // doesn't leave a stray letter behind.
                             if (firstKeyRetractable) listener?.onBackspace()
@@ -470,17 +569,41 @@ class LightKeyboardView @JvmOverloads constructor(
 
             MotionEvent.ACTION_POINTER_UP -> {
                 val pid = ev.getPointerId(ev.actionIndex)
+                if (pid == longPressPointerId) commitPopupAndReset()
                 pressed.remove(pid)
                 if (pid == backspacePointerId) stopBackspaceRepeat()
+                if (pid == spacePointerId) spacePointerId = -1
                 invalidate()
             }
 
             MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                if (ev.actionMasked == MotionEvent.ACTION_UP) commitPopupAndReset() else endAltLongPress()
                 pressed.clear()
                 stopBackspaceRepeat()
+                spacePointerId = -1
                 invalidate()
             }
         }
+        return true
+    }
+
+    /** Space-bar drag → caret moves one step per [SPACE_SWIPE_STEP]. Returns true once swiping starts
+     *  (the first step retracts the space that was committed on touch-down). */
+    private fun handleSpaceSwipe(x: Float): Boolean {
+        if (!spaceSwiping) {
+            if (abs(x - spaceDownX) < SPACE_SWIPE_START) return false
+            spaceSwiping = true
+            spaceSwipeRefX = spaceDownX
+            endAltLongPress()
+            if (firstPointerId == spacePointerId && firstKeyRetractable) {
+                listener?.onBackspace()           // remove the space inserted on down
+                firstKeyRetractable = false
+            }
+        }
+        var moved = false
+        while (x - spaceSwipeRefX >= SPACE_SWIPE_STEP) { listener?.onCursorMove(1); spaceSwipeRefX += SPACE_SWIPE_STEP; moved = true }
+        while (x - spaceSwipeRefX <= -SPACE_SWIPE_STEP) { listener?.onCursorMove(-1); spaceSwipeRefX -= SPACE_SWIPE_STEP; moved = true }
+        if (moved) tap()
         return true
     }
 
@@ -499,12 +622,86 @@ class LightKeyboardView @JvmOverloads constructor(
             removeCallbacks(backspaceRepeat)
             postDelayed(backspaceRepeat, BACKSPACE_INITIAL_DELAY_MS)
         }
+        if (key.id == Key.SPACE) {               // track for double-tap (handled in onKey) + swipe
+            spacePointerId = pointerId
+            spaceDownX = x
+            spaceSwiping = false
+        }
+        if (alternatesFor(key.id) != null) {     // letter with accents/niqqud → arm the long-press popup
+            longPressPointerId = pointerId
+            longPressCandidate = key
+            removeCallbacks(altLongPress)
+            postDelayed(altLongPress, ALT_LONGPRESS_MS)
+        }
         return retractable
     }
 
     private fun stopBackspaceRepeat() {
         backspacePointerId = -1
         removeCallbacks(backspaceRepeat)
+    }
+
+    // ------------------------------------------------------------------ alternates popup
+
+    /** The popup options for [id] (base first), or null if the key has no alternates. */
+    private fun alternatesFor(id: String): List<String>? {
+        if (layer != Layer.LETTERS || id.length != 1) return null
+        val ch = id[0]
+        return when {
+            lang == Lang.HE && ch in spec -> listOf(id) + Alt.niqqud.map { id + it }
+            lang == Lang.EN -> Alt.en[ch.lowercaseChar()]?.let { extra ->
+                val cased = if (shifted) extra.uppercase() else extra
+                listOf(labelFor(id)) + cased.map { it.toString() }
+            }
+            else -> null
+        }
+    }
+
+    private fun showAltPopup() {
+        val k = longPressCandidate ?: return
+        val opts = alternatesFor(k.id) ?: return
+        popupActive = true
+        popupKey = k
+        popupOptions = opts
+        popupIndex = 0
+        tap()
+        invalidate()
+    }
+
+    /** Pick the option under finger x (cells are laid out left-to-right, centred over the key). */
+    private fun updatePopupSelection(x: Float) {
+        val opts = popupOptions
+        if (opts.isEmpty()) return
+        val cellW = dpf(POPUP_CELL_DP)
+        val totalW = cellW * opts.size
+        val left = popupLeft(totalW)
+        popupIndex = (((x - left) / cellW).toInt()).coerceIn(0, opts.size - 1)
+    }
+
+    /** Commit the selected alternate (index 0 is the base char, already typed → no change) and reset. */
+    private fun commitPopupAndReset() {
+        if (popupActive) {
+            val opts = popupOptions
+            if (popupIndex in 1 until opts.size) {
+                listener?.onBackspace()              // retract the base committed on down
+                listener?.onText(opts[popupIndex])
+                tap()
+            }
+        }
+        endAltLongPress()
+    }
+
+    private fun endAltLongPress() {
+        removeCallbacks(altLongPress)
+        longPressPointerId = -1
+        longPressCandidate = null
+        if (popupActive) { popupActive = false; popupKey = null; popupOptions = emptyList(); invalidate() }
+    }
+
+    /** Left edge of the popup card, clamped on-screen. */
+    private fun popupLeft(totalW: Float): Float {
+        val cx = popupKey?.vis?.centerX() ?: (width / 2f)
+        return (cx - totalW / 2f).coerceIn(padSide, (width - padSide - totalW).coerceAtLeast(padSide))
     }
 
     /** Tiled rects always contain the point; the nearest-center fallback only covers off-surface taps. */
@@ -634,9 +831,23 @@ class LightKeyboardView @JvmOverloads constructor(
             Key.MORE -> { layer = Layer.MORE; rebuild() }
             Key.LETTERS -> { layer = Layer.LETTERS; rebuild() }
             Key.MIC -> listener?.onMic()
-            Key.SPACE -> { listener?.onText(" "); return true }
+            Key.SPACE -> {
+                val now = System.currentTimeMillis()
+                if (now - lastSpaceTapMs < DOUBLE_TAP_MS) {   // double-tap → ". "
+                    lastSpaceTapMs = 0L
+                    listener?.onDoubleSpace()
+                    return false
+                }
+                lastSpaceTapMs = now
+                listener?.onText(" ")
+                return true
+            }
             else -> {
-                if (layer == Layer.EMOJI) { listener?.onText(id); return false }
+                if (layer == Layer.EMOJI) {
+                    Prefs.pushRecentEmoji(context, id)   // float it to the front next time
+                    listener?.onText(id)
+                    return false
+                }
                 listener?.onText(labelFor(id))
                 return true
             }
@@ -692,11 +903,14 @@ class LightKeyboardView @JvmOverloads constructor(
     /** Reset to the default letters/uppercase view (called when a new field gains focus). */
     fun reset() {
         stopBackspaceRepeat()
+        endAltLongPress()
+        spacePointerId = -1; spaceSwiping = false
         layer = Layer.LETTERS; shifted = true; capsLock = false; listening = false; rebuild()
     }
 
     override fun onDetachedFromWindow() {
         stopBackspaceRepeat()
+        endAltLongPress()
         super.onDetachedFromWindow()
     }
 
@@ -738,6 +952,11 @@ class LightKeyboardView @JvmOverloads constructor(
     private val BACKSPACE_CHAR_INTERVAL_MS = 95L    // per-character repeat rate
     private val BACKSPACE_WORD_AFTER_MS = 1500L     // after this long holding, delete whole words
     private val BACKSPACE_WORD_INTERVAL_MS = 190L   // per-word repeat rate
+    private val ALT_LONGPRESS_MS = 300L             // hold a letter this long → accents/niqqud popup
+    private val POPUP_CELL_DP = 38                  // alternates popup: cell width / height
+    private val POPUP_CELL_H_DP = 46
+    private val SPACE_SWIPE_START = dpf(18)         // horizontal travel before space-swipe engages
+    private val SPACE_SWIPE_STEP = dpf(12)          // travel per one-character caret move
 
     private fun dpf(v: Int): Float = v * resources.displayMetrics.density
     private fun spf(v: Int): Float =

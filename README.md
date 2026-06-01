@@ -48,12 +48,26 @@ The settings below it:
 - **Autocorrect** (on by default): fixes misspellings as you type. English uses your phone's built-in
   dictionary; Hebrew uses a dictionary bundled into the app (no Hebrew spell checker is needed on the
   phone). Turn it off to type exactly what you tap.
+- **Number row** (off by default): a persistent row of digits above the letters.
 - **Voice dictation** (off by default): turning it on downloads the ~40 MB offline English model once,
   then a mic key lets you speak instead of type. English runs entirely on-device; Hebrew dictation uses
   the phone's own voice service. Once downloaded, a **Delete voice model** button appears to reclaim the
   space.
 
 That is the whole setup.
+
+## Gestures
+
+- **Globe** — cycles English → Hebrew → emoji. Recently-used emoji float to the front.
+- **Long-press a letter** — accents in English (`a → à á â ä …`), vowel points (niqqud) in Hebrew.
+  Slide to a choice and release.
+- **Double-tap space** — inserts `. ` (sentence end).
+- **Swipe the space bar** — moves the cursor left/right.
+- **Hold backspace** — repeats, then deletes whole words after a longer hold.
+- **Swipe down** — hides the keyboard.
+
+Hebrew also snaps a letter to its **final form** at the end of a word automatically (e.g. typing מ as
+the last letter becomes ם), and back when the word continues.
 
 ## Build it yourself
 

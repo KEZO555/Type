@@ -10,7 +10,9 @@
     <string name="setup_autocorrect">Autocorrect</string>
     <string name="setup_autocorrect_sub">Fix misspellings as you type. English uses the phone\'s built-in dictionary; Hebrew uses a dictionary built into the app.</string>
     <string name="setup_languages">Languages</string>
-    <string name="setup_languages_sub">English and Hebrew. The globe key on the keyboard cycles English → Hebrew → emoji. Each language has its own dictionary, autocorrect, and voice input.</string>
+    <string name="setup_languages_sub">English and Hebrew. The globe key on the keyboard cycles English → Hebrew → emoji. Each language has its own dictionary, autocorrect, and voice input. Long-press a letter for accents (English) or vowel points (Hebrew); double-tap space for “. ”; slide on the space bar to move the cursor.</string>
+    <string name="setup_number_row">Number row</string>
+    <string name="setup_number_row_sub">Show a row of numbers above the letters.</string>
     <string name="setup_voice">Voice dictation</string>
     <string name="setup_voice_sub">English is private and on-device (downloads 40 MB once). Hebrew uses the phone\'s own voice service, which may need a connection.</string>
     <string name="setup_voice_clear">Delete voice model (frees ~40 MB)</string>

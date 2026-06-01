@@ -76,8 +76,10 @@ class LightImeService : InputMethodService(), LightKeyboardView.Listener, SpellC
         // The keyboard keeps its language across fields; sync ours and warm the Hebrew dictionary.
         hebrew = keyboard?.isHebrew ?: false
         if (hebrew) HebrewDictionary.prepare(this)
+        if (Prefs.prediction(this)) { EnglishWords.prepare(this); HebrewDictionary.prepare(this) }
         if (spell == null) initSpell()
         updateShift()
+        updateSuggestions()
     }
 
     override fun onDestroy() {
@@ -93,6 +95,7 @@ class LightImeService : InputMethodService(), LightKeyboardView.Listener, SpellC
         this.hebrew = hebrew
         clearUndo()
         if (hebrew) HebrewDictionary.prepare(this)
+        updateSuggestions()
     }
 
     /** Keep the keyboard's language in sync when the user switches our subtype via the system globe. */
@@ -116,6 +119,29 @@ class LightImeService : InputMethodService(), LightKeyboardView.Listener, SpellC
             oldSelStart, oldSelEnd, newSelStart, newSelEnd, candidatesStart, candidatesEnd,
         )
         updateShift() // after each keystroke/cursor move, recompute uppercase-vs-lowercase
+        updateSuggestions()
+    }
+
+    /** Recompute the word-prediction strip from the partial word before the cursor. */
+    private fun updateSuggestions() {
+        val kb = keyboard ?: return
+        if (!Prefs.prediction(this)) { kb.setSuggestions(emptyList()); return }
+        val word = trailingWord()
+        if (word.isEmpty()) { kb.setSuggestions(emptyList()); return }
+        kb.setSuggestions(if (hebrew) HebrewDictionary.suggest(word, 3) else EnglishWords.suggest(word, 3))
+    }
+
+    /** A suggestion was tapped: replace the partial word with it (+ a space) and remember it. */
+    override fun onSuggestionPicked(word: String) {
+        val ic = currentInputConnection ?: return
+        clearUndo()
+        val cur = trailingWord()
+        ic.beginBatchEdit()
+        if (cur.isNotEmpty()) ic.deleteSurroundingText(cur.length, 0)
+        ic.commitText("$word ", 1)
+        ic.endBatchEdit()
+        if (hebrew) learnHebrew(word) else EnglishWords.learn(this, word)
+        keyboard?.setSuggestions(emptyList())
     }
 
     /** Sentence-case: uppercase at a sentence start, lowercase after — from the field's caps mode. */

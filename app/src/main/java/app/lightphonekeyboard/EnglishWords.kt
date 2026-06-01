@@ -1,0 +1,104 @@
+package app.lightphonekeyboard
+
+import android.content.Context
+import android.os.Handler
+import android.os.Looper
+import android.util.Log
+import java.io.File
+
+/**
+ * Bundled English word-frequency list (assets/en_words.txt, built by tools/gen_english.py) used for
+ * word prediction — prefix completion. English autocorrect still goes through the device spell checker
+ * (see [LightImeService]); this object only powers the suggestions strip. Like the Hebrew side it also
+ * learns the words you type, persisted to internal storage, so your vocabulary surfaces over time.
+ */
+object EnglishWords {
+    private const val TAG = "EnglishWords"
+    private const val ASSET = "en_words.txt"
+    private const val LEARNED_FILE = "en_learned.txt"
+    private const val LEARN_WEIGHT = 50_000L
+    private const val MAX_LEARNED = 2000
+
+    private val main = Handler(Looper.getMainLooper())
+    private val freq = HashMap<String, Long>(34_000)
+    private val learned = HashMap<String, Long>()
+    private var appContext: Context? = null
+
+    @Volatile
+    var ready = false
+        private set
+    private var loading = false
+
+    fun prepare(context: Context) {
+        if (ready || loading) return
+        loading = true
+        val app = context.applicationContext
+        appContext = app
+        Thread {
+            try {
+                app.assets.open(ASSET).bufferedReader(Charsets.UTF_8).use { r ->
+                    r.forEachLine { line ->
+                        val sp = line.indexOf(' ')
+                        if (sp <= 0) return@forEachLine
+                        val c = line.substring(sp + 1).toLongOrNull() ?: return@forEachLine
+                        freq[line.substring(0, sp)] = c
+                    }
+                }
+                loadLearned(app)
+                main.post { ready = true; loading = false; Log.i(TAG, "loaded ${freq.size}+${learned.size}") }
+            } catch (e: Throwable) {
+                main.post { loading = false }
+                Log.e(TAG, "load failed", e)
+            }
+        }.start()
+    }
+
+    private fun loadLearned(context: Context) {
+        val f = File(context.filesDir, LEARNED_FILE)
+        if (!f.exists()) return
+        f.bufferedReader(Charsets.UTF_8).useLines { lines ->
+            lines.forEach { line ->
+                val sp = line.indexOf(' ')
+                if (sp <= 0) return@forEach
+                val c = line.substring(sp + 1).toLongOrNull() ?: return@forEach
+                learned[line.substring(0, sp)] = c
+            }
+        }
+    }
+
+    /** Up to [n] completions of [prefix] (lowercased), most frequent first. */
+    fun suggest(prefix: String, n: Int): List<String> {
+        if (!ready) return emptyList()
+        return topCompletions(prefix.lowercase(), n, freq, learned, LEARN_WEIGHT)
+    }
+
+    /** Remember a word the user typed. ASCII letters only, length 2..20. */
+    fun learn(context: Context, word: String) {
+        val w = word.lowercase()
+        if (w.length !in 2..20 || w.any { it < 'a' || it > 'z' }) return
+        appContext = context.applicationContext
+        learned[w] = (learned[w] ?: 0L) + 1L
+        scheduleSave()
+    }
+
+    private val saveRunnable = Runnable { writeLearned() }
+    private fun scheduleSave() {
+        main.removeCallbacks(saveRunnable)
+        main.postDelayed(saveRunnable, 4000)
+    }
+
+    private fun writeLearned() {
+        val ctx = appContext ?: return
+        val snapshot = ArrayList(learned.entries)
+        Thread {
+            try {
+                val top = snapshot.sortedByDescending { it.value }.take(MAX_LEARNED)
+                val sb = StringBuilder(top.size * 12)
+                for (e in top) sb.append(e.key).append(' ').append(e.value).append('\n')
+                File(ctx.filesDir, LEARNED_FILE).writeText(sb.toString(), Charsets.UTF_8)
+            } catch (e: Throwable) {
+                Log.e(TAG, "save learned failed", e)
+            }
+        }.start()
+    }
+}

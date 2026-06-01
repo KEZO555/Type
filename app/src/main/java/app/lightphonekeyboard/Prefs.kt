@@ -8,6 +8,7 @@ object Prefs {
     private const val KEY_AUTOCORRECT = "autocorrect"
     private const val KEY_VOICE = "voice_enabled"
     private const val KEY_NUMBER_ROW = "number_row"
+    private const val KEY_PREDICTION = "prediction"
     private const val KEY_RECENT_EMOJI = "recent_emoji"
     private const val RECENT_EMOJI_MAX = 12
 
@@ -30,6 +31,12 @@ object Prefs {
 
     fun setNumberRow(c: Context, value: Boolean) =
         prefs(c).edit().putBoolean(KEY_NUMBER_ROW, value).apply()
+
+    /** Word-prediction suggestions strip. On by default. */
+    fun prediction(c: Context): Boolean = prefs(c).getBoolean(KEY_PREDICTION, true)
+
+    fun setPrediction(c: Context, value: Boolean) =
+        prefs(c).edit().putBoolean(KEY_PREDICTION, value).apply()
 
     /** Most-recently-used emoji, newest first (newline-separated). Drives the emoji grid order. */
     fun recentEmoji(c: Context): List<String> =

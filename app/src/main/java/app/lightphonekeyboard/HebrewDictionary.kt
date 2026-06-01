@@ -88,6 +88,13 @@ object HebrewDictionary {
 
     fun isWord(w: String): Boolean = freq.containsKey(w) || learned.containsKey(w)
 
+    /** Up to [n] word-prediction completions of [prefix] (longer words that start with it), most
+     *  frequent first, drawing on both the bundled dictionary and learned words. */
+    fun suggest(prefix: String, n: Int): List<String> {
+        if (!ready || prefix.isEmpty()) return emptyList()
+        return topCompletions(prefix, n, freq, learned, LEARN_WEIGHT)
+    }
+
     /** Effective frequency for ranking: dictionary count, else a learned word's count × LEARN_WEIGHT. */
     private fun effectiveFreq(w: String): Long? =
         freq[w] ?: learned[w]?.let { it * LEARN_WEIGHT }

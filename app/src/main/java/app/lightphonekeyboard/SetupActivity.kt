@@ -93,6 +93,10 @@ class SetupActivity : AppCompatActivity() {
             Prefs.setAutocorrect(this, it)
         }
         val autocorrectSub = label(getString(R.string.setup_autocorrect_sub), 14f, R.color.gray)
+        val predictionToggle = toggle(R.string.setup_prediction, Prefs.prediction(this)) {
+            Prefs.setPrediction(this, it)
+        }
+        val predictionSub = label(getString(R.string.setup_prediction_sub), 14f, R.color.gray)
         val numberRowToggle = toggle(R.string.setup_number_row, Prefs.numberRow(this)) {
             Prefs.setNumberRow(this, it)
         }
@@ -109,7 +113,8 @@ class SetupActivity : AppCompatActivity() {
         listOf(
             titleView, blurbView, step1, step2, doneView,
             languagesView, languagesSub,
-            autocorrectToggle, autocorrectSub, numberRowToggle, numberRowSub,
+            autocorrectToggle, autocorrectSub, predictionToggle, predictionSub,
+            numberRowToggle, numberRowSub,
             voiceToggle!!, voiceSub, voiceStatus!!, clearVoiceBtn!!,
         ).forEach { root.addView(it) }
         refreshVoice()

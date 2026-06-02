@@ -38,9 +38,6 @@ object HebrewDictionary {
     private val learned = HashMap<String, Long>()
     private val memo = HashMap<String, String?>()   // word -> fix (null = checked, no correction)
     private var appContext: Context? = null
-    // Lexically-sorted dictionary + aligned frequencies, for fast prefix completion (word prediction).
-    private var sortedWords: Array<String> = emptyArray()
-    private var sortedFreq: LongArray = LongArray(0)
 
     @Volatile
     var ready = false
@@ -57,7 +54,6 @@ object HebrewDictionary {
             try {
                 load(app)
                 loadLearned(app)
-                buildIndex()
                 main.post { ready = true; loading = false; Log.i(TAG, "loaded ${freq.size}+${learned.size} words") }
             } catch (e: Throwable) {
                 main.post { loading = false }
@@ -93,19 +89,6 @@ object HebrewDictionary {
     }
 
     fun isWord(w: String): Boolean = freq.containsKey(w) || learned.containsKey(w)
-
-    private fun buildIndex() {
-        val keys = freq.keys.toTypedArray()
-        keys.sort()
-        sortedWords = keys
-        sortedFreq = LongArray(keys.size) { freq[keys[it]] ?: 0L }
-    }
-
-    /** The best inline completion of [prefix] (a longer dictionary/learned word), or null. */
-    fun complete(prefix: String): String? {
-        if (!ready || prefix.isEmpty()) return null
-        return WordPredict.bestCompletion(prefix, sortedWords, sortedFreq, learned, LEARN_WEIGHT)
-    }
 
     /** Effective frequency for ranking: dictionary count, else a learned word's count × LEARN_WEIGHT. */
     private fun effectiveFreq(w: String): Long? =

@@ -64,7 +64,6 @@ class LightImeService : InputMethodService(), LightKeyboardView.Listener {
             EnglishWords.prepare(this)
             HebrewDictionary.prepare(this)
         }
-        ghost = ""
         updateShift()
     }
 
@@ -79,7 +78,6 @@ class LightImeService : InputMethodService(), LightKeyboardView.Listener {
         this.hebrew = hebrew
         clearUndo()
         if (hebrew) HebrewDictionary.prepare(this)
-        clearGhost()
     }
 
     /** Keep the keyboard's language in sync when the user switches our subtype via the system globe. */
@@ -105,32 +103,6 @@ class LightImeService : InputMethodService(), LightKeyboardView.Listener {
         updateShift() // after each keystroke/cursor move, recompute uppercase-vs-lowercase
     }
 
-    // ------------------------------------------------------------------ inline word completion
-    //
-    // As you type a word we show the best completion as an underlined "composing" suffix right after
-    // the cursor (Android won't let a keyboard paint gray ghost text in other apps — composing text is
-    // the closest the platform allows). Pressing space accepts it; any other key drops it.
-
-    private var ghost = ""   // the suffix currently shown as composing text (empty = none)
-
-    /** Remove the inline completion preview, if any, without committing it. */
-    private fun clearGhost() {
-        if (ghost.isEmpty()) return
-        currentInputConnection?.setComposingText("", 1)
-        ghost = ""
-    }
-
-    /** Commit the inline completion into the text (cursor ends up after it). */
-    private fun acceptGhost() {
-        val ic = currentInputConnection ?: return
-        if (ghost.isEmpty()) return
-        ic.beginBatchEdit()
-        ic.setComposingText("", 1)   // drop the composing preview…
-        ic.commitText(ghost, 1)      // …and commit it as real text
-        ic.endBatchEdit()
-        ghost = ""
-    }
-
     /** Sentence-case: uppercase at a sentence start, lowercase after — from the field's caps mode. */
     private fun updateShift() {
         if (!Prefs.autoCap(this)) return
@@ -151,8 +123,6 @@ class LightImeService : InputMethodService(), LightKeyboardView.Listener {
 
     override fun onText(s: String) {
         val ic = currentInputConnection ?: return
-        // Inline completion: space accepts the preview; anything else drops it.
-        if (s == " " && ghost.isNotEmpty()) acceptGhost() else clearGhost()
         if (s.length == 1 && isWordChar(s[0])) {
             clearUndo()
             // A letter continues the word, so a preceding Hebrew *final* form is no longer word-final.
@@ -194,7 +164,6 @@ class LightImeService : InputMethodService(), LightKeyboardView.Listener {
 
     override fun onBackspace() {
         val ic = currentInputConnection ?: return
-        clearGhost()
         val from = undoFrom
         val to = undoTo
         if (from != null && to != null) {
@@ -245,7 +214,6 @@ class LightImeService : InputMethodService(), LightKeyboardView.Listener {
 
     override fun onEnter() {
         val ic = currentInputConnection ?: return
-        clearGhost()
         fixFinalForWordEnd()
         // Fix the last word before firing the action / newline.
         val original = trailingWord()
@@ -295,16 +263,9 @@ class LightImeService : InputMethodService(), LightKeyboardView.Listener {
         }
     }
 
-    // Edit menu (long-press space). The platform performs these against the focused field.
-    override fun onSelectAll() { clearGhost(); currentInputConnection?.performContextMenuAction(android.R.id.selectAll) }
-    override fun onCopy() { clearGhost(); currentInputConnection?.performContextMenuAction(android.R.id.copy) }
-    override fun onCut() { clearGhost(); currentInputConnection?.performContextMenuAction(android.R.id.cut) }
-    override fun onPaste() { clearGhost(); clearUndo(); currentInputConnection?.performContextMenuAction(android.R.id.paste) }
-
     /** Space-bar swipe → nudge the caret one character per step (negative = left). */
     override fun onCursorMove(steps: Int) {
         val ic = currentInputConnection ?: return
-        clearGhost()
         clearUndo()
         val key = if (steps < 0) KeyEvent.KEYCODE_DPAD_LEFT else KeyEvent.KEYCODE_DPAD_RIGHT
         repeat(abs(steps)) {
@@ -316,7 +277,6 @@ class LightImeService : InputMethodService(), LightKeyboardView.Listener {
     /** Space-bar swipe up/down → move the caret one line. */
     override fun onCursorVertical(down: Boolean) {
         val ic = currentInputConnection ?: return
-        clearGhost()
         clearUndo()
         val key = if (down) KeyEvent.KEYCODE_DPAD_DOWN else KeyEvent.KEYCODE_DPAD_UP
         ic.sendKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, key))
@@ -362,7 +322,6 @@ class LightImeService : InputMethodService(), LightKeyboardView.Listener {
             return
         }
         val kb = keyboard ?: return
-        clearGhost()
         micActive = true
         kb.startListeningUi()
         if (hebrew) startHebrewDictation(kb) else startDictationWhenReady(kb, attempts = 0)
@@ -443,7 +402,6 @@ class LightImeService : InputMethodService(), LightKeyboardView.Listener {
     override fun onWindowHidden() { super.onWindowHidden(); broadcastImeVisible(false) }
     override fun onFinishInputView(finishingInput: Boolean) {
         super.onFinishInputView(finishingInput)
-        ghost = ""
         currentInputConnection?.finishComposingText()
         if (micActive) { micActive = false; dictation.destroy(); sysDictation.destroy(); keyboard?.stopListeningUi() }
         broadcastImeVisible(false)

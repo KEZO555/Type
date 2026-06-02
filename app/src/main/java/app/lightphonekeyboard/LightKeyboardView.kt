@@ -63,11 +63,6 @@ class LightKeyboardView @JvmOverloads constructor(
         fun onCursorMove(steps: Int)
         /** Space-bar swipe up/down — move the caret one line ([down] = down, else up). */
         fun onCursorVertical(down: Boolean)
-        /** Edit actions from the long-press-space menu. */
-        fun onSelectAll()
-        fun onCopy()
-        fun onCut()
-        fun onPaste()
         /** Long-press the globe — open the keyboard's settings screen. */
         fun onOpenSettings()
     }

@@ -7,10 +7,10 @@ import android.util.Log
 import java.io.File
 
 /**
- * Bundled English word-frequency list (assets/en_words.txt, built by tools/gen_english.py) used for
- * word prediction — prefix completion. English autocorrect still goes through the device spell checker
- * (see [LightImeService]); this object only powers the suggestions strip. Like the Hebrew side it also
- * learns the words you type, persisted to internal storage, so your vocabulary surfaces over time.
+ * Bundled English word-frequency list (assets/en_words.txt, built by tools/gen_english.py). Backs the
+ * offline autocorrect: [isWord] tests membership and [correct] picks the most likely keyboard-aware fix
+ * within one edit. Like the Hebrew side it also learns the words you type (persisted to internal
+ * storage), so your own vocabulary becomes known and is preferred over time.
  */
 object EnglishWords {
     private const val TAG = "EnglishWords"
@@ -27,8 +27,6 @@ object EnglishWords {
     private val learned = HashMap<String, Long>()
     private val memo = HashMap<String, String?>()
     private var appContext: Context? = null
-    private var sortedWords: Array<String> = emptyArray()
-    private var sortedFreq: LongArray = LongArray(0)
 
     @Volatile
     var ready = false
@@ -51,9 +49,6 @@ object EnglishWords {
                     }
                 }
                 loadLearned(app)
-                val keys = freq.keys.toTypedArray(); keys.sort()
-                sortedWords = keys
-                sortedFreq = LongArray(keys.size) { freq[keys[it]] ?: 0L }
                 main.post { ready = true; loading = false; Log.i(TAG, "loaded ${freq.size}+${learned.size}") }
             } catch (e: Throwable) {
                 main.post { loading = false }
@@ -73,12 +68,6 @@ object EnglishWords {
                 learned[line.substring(0, sp)] = c
             }
         }
-    }
-
-    /** The best inline completion of [prefix] (lowercased), or null. */
-    fun complete(prefix: String): String? {
-        if (!ready) return null
-        return WordPredict.bestCompletion(prefix.lowercase(), sortedWords, sortedFreq, learned, LEARN_WEIGHT)
     }
 
     fun isWord(w: String): Boolean = freq.containsKey(w) || learned.containsKey(w)

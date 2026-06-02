@@ -8,7 +8,6 @@ object Prefs {
     private const val KEY_AUTOCORRECT = "autocorrect"
     private const val KEY_VOICE = "voice_enabled"
     private const val KEY_NUMBER_ROW = "number_row"
-    private const val KEY_PREDICTION = "prediction"
     private const val KEY_HAPTIC = "haptic_level"
     private const val KEY_AUTO_CAP = "auto_cap"
     private const val KEY_DOUBLE_SPACE = "double_space_period"
@@ -49,12 +48,6 @@ object Prefs {
 
     fun setNumberRow(c: Context, value: Boolean) =
         prefs(c).edit().putBoolean(KEY_NUMBER_ROW, value).apply()
-
-    /** Word-prediction suggestions strip. On by default. */
-    fun prediction(c: Context): Boolean = prefs(c).getBoolean(KEY_PREDICTION, true)
-
-    fun setPrediction(c: Context, value: Boolean) =
-        prefs(c).edit().putBoolean(KEY_PREDICTION, value).apply()
 
     /** Key/cursor haptic strength (HAPTIC_OFF..HAPTIC_STRONG). Strong by default. */
     fun hapticLevel(c: Context): Int = prefs(c).getInt(KEY_HAPTIC, HAPTIC_STRONG)

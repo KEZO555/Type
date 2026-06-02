@@ -2,6 +2,7 @@ package app.lightphonekeyboard
 
 import android.content.Context
 import android.content.Intent
+import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -35,7 +36,11 @@ class SystemDictation(private val context: Context) {
     private var onError: (String) -> Unit = {}
     private var locale = "he-IL"
 
-    val available: Boolean get() = SpeechRecognizer.isRecognitionAvailable(context)
+    private val onDeviceAvailable: Boolean
+        get() = Build.VERSION.SDK_INT >= 33 && SpeechRecognizer.isOnDeviceRecognitionAvailable(context)
+
+    val available: Boolean
+        get() = SpeechRecognizer.isRecognitionAvailable(context) || onDeviceAvailable
 
     /** Start continuous dictation in [bcp47] (e.g. "he-IL"). Callbacks fire on the main thread. */
     fun listen(
@@ -56,7 +61,13 @@ class SystemDictation(private val context: Context) {
     private fun startOnce() {
         if (!active) return
         destroyRecognizer()
-        val r = SpeechRecognizer.createSpeechRecognizer(context)
+        // Prefer the regular recognition service (usually Google, supports many online languages); fall
+        // back to an on-device recognizer if that's all the phone has.
+        val r = when {
+            SpeechRecognizer.isRecognitionAvailable(context) -> SpeechRecognizer.createSpeechRecognizer(context)
+            onDeviceAvailable -> SpeechRecognizer.createOnDeviceSpeechRecognizer(context)
+            else -> { active = false; onError("No speech service on this phone"); return }
+        }
         recognizer = r
         r.setRecognitionListener(listener)
         val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
@@ -66,10 +77,9 @@ class SystemDictation(private val context: Context) {
             // Some recognizers read only the IETF tag from this extra.
             putExtra("android.speech.extra.EXTRA_ADDITIONAL_LANGUAGES", arrayOf(locale))
             putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
-            // NOTE: do NOT prefer offline — there's no on-device Hebrew pack, so forcing offline made
-            // it fall back to the device language (English). Online recognition handles he-IL.
-            putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, false)
             putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, context.packageName)
+            // No EXTRA_PREFER_OFFLINE: let the recognizer use its on-device Hebrew pack if present, or
+            // the network otherwise.
         }
         try {
             r.startListening(intent)

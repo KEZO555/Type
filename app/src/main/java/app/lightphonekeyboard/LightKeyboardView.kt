@@ -822,8 +822,9 @@ class LightKeyboardView @JvmOverloads constructor(
         val key = if (layer == Layer.LETTERS && isLetter(raw.id)) resolveLetter(x, y, raw) else raw
         pressed[pointerId] = key
         invalidate()
-        if (key.id == Key.SYMBOLS || key.id == Key.LETTERS || key.id == Key.GLOBE) {
-            // Resolve on release: tap = the key's action, long-press = 123/ABC→accents, globe→settings.
+        if (key.id == Key.SYMBOLS || key.id == Key.LETTERS || key.id == Key.GLOBE || key.id == Key.ENTER) {
+            // Resolve on release: tap = the key's action, long-press = 123/ABC→accents, globe→settings,
+            // enter→hide the keyboard.
             pendingReleasePointer = pointerId
             pendingReleaseId = key.id
             longPressPointerId = pointerId
@@ -897,6 +898,13 @@ class LightKeyboardView @JvmOverloads constructor(
             pendingReleasePointer = -1   // consumed as settings, so release won't switch language
             endAltLongPress()
             tap(); layer = Layer.SETTINGS; rebuild()
+            return
+        }
+        // Long-press enter → hide the keyboard (a plain tap inserts a newline / submits).
+        if (k.id == Key.ENTER) {
+            pendingReleasePointer = -1   // consumed as dismiss, so release won't also send Enter
+            endAltLongPress()
+            tap(); listener?.onDismiss()
             return
         }
         // Long-press the 123/ABC toggle → the accents / vowel-points picker.

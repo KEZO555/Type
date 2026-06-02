@@ -84,6 +84,8 @@ That is the whole setup.
   by line.
 - **Long-press the `123`/`ABC` key** — opens an edit menu: select all · copy · cut · paste.
 - **Hold backspace** — repeats, then deletes whole words after a longer hold.
+- **Enter** — inserts a newline (or submits in Go/Search/Send/Next fields); it no longer closes the
+  keyboard. **Long-press Enter** — hides the keyboard.
 - **Swipe down** — hides the keyboard.
 
 Haptics are light and crisp (short, low-amplitude), tuned to feel close to the iPhone keyboard, and

@@ -261,9 +261,15 @@ class LightImeService : InputMethodService(), LightKeyboardView.Listener {
             learnTyped(original)   // user kept this word — remember it
         }
         clearUndo()
-        // Honor the field's action (Send/Search/Go); otherwise insert a newline.
-        val action = currentInputEditorInfo?.imeOptions?.and(EditorInfo.IME_MASK_ACTION)
-        if (action != null && action != EditorInfo.IME_ACTION_NONE && action != EditorInfo.IME_ACTION_UNSPECIFIED) {
+        // Enter inserts a real newline by default. Only fields that ask to submit/advance on Enter
+        // (Go / Search / Send / Next) get their action — and not if the field opts out with
+        // IME_FLAG_NO_ENTER_ACTION. A plain "Done" action used to just dismiss the keyboard; we now
+        // treat that as a newline so Enter never closes the keyboard. (Long-press Enter hides it.)
+        val opts = currentInputEditorInfo?.imeOptions ?: 0
+        val action = opts and EditorInfo.IME_MASK_ACTION
+        val submits = action == EditorInfo.IME_ACTION_GO || action == EditorInfo.IME_ACTION_SEARCH ||
+            action == EditorInfo.IME_ACTION_SEND || action == EditorInfo.IME_ACTION_NEXT
+        if (submits && (opts and EditorInfo.IME_FLAG_NO_ENTER_ACTION) == 0) {
             ic.performEditorAction(action)
         } else {
             ic.commitText("\n", 1)

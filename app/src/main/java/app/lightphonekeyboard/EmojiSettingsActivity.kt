@@ -35,7 +35,9 @@ class EmojiSettingsActivity : AppCompatActivity() {
         }
         root.addView(label(getString(R.string.setup_emoji), 28f, R.color.white))
         root.addView(label(getString(R.string.setup_emoji_sub), 14f, R.color.gray))
-        root.addView(buildGrid())
+        root.addView(buildGrid(), LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT,
+        ).apply { topMargin = (16 * density).toInt() })
 
         setContentView(ScrollView(this).apply {
             setBackgroundColor(getColor(R.color.black))
@@ -46,9 +48,16 @@ class EmojiSettingsActivity : AppCompatActivity() {
     private fun buildGrid(): LinearLayout {
         val density = resources.displayMetrics.density
         val selected = LinkedHashSet(Prefs.emojiSet(this).ifEmpty { LightKeyboardView.EMOJI_DEFAULT })
+        // One subtle rounded panel behind the whole grid; selection is shown by opacity, not per-cell
+        // boxes, so it stays clean and minimal.
         val container = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(0, (12 * density).toInt(), 0, 0)
+            val p = (10 * density).toInt()
+            setPadding(p, p, p, p)
+            background = GradientDrawable().apply {
+                cornerRadius = 18 * density
+                setColor(0xFF161616.toInt())
+            }
         }
         val cands = LightKeyboardView.EMOJI_CANDIDATES
         var i = 0
@@ -78,20 +87,12 @@ class EmojiSettingsActivity : AppCompatActivity() {
     private fun cell(glyph: String, selected: MutableSet<String>, density: Float): TextView {
         val cell = TextView(this).apply {
             text = glyph
-            textSize = 24f
+            textSize = 26f
             gravity = Gravity.CENTER
-            val p = (10 * density).toInt()
-            setPadding(p, p, p, p)
+            setPadding((4 * density).toInt(), (12 * density).toInt(), (4 * density).toInt(), (12 * density).toInt())
             isClickable = true
         }
-        fun render() {
-            val on = glyph in selected
-            cell.alpha = if (on) 1f else 0.3f
-            cell.background = if (on) GradientDrawable().apply {
-                cornerRadius = 8 * density
-                setColor(0xFF2C2C2C.toInt())
-            } else null
-        }
+        fun render() { cell.alpha = if (glyph in selected) 1f else 0.22f }  // dim = hidden
         cell.setOnClickListener {
             if (!selected.remove(glyph)) selected.add(glyph)
             Prefs.setEmojiSet(this, selected.toList())

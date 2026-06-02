@@ -13,6 +13,12 @@
     <string name="setup_languages_sub">English and Hebrew. The globe key switches between them; the emoji key opens emoji. Each language has its own dictionary, autocorrect, and voice input. Long-press a letter for its number/symbol or accents (English) / vowel points (Hebrew); long-press the period to dictate; double-tap space for “. ”; slide on the space bar to move the cursor.</string>
     <string name="setup_number_row">Number row</string>
     <string name="setup_number_row_sub">Show a row of numbers above the letters.</string>
+    <string name="setup_auto_cap">Auto-capitalize</string>
+    <string name="setup_auto_cap_sub">Capitalize the first letter of each sentence (English).</string>
+    <string name="setup_double_space">Double-space for period</string>
+    <string name="setup_double_space_sub">Tap the space bar twice to insert “. ”.</string>
+    <string name="setup_haptic_sub">Vibration strength on each key press. Tap to cycle.</string>
+    <string name="setup_tip">Tip: hold the globe key on the keyboard to jump straight back to these settings.</string>
     <string name="setup_prediction">Word completion</string>
     <string name="setup_prediction_sub">Suggest the rest of the word as you type (English and Hebrew), shown underlined after the cursor. Press space to complete it; keep typing to ignore.</string>
     <string name="setup_voice">Voice dictation</string>

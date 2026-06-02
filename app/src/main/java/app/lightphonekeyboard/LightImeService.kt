@@ -133,9 +133,15 @@ class LightImeService : InputMethodService(), LightKeyboardView.Listener {
 
     /** Sentence-case: uppercase at a sentence start, lowercase after — from the field's caps mode. */
     private fun updateShift() {
+        if (!Prefs.autoCap(this)) return
         val ic = currentInputConnection ?: return
         val type = currentInputEditorInfo?.inputType ?: return
         keyboard?.setShifted(ic.getCursorCapsMode(type) != 0)
+    }
+
+    /** Long-press the globe → open the keyboard's settings screen. */
+    override fun onOpenSettings() {
+        startActivity(Intent(this, SetupActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
     }
 
     override fun textBeforeCursor(n: Int): CharSequence? =

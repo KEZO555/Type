@@ -2,7 +2,11 @@ package app.lightphonekeyboard
 
 import android.content.Context
 import android.content.Intent
+import android.os.Build
 import android.os.Bundle
+import android.os.VibrationEffect
+import android.os.Vibrator
+import android.os.VibratorManager
 import android.provider.Settings
 import android.util.TypedValue
 import android.view.Gravity
@@ -93,10 +97,31 @@ class SetupActivity : AppCompatActivity() {
             Prefs.setAutocorrect(this, it)
         }
         val autocorrectSub = label(getString(R.string.setup_autocorrect_sub), 14f, R.color.gray)
+        val autoCapToggle = toggle(R.string.setup_auto_cap, Prefs.autoCap(this)) {
+            Prefs.setAutoCap(this, it)
+        }
+        val autoCapSub = label(getString(R.string.setup_auto_cap_sub), 14f, R.color.gray)
+        val doubleSpaceToggle = toggle(R.string.setup_double_space, Prefs.doubleSpacePeriod(this)) {
+            Prefs.setDoubleSpacePeriod(this, it)
+        }
+        val doubleSpaceSub = label(getString(R.string.setup_double_space_sub), 14f, R.color.gray)
+        // Haptics: a row that cycles Off → Light → Medium → Strong and previews the chosen strength.
+        val hapticNames = listOf("Off", "Light", "Medium", "Strong")
+        fun hapticText() = "Haptic feedback: ${hapticNames[Prefs.hapticLevel(this).coerceIn(0, 3)]}"
+        val hapticBtn = action(hapticText()) { }
+        hapticBtn.setPadding(0, pad, 0, 0)
+        hapticBtn.setOnClickListener {
+            val next = (Prefs.hapticLevel(this) + 1) % hapticNames.size
+            Prefs.setHapticLevel(this, next)
+            hapticBtn.text = hapticText()
+            previewHaptic(next)
+        }
+        val hapticSub = label(getString(R.string.setup_haptic_sub), 14f, R.color.gray)
         val numberRowToggle = toggle(R.string.setup_number_row, Prefs.numberRow(this)) {
             Prefs.setNumberRow(this, it)
         }
         val numberRowSub = label(getString(R.string.setup_number_row_sub), 14f, R.color.gray)
+        val tipView = label(getString(R.string.setup_tip), 14f, R.color.gray)
         // Languages: informational — the globe key on the keyboard cycles English → Hebrew → emoji.
         val languagesView = label(getString(R.string.setup_languages), 20f, R.color.white)
         val languagesSub = label(getString(R.string.setup_languages_sub), 14f, R.color.gray)
@@ -110,8 +135,12 @@ class SetupActivity : AppCompatActivity() {
             titleView, blurbView, step1, step2, doneView,
             languagesView, languagesSub,
             autocorrectToggle, autocorrectSub,
+            autoCapToggle, autoCapSub,
+            doubleSpaceToggle, doubleSpaceSub,
+            hapticBtn, hapticSub,
             numberRowToggle, numberRowSub,
             voiceToggle!!, voiceSub, voiceStatus!!, clearVoiceBtn!!,
+            tipView,
         ).forEach { root.addView(it) }
         refreshVoice()
 
@@ -120,6 +149,23 @@ class SetupActivity : AppCompatActivity() {
             setBackgroundColor(getColor(R.color.black))
             addView(root)
         })
+    }
+
+    /** Buzz once at the chosen strength so the user feels what they picked (matches the keyboard). */
+    private fun previewHaptic(level: Int) {
+        val (ms, amp) = when (level) {
+            Prefs.HAPTIC_LIGHT -> 10L to 90
+            Prefs.HAPTIC_MEDIUM -> 16L to 160
+            Prefs.HAPTIC_STRONG -> 22L to 255
+            else -> return
+        }
+        val v = if (Build.VERSION.SDK_INT >= 31) {
+            (getSystemService(VibratorManager::class.java))?.defaultVibrator
+        } else {
+            @Suppress("DEPRECATION") (getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator)
+        }
+        if (v == null || !v.hasVibrator()) return
+        runCatching { v.vibrate(VibrationEffect.createOneShot(ms, amp)) }
     }
 
     /** Show the "clear download" action only when the model is actually on disk. */

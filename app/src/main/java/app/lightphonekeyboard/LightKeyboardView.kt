@@ -68,6 +68,8 @@ class LightKeyboardView @JvmOverloads constructor(
         fun onCopy()
         fun onCut()
         fun onPaste()
+        /** Long-press the globe — open the keyboard's settings screen. */
+        fun onOpenSettings()
     }
 
     var listener: Listener? = null
@@ -703,8 +705,8 @@ class LightKeyboardView @JvmOverloads constructor(
         val key = if (layer == Layer.LETTERS && isLetter(raw.id)) resolveLetter(x, y, raw) else raw
         pressed[pointerId] = key
         invalidate()
-        if (key.id == Key.SYMBOLS || key.id == Key.LETTERS) {
-            // The layer toggle resolves on release: tap = switch layer, long-press = edit menu.
+        if (key.id == Key.SYMBOLS || key.id == Key.LETTERS || key.id == Key.GLOBE) {
+            // Resolve on release: tap = the key's action, long-press = 123/ABC→accents, globe→settings.
             pendingReleasePointer = pointerId
             pendingReleaseId = key.id
             longPressPointerId = pointerId
@@ -771,6 +773,13 @@ class LightKeyboardView @JvmOverloads constructor(
             endAltLongPress()
             if (firstPointerId == longPressPointerId) firstKeyRetractable = false
             tap(); listener?.onBackspace(); layer = Layer.EMOJI; rebuild()
+            return
+        }
+        // Long-press the globe → open the keyboard settings.
+        if (k.id == Key.GLOBE) {
+            pendingReleasePointer = -1   // consumed as settings, so release won't switch language
+            endAltLongPress()
+            tap(); listener?.onOpenSettings()
             return
         }
         // Long-press the 123/ABC toggle → the accents / vowel-points picker.
@@ -961,7 +970,7 @@ class LightKeyboardView @JvmOverloads constructor(
             Key.COMMA -> { listener?.onText(","); return true }
             Key.SPACE -> {
                 val now = System.currentTimeMillis()
-                if (now - lastSpaceTapMs < DOUBLE_TAP_MS) {   // double-tap → ". "
+                if (Prefs.doubleSpacePeriod(context) && now - lastSpaceTapMs < DOUBLE_TAP_MS) {  // double-tap → ". "
                     lastSpaceTapMs = 0L
                     listener?.onDoubleSpace()
                     return false
@@ -1084,8 +1093,19 @@ class LightKeyboardView @JvmOverloads constructor(
         runCatching { v.vibrate(android.os.VibrationEffect.createOneShot(ms, amplitude)) }
     }
 
-    private fun tap() = buzz(22, 255)         // firm, clearly-felt key press (max amplitude)
-    private fun cursorTick() = buzz(12, 140)  // lighter tick for caret movement
+    private fun tap() = when (Prefs.hapticLevel(context)) {       // key-press strength (Setup)
+        Prefs.HAPTIC_LIGHT -> buzz(10, 90)
+        Prefs.HAPTIC_MEDIUM -> buzz(16, 160)
+        Prefs.HAPTIC_STRONG -> buzz(22, 255)
+        else -> Unit                                              // off
+    }
+
+    private fun cursorTick() = when (Prefs.hapticLevel(context)) { // lighter tick for caret movement
+        Prefs.HAPTIC_LIGHT -> buzz(7, 60)
+        Prefs.HAPTIC_MEDIUM -> buzz(10, 100)
+        Prefs.HAPTIC_STRONG -> buzz(12, 150)
+        else -> Unit
+    }
 
     private val DOUBLE_TAP_MS = 300L
     private val BACKSPACE_INITIAL_DELAY_MS = 400L   // pause before key-repeat kicks in

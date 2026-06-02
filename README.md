@@ -49,6 +49,9 @@ The settings below it:
   frequency dictionaries that also learn the words you use. Keyboard-aware (it prefers fixes that are a
   neighbouring-key slip or a swapped pair) and conservative, so it doesn't replace words you meant.
   Fully offline. Turn it off to type exactly what you tap.
+- **Auto-capitalize** (on by default): capitalize the first letter of each sentence.
+- **Double-space for period** (on by default): tap space twice to insert `. `.
+- **Haptic feedback**: cycle Off / Light / Medium / Strong; tapping previews the strength.
 - **Number row** (off by default): a persistent row of digits above the letters.
 - **Voice dictation** (off by default): turning it on downloads the ~40 MB offline English model once,
   then a mic key lets you speak instead of type. English runs entirely on-device; Hebrew dictation uses
@@ -59,8 +62,8 @@ That is the whole setup.
 
 ## Gestures
 
-- **Globe** — switches English ⇄ Hebrew. **Comma key** — tap types a comma; **long-press opens the
-  emoji panel** (recently-used float to the front).
+- **Globe** — tap switches English ⇄ Hebrew; **long-press opens the settings screen**. **Comma key** —
+  tap types a comma; **long-press opens the emoji panel** (recently-used float to the front).
 - **Long-press a letter** — types its corner number/symbol directly.
 - **Long-press the `123`/`ABC` key** — a picker of accented letters (English) / vowel points (Hebrew).
 - **Long-press the period** — starts voice dictation (English only; Hebrew dictation needs a system

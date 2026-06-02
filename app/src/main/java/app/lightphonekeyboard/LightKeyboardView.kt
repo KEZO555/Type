@@ -174,9 +174,11 @@ class LightKeyboardView @JvmOverloads constructor(
     private var popupEdit = false                 // true = edit menu (actions), false = text alternates
     private val altLongPress = Runnable { showAltPopup() }
 
-    // The emoji key acts on release: a tap opens the emoji panel, a long-press types a comma. This
-    // pointer is the in-flight emoji press (resolved on UP).
-    private var pendingEmojiPointer = -1
+    // Some keys act on release so a long-press can do something else: emoji (tap = panel, hold =
+    // comma) and the 123/ABC toggle (tap = switch layer, hold = edit menu). This tracks the in-flight
+    // such press, resolved on UP.
+    private var pendingReleasePointer = -1
+    private var pendingReleaseId = ""
 
     // Long-press the space bar → an edit menu. Indices match EDIT_ACTIONS order.
     private val EDIT_ACTIONS = listOf("Select all", "Copy", "Cut", "Paste")
@@ -505,6 +507,15 @@ class LightKeyboardView @JvmOverloads constructor(
                 val y = pk.vis.centerY() + dpf(11)
                 canvas.drawRect(cx - dpf(7), y - dpf(1), cx + dpf(7), y + dpf(1), spacePaint)
             }
+            // The emoji key types a comma on long-press — show a small "," so it's discoverable.
+            if (id == Key.EMOJI) {
+                textPaint.textSize = spf(12)
+                textPaint.textAlign = Paint.Align.RIGHT
+                textPaint.color = Color.argb(150, 255, 255, 255)
+                canvas.drawText(",", pk.vis.right - dpf(5), pk.vis.top + dpf(14), textPaint)
+                textPaint.color = Color.WHITE
+                textPaint.textAlign = Paint.Align.CENTER
+            }
             return
         }
         // Emoji glyphs are large; everything else (letters, the layer toggle, the period) is normal.
@@ -626,7 +637,7 @@ class LightKeyboardView @JvmOverloads constructor(
                             dismissedThisGesture = true
                             stopBackspaceRepeat()
                             endAltLongPress()
-                            pendingEmojiPointer = -1
+                            pendingReleasePointer = -1
                             // The first tap already committed a char on down; retract it so the swipe
                             // doesn't leave a stray letter behind.
                             if (firstKeyRetractable) listener?.onBackspace()
@@ -641,7 +652,7 @@ class LightKeyboardView @JvmOverloads constructor(
             MotionEvent.ACTION_POINTER_UP -> {
                 val pid = ev.getPointerId(ev.actionIndex)
                 if (pid == longPressPointerId) commitPopupAndReset()
-                if (pid == pendingEmojiPointer) { if (!dismissedThisGesture) onKey(Key.EMOJI); pendingEmojiPointer = -1 }
+                if (pid == pendingReleasePointer) { if (!dismissedThisGesture) onKey(pendingReleaseId); pendingReleasePointer = -1 }
                 pressed.remove(pid)
                 if (pid == backspacePointerId) stopBackspaceRepeat()
                 if (pid == spacePointerId) spacePointerId = -1
@@ -651,8 +662,8 @@ class LightKeyboardView @JvmOverloads constructor(
             MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                 val up = ev.actionMasked == MotionEvent.ACTION_UP
                 if (up) commitPopupAndReset() else endAltLongPress()
-                // A quick emoji tap (no long-press fired) opens the panel on release.
-                if (pendingEmojiPointer != -1) { if (up && !dismissedThisGesture) onKey(Key.EMOJI); pendingEmojiPointer = -1 }
+                // A quick tap (no long-press fired) runs the key's action on release.
+                if (pendingReleasePointer != -1) { if (up && !dismissedThisGesture) onKey(pendingReleaseId); pendingReleasePointer = -1 }
                 pressed.clear()
                 stopBackspaceRepeat()
                 spacePointerId = -1
@@ -693,9 +704,10 @@ class LightKeyboardView @JvmOverloads constructor(
         val key = if (layer == Layer.LETTERS && isLetter(raw.id)) resolveLetter(x, y, raw) else raw
         pressed[pointerId] = key
         invalidate()
-        if (key.id == Key.EMOJI) {
-            // Resolve on release: tap → emoji panel, long-press → comma. Arm the long-press now.
-            pendingEmojiPointer = pointerId
+        if (key.id == Key.EMOJI || key.id == Key.SYMBOLS || key.id == Key.LETTERS) {
+            // Resolve on release: tap = the key's action, long-press = emoji→comma / toggle→edit menu.
+            pendingReleasePointer = pointerId
+            pendingReleaseId = key.id
             longPressPointerId = pointerId
             longPressCandidate = key
             removeCallbacks(altLongPress)
@@ -715,11 +727,8 @@ class LightKeyboardView @JvmOverloads constructor(
             spaceDownY = y
             spaceSwiping = false
         }
-        // Long-press: a letter → accents/niqqud popup; the period → voice; space → edit menu.
-        if (alternatesFor(key.id) != null ||
-            (key.id == Key.PERIOD && Prefs.voiceEnabled(context)) ||
-            key.id == Key.SPACE
-        ) {
+        // Long-press: a letter → accents/niqqud popup; the period → voice dictation.
+        if (alternatesFor(key.id) != null || (key.id == Key.PERIOD && Prefs.voiceEnabled(context))) {
             longPressPointerId = pointerId
             longPressCandidate = key
             removeCallbacks(altLongPress)
@@ -766,16 +775,14 @@ class LightKeyboardView @JvmOverloads constructor(
         }
         // Long-press the emoji key → a comma (the tap-to-open-panel happens on release instead).
         if (k.id == Key.EMOJI) {
-            pendingEmojiPointer = -1   // consumed as a comma, so release won't open the panel
+            pendingReleasePointer = -1   // consumed as a comma, so release won't open the panel
             endAltLongPress()
             tap(); listener?.onText(",")
             return
         }
-        // Long-press space → edit menu. Retract the space committed on down; it wasn't wanted.
-        if (k.id == Key.SPACE) {
-            if (firstPointerId == spacePointerId && firstKeyRetractable) {
-                listener?.onBackspace(); firstKeyRetractable = false
-            }
+        // Long-press the 123/ABC toggle → the edit menu (select all · copy · cut · paste).
+        if (k.id == Key.SYMBOLS || k.id == Key.LETTERS) {
+            pendingReleasePointer = -1   // consumed as the menu, so release won't switch layer
             popupEdit = true
             popupOptions = EDIT_ACTIONS
         } else {
@@ -1035,7 +1042,7 @@ class LightKeyboardView @JvmOverloads constructor(
     fun reset() {
         stopBackspaceRepeat()
         endAltLongPress()
-        spacePointerId = -1; spaceSwiping = false; pendingEmojiPointer = -1
+        spacePointerId = -1; spaceSwiping = false; pendingReleasePointer = -1
         layer = Layer.LETTERS; shifted = true; capsLock = false; listening = false; rebuild()
     }
 
@@ -1099,8 +1106,8 @@ class LightKeyboardView @JvmOverloads constructor(
         runCatching { v.vibrate(android.os.VibrationEffect.createOneShot(ms, amplitude)) }
     }
 
-    private fun tap() = buzz(12, 90)          // crisp, light key press
-    private fun cursorTick() = buzz(7, 45)    // softer tick for caret movement
+    private fun tap() = buzz(18, 180)         // firm, crisp key press
+    private fun cursorTick() = buzz(11, 110)  // lighter tick for caret movement
 
     private val DOUBLE_TAP_MS = 300L
     private val BACKSPACE_INITIAL_DELAY_MS = 400L   // pause before key-repeat kicks in

@@ -67,7 +67,7 @@ That is the whole setup.
 - **Double-tap space** — inserts `. ` (sentence end).
 - **Drag the space bar** — moves the cursor like an iPhone trackpad: left/right by character, up/down
   by line.
-- **Long-press the space bar** — opens an edit menu: select all · copy · cut · paste.
+- **Long-press the `123`/`ABC` key** — opens an edit menu: select all · copy · cut · paste.
 - **Hold backspace** — repeats, then deletes whole words after a longer hold.
 - **Swipe down** — hides the keyboard.
 

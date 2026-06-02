@@ -66,8 +66,6 @@ class LightKeyboardView @JvmOverloads constructor(
         fun onCopy()
         fun onCut()
         fun onPaste()
-        /** A word-prediction suggestion was tapped. */
-        fun onSuggestionPicked(word: String)
     }
 
     var listener: Listener? = null
@@ -205,25 +203,6 @@ class LightKeyboardView @JvmOverloads constructor(
     private val placed = ArrayList<PlacedKey>()
     private val letterKeys = ArrayList<PlacedKey>()   // a-z keys only, for the accuracy model
 
-    // Word-prediction suggestions strip (drawn above the keys when prediction is on).
-    private var suggestions: List<String> = emptyList()
-    private var stripPressedIndex = -1
-    private var inStripGesture = false
-    private val stripHeight = dpf(40)
-    private val stripDividerPaint = Paint().apply { color = Color.argb(60, 255, 255, 255) }
-
-    /** True when the suggestions strip occupies space (reserved across letter/symbol/emoji layers so
-     *  the keyboard height doesn't jump; hidden only while voice-listening). */
-    private val stripShown: Boolean get() = !listening && Prefs.prediction(context)
-    private val topInset: Float get() = if (stripShown) stripHeight else 0f
-
-    /** Host pushes the current predictions here; only shown on the letters layer. */
-    fun setSuggestions(list: List<String>) {
-        if (suggestions == list) return
-        suggestions = list
-        invalidate()
-    }
-
     // --- metrics (px) ---
     private val padTop = dpf(3)
     private val padBottom = dpf(10)
@@ -291,7 +270,7 @@ class LightKeyboardView @JvmOverloads constructor(
             layer == Layer.EMOJI -> emojiGridRows + 1  // emoji rows + control row (= 4, same as letters)
             else -> currentRows.size
         }
-        val h = topInset + padTop + rowCount * rowPitch + padBottom
+        val h = padTop + rowCount * rowPitch + padBottom
         setMeasuredDimension(w, h.toInt())
     }
 
@@ -313,14 +292,13 @@ class LightKeyboardView @JvmOverloads constructor(
 
         val w = width.toFloat()
         val h = height.toFloat()
-        val base = topInset                  // keys start below the suggestions strip
         val rows = currentRows
         val n = rows.size
         for (i in rows.indices) {
-            // Bands tile [base, h]: the top row absorbs the top pad, the bottom row absorbs the bottom pad.
-            val bandTop = if (i == 0) base else base + padTop + i * rowPitch
-            val bandBottom = if (i == n - 1) h else base + padTop + (i + 1) * rowPitch
-            val visTop = base + padTop + i * rowPitch + keyGap
+            // Bands tile [0, h]: the top row absorbs the top pad, the bottom row absorbs the bottom pad.
+            val bandTop = if (i == 0) 0f else padTop + i * rowPitch
+            val bandBottom = if (i == n - 1) h else padTop + (i + 1) * rowPitch
+            val visTop = padTop + i * rowPitch + keyGap
             val visBottom = visTop + rowKeyH
             layoutRow(rows[i], bandTop, bandBottom, visTop, visBottom, w)
         }
@@ -360,13 +338,12 @@ class LightKeyboardView @JvmOverloads constructor(
         // it just swaps enter for backspace (deleting an emoji is what you want here).
         val w = width.toFloat()
         val h = height.toFloat()
-        val base = topInset
         val drawW = w - padSide * 2
         val glyphs = displayedEmoji()
         for (r in 0 until emojiGridRows) {
-            val bandTop = if (r == 0) base else base + padTop + r * rowPitch
-            val bandBottom = base + padTop + (r + 1) * rowPitch
-            val visTop = base + padTop + r * rowPitch + keyGap
+            val bandTop = if (r == 0) 0f else padTop + r * rowPitch
+            val bandBottom = padTop + (r + 1) * rowPitch
+            val visTop = padTop + r * rowPitch + keyGap
             val visBottom = visTop + rowKeyH
             for (c in 0 until emojiCols) {
                 val idx = r * emojiCols + c
@@ -387,7 +364,7 @@ class LightKeyboardView @JvmOverloads constructor(
 
         // Same bottom row as every other mode (here the fifth key is backspace, so you can delete).
         val i = emojiGridRows
-        val bandTop = base + padTop + i * rowPitch
+        val bandTop = padTop + i * rowPitch
         val visTop = bandTop + keyGap
         layoutRow(bottomRow(), bandTop, h, visTop, visTop + rowKeyH, w)
     }
@@ -411,26 +388,7 @@ class LightKeyboardView @JvmOverloads constructor(
             }
             drawKey(canvas, pk)
         }
-        if (stripShown) drawStrip(canvas)
         if (popupActive) drawAltPopup(canvas)
-    }
-
-    /** The word-prediction strip: up to three tappable suggestions above the keys, with a divider. */
-    private fun drawStrip(canvas: Canvas) {
-        canvas.drawRect(0f, stripHeight - dpf(1), width.toFloat(), stripHeight, stripDividerPaint)
-        val sugg = if (layer == Layer.LETTERS) suggestions else emptyList()
-        val n = sugg.size.coerceAtMost(3)
-        if (n == 0) return
-        val cellW = width.toFloat() / n
-        textPaint.textSize = spf(16)
-        textPaint.color = Color.WHITE
-        for (i in 0 until n) {
-            val cl = cellW * i
-            if (i == stripPressedIndex) canvas.drawRect(cl, 0f, cl + cellW, stripHeight, pressPaint)
-            if (i > 0) canvas.drawRect(cl, dpf(9), cl + 1f, stripHeight - dpf(9), stripDividerPaint)   // thin separator
-            val baseline = stripHeight / 2f - (textPaint.descent() + textPaint.ascent()) / 2f
-            canvas.drawText(sugg[i], cl + cellW / 2f, baseline, textPaint)
-        }
     }
 
     /** The alternates popup: a card of option cells above the long-pressed key (below it for the top
@@ -597,7 +555,6 @@ class LightKeyboardView @JvmOverloads constructor(
             if (ev.actionMasked == MotionEvent.ACTION_DOWN) { tap(); listener?.onMicCancel() }
             return true
         }
-        if (handleStripTouch(ev)) return true
         when (ev.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
                 downX = ev.x
@@ -663,45 +620,6 @@ class LightKeyboardView @JvmOverloads constructor(
             }
         }
         return true
-    }
-
-    /** Suggestions strip taps, handled separately from the key grid. Returns true if consumed. */
-    private fun handleStripTouch(ev: MotionEvent): Boolean {
-        when (ev.actionMasked) {
-            MotionEvent.ACTION_DOWN -> {
-                if (stripShown && layer == Layer.LETTERS && ev.y < topInset && suggestions.isNotEmpty()) {
-                    inStripGesture = true
-                    stripPressedIndex = stripCellAt(ev.x)
-                    invalidate()
-                    return true
-                }
-                return false
-            }
-            MotionEvent.ACTION_MOVE -> {
-                if (!inStripGesture) return false
-                stripPressedIndex = if (ev.y < topInset) stripCellAt(ev.x) else -1
-                invalidate()
-                return true
-            }
-            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                if (!inStripGesture) return false
-                val i = stripPressedIndex
-                inStripGesture = false
-                stripPressedIndex = -1
-                invalidate()
-                if (ev.actionMasked == MotionEvent.ACTION_UP && i in suggestions.indices) {
-                    tap(); listener?.onSuggestionPicked(suggestions[i])
-                }
-                return true
-            }
-            else -> return inStripGesture
-        }
-    }
-
-    private fun stripCellAt(x: Float): Int {
-        val n = suggestions.size.coerceAtMost(3)
-        if (n == 0) return -1
-        return (x / (width.toFloat() / n)).toInt().coerceIn(0, n - 1)
     }
 
     /** Space-bar drag → caret moves one step per [SPACE_SWIPE_STEP]. Returns true once swiping starts
@@ -1058,7 +976,6 @@ class LightKeyboardView @JvmOverloads constructor(
         stopBackspaceRepeat()
         endAltLongPress()
         spacePointerId = -1; spaceSwiping = false
-        inStripGesture = false; stripPressedIndex = -1; suggestions = emptyList()
         layer = Layer.LETTERS; shifted = true; capsLock = false; listening = false; rebuild()
     }
 

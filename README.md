@@ -48,8 +48,10 @@ The settings below it:
 - **Autocorrect** (on by default): fixes misspellings as you type. English uses your phone's built-in
   dictionary; Hebrew uses a dictionary bundled into the app (no Hebrew spell checker is needed on the
   phone). Turn it off to type exactly what you tap.
-- **Word prediction** (on by default): a strip of suggested words above the keys as you type, in
-  English and Hebrew. Tap one to complete the word. It learns the words you use.
+- **Word completion** (on by default): as you type, the rest of the word is previewed inline
+  (underlined) after the cursor, in English and Hebrew — press **space** to accept it, or keep typing
+  to ignore. It learns the words you use. (Android only lets a keyboard show *composing* text, so the
+  preview is underlined rather than gray.)
 - **Number row** (off by default): a persistent row of digits above the letters.
 - **Voice dictation** (off by default): turning it on downloads the ~40 MB offline English model once,
   then a mic key lets you speak instead of type. English runs entirely on-device; Hebrew dictation uses

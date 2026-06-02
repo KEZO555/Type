@@ -13,8 +13,8 @@
     <string name="setup_languages_sub">English and Hebrew. The globe key switches between them; the emoji key opens emoji. Each language has its own dictionary, autocorrect, and voice input. Long-press a letter for its number/symbol or accents (English) / vowel points (Hebrew); long-press the period to dictate; double-tap space for “. ”; slide on the space bar to move the cursor.</string>
     <string name="setup_number_row">Number row</string>
     <string name="setup_number_row_sub">Show a row of numbers above the letters.</string>
-    <string name="setup_prediction">Word prediction</string>
-    <string name="setup_prediction_sub">Show suggested words as you type (English and Hebrew). Tap one to complete the word.</string>
+    <string name="setup_prediction">Word completion</string>
+    <string name="setup_prediction_sub">Suggest the rest of the word as you type (English and Hebrew), shown underlined after the cursor. Press space to complete it; keep typing to ignore.</string>
     <string name="setup_voice">Voice dictation</string>
     <string name="setup_voice_sub">English is private and on-device (downloads 40 MB once). Hebrew uses the phone\'s own voice service, which may need a connection.</string>
     <string name="setup_voice_clear">Delete voice model (frees ~40 MB)</string>

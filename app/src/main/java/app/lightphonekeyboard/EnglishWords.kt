@@ -23,6 +23,8 @@ object EnglishWords {
     private val freq = HashMap<String, Long>(34_000)
     private val learned = HashMap<String, Long>()
     private var appContext: Context? = null
+    private var sortedWords: Array<String> = emptyArray()
+    private var sortedFreq: LongArray = LongArray(0)
 
     @Volatile
     var ready = false
@@ -45,6 +47,9 @@ object EnglishWords {
                     }
                 }
                 loadLearned(app)
+                val keys = freq.keys.toTypedArray(); keys.sort()
+                sortedWords = keys
+                sortedFreq = LongArray(keys.size) { freq[keys[it]] ?: 0L }
                 main.post { ready = true; loading = false; Log.i(TAG, "loaded ${freq.size}+${learned.size}") }
             } catch (e: Throwable) {
                 main.post { loading = false }
@@ -66,10 +71,10 @@ object EnglishWords {
         }
     }
 
-    /** Up to [n] completions of [prefix] (lowercased), most frequent first. */
-    fun suggest(prefix: String, n: Int): List<String> {
-        if (!ready) return emptyList()
-        return topCompletions(prefix.lowercase(), n, freq, learned, LEARN_WEIGHT)
+    /** The best inline completion of [prefix] (lowercased), or null. */
+    fun complete(prefix: String): String? {
+        if (!ready) return null
+        return WordPredict.bestCompletion(prefix.lowercase(), sortedWords, sortedFreq, learned, LEARN_WEIGHT)
     }
 
     /** Remember a word the user typed. ASCII letters only, length 2..20. */

@@ -1,36 +1,51 @@
 package app.lightphonekeyboard
 
 /**
- * Shared word-prediction helper: top-[n] completions of a prefix, drawn from a bundled frequency map
- * plus a learned-words map (learned counts are scaled by [learnWeight] so frequently-used personal
- * words compete with common dictionary words). Only words *longer* than the prefix are returned — the
- * user has already typed the prefix itself.
- *
- * A linear scan with a tiny fixed-size top-list; fast enough to run on every keystroke for the ~30–40k
- * word lists we ship.
+ * Shared word-prediction helper. The bundled word list is held as a string array sorted lexically with
+ * a parallel frequency array, so a completion lookup is a binary search to the prefix range plus a
+ * short linear scan of just that range — fast enough to run on every keystroke. Learned words (a small
+ * map) are scanned too, their counts scaled by [learnWeight] so personal words can win.
  */
-fun topCompletions(
-    prefix: String,
-    n: Int,
-    freq: Map<String, Long>,
-    learned: Map<String, Long>,
-    learnWeight: Long,
-): List<String> {
-    if (prefix.isEmpty() || n <= 0) return emptyList()
-    val words = ArrayList<String>(n)
-    val scores = ArrayList<Long>(n)
+object WordPredict {
 
-    fun offer(w: String, score: Long) {
-        if (w.length <= prefix.length || !w.startsWith(prefix)) return
-        // Insert into the descending-by-score top list (size ≤ n).
-        var i = 0
-        while (i < words.size && scores[i] >= score) i++
-        if (i >= n) return
-        words.add(i, w); scores.add(i, score)
-        if (words.size > n) { words.removeAt(n); scores.removeAt(n) }
+    /** First index in [sorted] whose entry is ≥ [key] (standard lower-bound binary search). */
+    private fun lowerBound(sorted: Array<String>, key: String): Int {
+        var lo = 0
+        var hi = sorted.size
+        while (lo < hi) {
+            val mid = (lo + hi) ushr 1
+            if (sorted[mid] < key) lo = mid + 1 else hi = mid
+        }
+        return lo
     }
 
-    for ((w, f) in freq) offer(w, f)
-    for ((w, c) in learned) if (!freq.containsKey(w)) offer(w, c * learnWeight)
-    return words
+    /**
+     * The single best completion of [prefix] — a longer word that starts with it, highest frequency
+     * first — or null if there's none.
+     */
+    fun bestCompletion(
+        prefix: String,
+        sorted: Array<String>,
+        freqs: LongArray,
+        learned: Map<String, Long>,
+        learnWeight: Long,
+    ): String? {
+        if (prefix.isEmpty()) return null
+        var best: String? = null
+        var bestScore = -1L
+        var i = lowerBound(sorted, prefix)
+        while (i < sorted.size && sorted[i].startsWith(prefix)) {
+            if (sorted[i].length > prefix.length && freqs[i] > bestScore) {
+                bestScore = freqs[i]; best = sorted[i]
+            }
+            i++
+        }
+        for ((w, c) in learned) {
+            if (w.length > prefix.length && w.startsWith(prefix)) {
+                val f = c * learnWeight
+                if (f > bestScore) { bestScore = f; best = w }
+            }
+        }
+        return best
+    }
 }

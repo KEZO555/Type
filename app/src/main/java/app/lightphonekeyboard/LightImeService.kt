@@ -77,9 +77,9 @@ class LightImeService : InputMethodService(), LightKeyboardView.Listener, SpellC
         hebrew = keyboard?.isHebrew ?: false
         if (hebrew) HebrewDictionary.prepare(this)
         if (Prefs.prediction(this)) { EnglishWords.prepare(this); HebrewDictionary.prepare(this) }
+        ghost = ""
         if (spell == null) initSpell()
         updateShift()
-        updateSuggestions()
     }
 
     override fun onDestroy() {
@@ -95,7 +95,7 @@ class LightImeService : InputMethodService(), LightKeyboardView.Listener, SpellC
         this.hebrew = hebrew
         clearUndo()
         if (hebrew) HebrewDictionary.prepare(this)
-        updateSuggestions()
+        clearGhost()
     }
 
     /** Keep the keyboard's language in sync when the user switches our subtype via the system globe. */
@@ -119,29 +119,44 @@ class LightImeService : InputMethodService(), LightKeyboardView.Listener, SpellC
             oldSelStart, oldSelEnd, newSelStart, newSelEnd, candidatesStart, candidatesEnd,
         )
         updateShift() // after each keystroke/cursor move, recompute uppercase-vs-lowercase
-        updateSuggestions()
     }
 
-    /** Recompute the word-prediction strip from the partial word before the cursor. */
-    private fun updateSuggestions() {
-        val kb = keyboard ?: return
-        if (!Prefs.prediction(this)) { kb.setSuggestions(emptyList()); return }
-        val word = trailingWord()
-        if (word.isEmpty()) { kb.setSuggestions(emptyList()); return }
-        kb.setSuggestions(if (hebrew) HebrewDictionary.suggest(word, 3) else EnglishWords.suggest(word, 3))
+    // ------------------------------------------------------------------ inline word completion
+    //
+    // As you type a word we show the best completion as an underlined "composing" suffix right after
+    // the cursor (Android won't let a keyboard paint gray ghost text in other apps — composing text is
+    // the closest the platform allows). Pressing space accepts it; any other key drops it.
+
+    private var ghost = ""   // the suffix currently shown as composing text (empty = none)
+
+    /** Remove the inline completion preview, if any, without committing it. */
+    private fun clearGhost() {
+        if (ghost.isEmpty()) return
+        currentInputConnection?.setComposingText("", 1)
+        ghost = ""
     }
 
-    /** A suggestion was tapped: replace the partial word with it (+ a space) and remember it. */
-    override fun onSuggestionPicked(word: String) {
+    /** Commit the inline completion into the text (cursor ends up after it). */
+    private fun acceptGhost() {
         val ic = currentInputConnection ?: return
-        clearUndo()
-        val cur = trailingWord()
+        if (ghost.isEmpty()) return
         ic.beginBatchEdit()
-        if (cur.isNotEmpty()) ic.deleteSurroundingText(cur.length, 0)
-        ic.commitText("$word ", 1)
+        ic.setComposingText("", 1)   // drop the composing preview…
+        ic.commitText(ghost, 1)      // …and commit it as real text
         ic.endBatchEdit()
-        if (hebrew) learnHebrew(word) else EnglishWords.learn(this, word)
-        keyboard?.setSuggestions(emptyList())
+        ghost = ""
+    }
+
+    /** Show the best completion of the word before the cursor as a composing suffix. */
+    private fun showGhost() {
+        val ic = currentInputConnection ?: return
+        if (!Prefs.prediction(this)) return
+        val word = trailingWord()
+        if (word.length < 2) return
+        val full = if (hebrew) HebrewDictionary.complete(word) else EnglishWords.complete(word)
+        if (full == null || full.length <= word.length || !full.startsWith(word)) return
+        ghost = full.substring(word.length)
+        ic.setComposingText(ghost, 0)   // insert the suffix after the cursor, underlined
     }
 
     /** Sentence-case: uppercase at a sentence start, lowercase after — from the field's caps mode. */
@@ -158,12 +173,15 @@ class LightImeService : InputMethodService(), LightKeyboardView.Listener, SpellC
 
     override fun onText(s: String) {
         val ic = currentInputConnection ?: return
+        // Inline completion: space accepts the preview; anything else drops it.
+        if (s == " " && ghost.isNotEmpty()) acceptGhost() else clearGhost()
         if (s.length == 1 && isWordChar(s[0])) {
             clearUndo()
             // A letter continues the word, so a preceding Hebrew *final* form is no longer word-final.
             fixMedialBeforeTyping()
             ic.commitText(s, 1)
             requestCheck(trailingWord())   // keep the spell checker warm on the growing word
+            showGhost()                    // preview the completion of the growing word
             return
         }
         // Only whitespace / sentence punctuation finish a word for autocorrect. Digits and other
@@ -190,12 +208,13 @@ class LightImeService : InputMethodService(), LightKeyboardView.Listener, SpellC
         } else {
             clearUndo()
             ic.commitText(s, 1)
-            learnHebrew(original)    // user typed this word and kept it — remember it
+            learnTyped(original)    // user typed this word and kept it — remember it
         }
     }
 
     override fun onBackspace() {
         val ic = currentInputConnection ?: return
+        clearGhost()
         val from = undoFrom
         val to = undoTo
         if (from != null && to != null) {
@@ -207,7 +226,7 @@ class LightImeService : InputMethodService(), LightKeyboardView.Listener, SpellC
                 ic.deleteSurroundingText(from.length, 0)
                 ic.commitText(to, 1)
                 ic.endBatchEdit()
-                if (word != null) learnHebrew(word)   // user rejected the fix — learn their word
+                if (word != null) learnTyped(word)   // user rejected the fix — learn their word
                 return
             }
         }
@@ -246,6 +265,7 @@ class LightImeService : InputMethodService(), LightKeyboardView.Listener, SpellC
 
     override fun onEnter() {
         val ic = currentInputConnection ?: return
+        clearGhost()
         fixFinalForWordEnd()
         // Fix the last word before firing the action / newline.
         val original = trailingWord()
@@ -257,7 +277,7 @@ class LightImeService : InputMethodService(), LightKeyboardView.Listener, SpellC
             ic.commitText(cased, 1)
             ic.endBatchEdit()
         } else {
-            learnHebrew(original)   // user kept this word — remember it
+            learnTyped(original)   // user kept this word — remember it
         }
         clearUndo()
         // Honor the field's action (Send/Search/Go); otherwise insert a newline.
@@ -289,14 +309,15 @@ class LightImeService : InputMethodService(), LightKeyboardView.Listener, SpellC
     }
 
     // Edit menu (long-press space). The platform performs these against the focused field.
-    override fun onSelectAll() { currentInputConnection?.performContextMenuAction(android.R.id.selectAll) }
-    override fun onCopy() { currentInputConnection?.performContextMenuAction(android.R.id.copy) }
-    override fun onCut() { currentInputConnection?.performContextMenuAction(android.R.id.cut) }
-    override fun onPaste() { clearUndo(); currentInputConnection?.performContextMenuAction(android.R.id.paste) }
+    override fun onSelectAll() { clearGhost(); currentInputConnection?.performContextMenuAction(android.R.id.selectAll) }
+    override fun onCopy() { clearGhost(); currentInputConnection?.performContextMenuAction(android.R.id.copy) }
+    override fun onCut() { clearGhost(); currentInputConnection?.performContextMenuAction(android.R.id.cut) }
+    override fun onPaste() { clearGhost(); clearUndo(); currentInputConnection?.performContextMenuAction(android.R.id.paste) }
 
     /** Space-bar swipe → nudge the caret one character per step (negative = left). */
     override fun onCursorMove(steps: Int) {
         val ic = currentInputConnection ?: return
+        clearGhost()
         clearUndo()
         val key = if (steps < 0) KeyEvent.KEYCODE_DPAD_LEFT else KeyEvent.KEYCODE_DPAD_RIGHT
         repeat(abs(steps)) {
@@ -341,6 +362,7 @@ class LightImeService : InputMethodService(), LightKeyboardView.Listener, SpellC
             return
         }
         val kb = keyboard ?: return
+        clearGhost()
         micActive = true
         kb.startListeningUi()
         if (hebrew) startHebrewDictation(kb) else startDictationWhenReady(kb, attempts = 0)
@@ -421,6 +443,8 @@ class LightImeService : InputMethodService(), LightKeyboardView.Listener, SpellC
     override fun onWindowHidden() { super.onWindowHidden(); broadcastImeVisible(false) }
     override fun onFinishInputView(finishingInput: Boolean) {
         super.onFinishInputView(finishingInput)
+        ghost = ""
+        currentInputConnection?.finishComposingText()
         if (micActive) { micActive = false; dictation.destroy(); sysDictation.destroy(); keyboard?.stopListeningUi() }
         broadcastImeVisible(false)
     }
@@ -449,9 +473,10 @@ class LightImeService : InputMethodService(), LightKeyboardView.Listener, SpellC
         return if (hebrew) HebrewDictionary.correct(word) else corrections[word]
     }
 
-    /** Teach the Hebrew dictionary a word the user typed (no-op outside Hebrew). */
-    private fun learnHebrew(word: String) {
-        if (hebrew && word.length >= 2) HebrewDictionary.learn(this, word)
+    /** Remember a word the user typed, in the active language's prediction dictionary. */
+    private fun learnTyped(word: String) {
+        if (word.length < 2) return
+        if (hebrew) HebrewDictionary.learn(this, word) else EnglishWords.learn(this, word)
     }
 
     /** Ask the device spell checker about [word] (once); the answer lands in [corrections]. */

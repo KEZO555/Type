@@ -4,6 +4,8 @@
     <!-- Voice dictation (optional): download the offline model, then record for on-device STT. -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <!-- Light, crisp key/cursor haptics. -->
+    <uses-permission android:name="android.permission.VIBRATE" />
 
     <!-- Package visibility (Android 11+) for speech recognizer components. -->
     <queries>

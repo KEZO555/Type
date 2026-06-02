@@ -60,7 +60,7 @@ class LightImeService : InputMethodService(), LightKeyboardView.Listener {
         clearUndo()
         // The keyboard keeps its language across fields; sync ours and warm the dictionaries.
         hebrew = keyboard?.isHebrew ?: false
-        if (Prefs.autocorrect(this) || Prefs.prediction(this)) {
+        if (Prefs.autocorrect(this)) {
             EnglishWords.prepare(this)
             HebrewDictionary.prepare(this)
         }
@@ -131,18 +131,6 @@ class LightImeService : InputMethodService(), LightKeyboardView.Listener {
         ghost = ""
     }
 
-    /** Show the best completion of the word before the cursor as a composing suffix. */
-    private fun showGhost() {
-        val ic = currentInputConnection ?: return
-        if (!Prefs.prediction(this)) return
-        val word = trailingWord()
-        if (word.length < 2) return
-        val full = if (hebrew) HebrewDictionary.complete(word) else EnglishWords.complete(word)
-        if (full == null || full.length <= word.length || !full.startsWith(word)) return
-        ghost = full.substring(word.length)
-        ic.setComposingText(ghost, 0)   // insert the suffix after the cursor, underlined
-    }
-
     /** Sentence-case: uppercase at a sentence start, lowercase after — from the field's caps mode. */
     private fun updateShift() {
         val ic = currentInputConnection ?: return
@@ -164,7 +152,6 @@ class LightImeService : InputMethodService(), LightKeyboardView.Listener {
             // A letter continues the word, so a preceding Hebrew *final* form is no longer word-final.
             fixMedialBeforeTyping()
             ic.commitText(s, 1)
-            showGhost()                    // preview the completion of the growing word
             return
         }
         // Only whitespace / sentence punctuation finish a word for autocorrect. Digits and other
@@ -307,6 +294,16 @@ class LightImeService : InputMethodService(), LightKeyboardView.Listener {
             ic.sendKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, key))
             ic.sendKeyEvent(KeyEvent(KeyEvent.ACTION_UP, key))
         }
+    }
+
+    /** Space-bar swipe up/down → move the caret one line. */
+    override fun onCursorVertical(down: Boolean) {
+        val ic = currentInputConnection ?: return
+        clearGhost()
+        clearUndo()
+        val key = if (down) KeyEvent.KEYCODE_DPAD_DOWN else KeyEvent.KEYCODE_DPAD_UP
+        ic.sendKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, key))
+        ic.sendKeyEvent(KeyEvent(KeyEvent.ACTION_UP, key))
     }
 
     // Hebrew letters with distinct word-final forms. Typed text uses the medial form; we snap to the

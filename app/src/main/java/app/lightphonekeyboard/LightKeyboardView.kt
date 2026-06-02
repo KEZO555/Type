@@ -61,6 +61,8 @@ class LightKeyboardView @JvmOverloads constructor(
         fun onDoubleSpace()
         /** Space-bar swipe — move the caret by [steps] (negative = left, positive = right). */
         fun onCursorMove(steps: Int)
+        /** Space-bar swipe up/down — move the caret one line ([down] = down, else up). */
+        fun onCursorVertical(down: Boolean)
         /** Edit actions from the long-press-space menu. */
         fun onSelectAll()
         fun onCopy()
@@ -85,14 +87,13 @@ class LightKeyboardView @JvmOverloads constructor(
         const val COMMA = ","
     }
 
-    // One bottom row in every mode, same key positions throughout: [toggle] · emoji · globe · comma ·
-    // space · [. | ⌫] · enter. Comma sits just left of the space bar and the period just right of it.
-    // Only the context-appropriate keys change — the layer toggle (123/ABC) and the key right of space
-    // (period normally, but backspace in the emoji panel, which has no letter row to delete from).
+    // One bottom row in every mode, space centred: [toggle] · emoji · globe · space · [. | ⌫] · enter.
+    // Comma is the long-press of the emoji key (like voice is the long-press of the period). Only the
+    // toggle (123/ABC) and the key right of space (period, but backspace in the emoji panel) change.
     private fun bottomRow(): List<String> {
         val toggle = if (layer == Layer.LETTERS) Key.SYMBOLS else Key.LETTERS
         val rightOfSpace = if (layer == Layer.EMOJI) Key.BACKSPACE else Key.PERIOD
-        return listOf(toggle, Key.EMOJI, Key.GLOBE, Key.COMMA, Key.SPACE, rightOfSpace, Key.ENTER)
+        return listOf(toggle, Key.EMOJI, Key.GLOBE, Key.SPACE, rightOfSpace, Key.ENTER)
     }
 
     private object Layout {
@@ -127,7 +128,7 @@ class LightKeyboardView @JvmOverloads constructor(
         val emoji = listOf(
             "🧞‍♂️", "🦾", "🪬", "👾", "🫶🏻", "🌸", "🫠", "🤌🏻",
             "😀", "😂", "🥹", "😍", "😎", "😭", "🥰", "😘", "😉", "🙃",
-            "👍", "🙏", "🙌", "👀", "🔥", "❤️", "✨", "🎉", "💯", "🤔",
+            "👍", "🙏", "🙌", "👀", "🔥", "💙", "✨", "🎉", "💯", "🤔",
         )
     }
 
@@ -173,14 +174,20 @@ class LightKeyboardView @JvmOverloads constructor(
     private var popupEdit = false                 // true = edit menu (actions), false = text alternates
     private val altLongPress = Runnable { showAltPopup() }
 
+    // The emoji key acts on release: a tap opens the emoji panel, a long-press types a comma. This
+    // pointer is the in-flight emoji press (resolved on UP).
+    private var pendingEmojiPointer = -1
+
     // Long-press the space bar → an edit menu. Indices match EDIT_ACTIONS order.
     private val EDIT_ACTIONS = listOf("Select all", "Copy", "Cut", "Paste")
 
-    // Space-bar gestures: double-tap → ". ", horizontal drag → move the caret.
+    // Space-bar gestures: double-tap → ". ", drag → move the caret (iPhone trackpad style, 2D).
     private var spacePointerId = -1
     private var spaceDownX = 0f
+    private var spaceDownY = 0f
     private var spaceSwiping = false
     private var spaceSwipeRefX = 0f
+    private var spaceSwipeRefY = 0f
     private var lastSpaceTapMs = 0L
 
     // English accent alternates, and the Hebrew niqqud (vowel points) offered on any Hebrew letter.
@@ -191,6 +198,25 @@ class LightKeyboardView @JvmOverloads constructor(
         )
         // Combining marks: patah, qamats, segol, tsere, hiriq, holam, sheva, dagesh.
         val niqqud = listOf('ַ', 'ָ', 'ֶ', 'ֵ', 'ִ', 'ֹ', 'ְ', 'ּ')
+    }
+
+    // Tiny corner labels: a number/symbol typed by long-pressing the key. Kept minimal (small + dim).
+    private object Hint {
+        val en = mapOf(
+            'q' to "1", 'w' to "2", 'e' to "3", 'r' to "4", 't' to "5",
+            'y' to "6", 'u' to "7", 'i' to "8", 'o' to "9", 'p' to "0",
+            'a' to "@", 's' to "#", 'd' to "$", 'f' to "_", 'g' to "&",
+            'h' to "-", 'j' to "+", 'k' to "(", 'l' to ")",
+            'z' to "*", 'x' to "\"", 'c' to "'", 'v' to ":", 'b' to ";", 'n' to "!", 'm' to "?",
+        )
+        val he = mapOf(
+            '׳' to "1", '־' to "2", 'ק' to "3", 'ר' to "4", 'א' to "5",
+            'ט' to "6", 'ו' to "7", 'ן' to "8", 'ם' to "9", 'פ' to "0",
+            'ש' to "@", 'ד' to "#", 'ג' to "₪", 'כ' to "_", 'ע' to "&",
+            'י' to "-", 'ח' to "+", 'ל' to "(", 'ך' to ")", 'ף' to "/",
+            'ז' to "`", 'ס' to "*", 'ב' to "\"", 'ה' to "'", 'נ' to ";",
+            'מ' to ":", 'צ' to "!", 'ת' to "?", 'ץ' to "\\",
+        )
     }
 
     /** One key with its (gapless) hit rect and its inset, drawn-to rect. */
@@ -483,13 +509,23 @@ class LightKeyboardView @JvmOverloads constructor(
         }
         // Emoji glyphs are large; everything else (letters, the layer toggle, the period) is normal.
         val size = when {
-            layer == Layer.EMOJI && id in Layout.emoji -> spf(20)
+            layer == Layer.EMOJI && id in Layout.emoji -> spf(24)
             id.length == 1 -> spf(23)
             else -> spf(18)
         }
         textPaint.textSize = size
         val baseline = pk.vis.centerY() - (textPaint.descent() + textPaint.ascent()) / 2f
         canvas.drawText(labelFor(id), pk.vis.centerX(), baseline, textPaint)
+        // Tiny dim corner hint (long-press types it) — minimal, top-right.
+        val hint = hintFor(id)
+        if (hint != null) {
+            textPaint.textSize = spf(9)
+            textPaint.textAlign = Paint.Align.RIGHT
+            textPaint.color = Color.argb(115, 255, 255, 255)
+            canvas.drawText(hint, pk.vis.right - dpf(4), pk.vis.top + dpf(12), textPaint)
+            textPaint.color = Color.WHITE
+            textPaint.textAlign = Paint.Align.CENTER
+        }
         // The period doubles as the voice key (long-press) — show a small mic so it's discoverable.
         if (id == Key.PERIOD && Prefs.voiceEnabled(context)) {
             val s = dpf(15)
@@ -575,10 +611,10 @@ class LightKeyboardView @JvmOverloads constructor(
                     if (pidx >= 0) { updatePopupSelection(ev.getX(pidx), ev.getY(pidx)); invalidate() }
                     return true
                 }
-                // 2) Space-bar horizontal drag → caret movement.
+                // 2) Space-bar drag → 2D caret movement (iPhone trackpad style).
                 if (spacePointerId != -1) {
                     val sidx = ev.findPointerIndex(spacePointerId)
-                    if (sidx >= 0 && handleSpaceSwipe(ev.getX(sidx))) return true
+                    if (sidx >= 0 && handleSpaceSwipe(ev.getX(sidx), ev.getY(sidx))) return true
                 }
                 // 3) Otherwise, the first pointer's downward swipe dismisses the keyboard.
                 if (!dismissedThisGesture) {
@@ -590,6 +626,7 @@ class LightKeyboardView @JvmOverloads constructor(
                             dismissedThisGesture = true
                             stopBackspaceRepeat()
                             endAltLongPress()
+                            pendingEmojiPointer = -1
                             // The first tap already committed a char on down; retract it so the swipe
                             // doesn't leave a stray letter behind.
                             if (firstKeyRetractable) listener?.onBackspace()
@@ -604,6 +641,7 @@ class LightKeyboardView @JvmOverloads constructor(
             MotionEvent.ACTION_POINTER_UP -> {
                 val pid = ev.getPointerId(ev.actionIndex)
                 if (pid == longPressPointerId) commitPopupAndReset()
+                if (pid == pendingEmojiPointer) { if (!dismissedThisGesture) onKey(Key.EMOJI); pendingEmojiPointer = -1 }
                 pressed.remove(pid)
                 if (pid == backspacePointerId) stopBackspaceRepeat()
                 if (pid == spacePointerId) spacePointerId = -1
@@ -611,7 +649,10 @@ class LightKeyboardView @JvmOverloads constructor(
             }
 
             MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                if (ev.actionMasked == MotionEvent.ACTION_UP) commitPopupAndReset() else endAltLongPress()
+                val up = ev.actionMasked == MotionEvent.ACTION_UP
+                if (up) commitPopupAndReset() else endAltLongPress()
+                // A quick emoji tap (no long-press fired) opens the panel on release.
+                if (pendingEmojiPointer != -1) { if (up && !dismissedThisGesture) onKey(Key.EMOJI); pendingEmojiPointer = -1 }
                 pressed.clear()
                 stopBackspaceRepeat()
                 spacePointerId = -1
@@ -621,13 +662,14 @@ class LightKeyboardView @JvmOverloads constructor(
         return true
     }
 
-    /** Space-bar drag → caret moves one step per [SPACE_SWIPE_STEP]. Returns true once swiping starts
-     *  (the first step retracts the space that was committed on touch-down). */
-    private fun handleSpaceSwipe(x: Float): Boolean {
+    /** Space-bar drag → caret moves like an iPhone trackpad: left/right by characters, up/down by
+     *  lines. Returns true once swiping starts (the first step retracts the space typed on down). */
+    private fun handleSpaceSwipe(x: Float, y: Float): Boolean {
         if (!spaceSwiping) {
-            if (abs(x - spaceDownX) < SPACE_SWIPE_START) return false
+            if (abs(x - spaceDownX) < SPACE_SWIPE_START && abs(y - spaceDownY) < SPACE_SWIPE_START) return false
             spaceSwiping = true
             spaceSwipeRefX = spaceDownX
+            spaceSwipeRefY = spaceDownY
             endAltLongPress()
             if (firstPointerId == spacePointerId && firstKeyRetractable) {
                 listener?.onBackspace()           // remove the space inserted on down
@@ -637,15 +679,10 @@ class LightKeyboardView @JvmOverloads constructor(
         var moved = false
         while (x - spaceSwipeRefX >= SPACE_SWIPE_STEP) { listener?.onCursorMove(1); spaceSwipeRefX += SPACE_SWIPE_STEP; moved = true }
         while (x - spaceSwipeRefX <= -SPACE_SWIPE_STEP) { listener?.onCursorMove(-1); spaceSwipeRefX -= SPACE_SWIPE_STEP; moved = true }
+        while (y - spaceSwipeRefY >= SPACE_SWIPE_VSTEP) { listener?.onCursorVertical(true); spaceSwipeRefY += SPACE_SWIPE_VSTEP; moved = true }
+        while (y - spaceSwipeRefY <= -SPACE_SWIPE_VSTEP) { listener?.onCursorVertical(false); spaceSwipeRefY -= SPACE_SWIPE_VSTEP; moved = true }
         if (moved) cursorTick()
         return true
-    }
-
-    /** A gentle tick for caret movement — much softer than the key-press haptic. */
-    private fun cursorTick() {
-        val effect = if (android.os.Build.VERSION.SDK_INT >= 27)
-            HapticFeedbackConstants.TEXT_HANDLE_MOVE else HapticFeedbackConstants.CLOCK_TICK
-        performHapticFeedback(effect)
     }
 
     /** Resolve the key under a pointer, commit it immediately, and light it up. */
@@ -656,6 +693,15 @@ class LightKeyboardView @JvmOverloads constructor(
         val key = if (layer == Layer.LETTERS && isLetter(raw.id)) resolveLetter(x, y, raw) else raw
         pressed[pointerId] = key
         invalidate()
+        if (key.id == Key.EMOJI) {
+            // Resolve on release: tap → emoji panel, long-press → comma. Arm the long-press now.
+            pendingEmojiPointer = pointerId
+            longPressPointerId = pointerId
+            longPressCandidate = key
+            removeCallbacks(altLongPress)
+            postDelayed(altLongPress, ALT_LONGPRESS_MS)
+            return false
+        }
         val retractable = onKey(key.id)
         if (key.id == Key.BACKSPACE) {           // first delete fired on down; now arm the repeat
             backspacePointerId = pointerId
@@ -663,9 +709,10 @@ class LightKeyboardView @JvmOverloads constructor(
             removeCallbacks(backspaceRepeat)
             postDelayed(backspaceRepeat, BACKSPACE_INITIAL_DELAY_MS)
         }
-        if (key.id == Key.SPACE) {               // track for double-tap (handled in onKey) + swipe
+        if (key.id == Key.SPACE) {               // track for double-tap (handled in onKey) + 2D swipe
             spacePointerId = pointerId
             spaceDownX = x
+            spaceDownY = y
             spaceSwiping = false
         }
         // Long-press: a letter → accents/niqqud popup; the period → voice; space → edit menu.
@@ -688,7 +735,13 @@ class LightKeyboardView @JvmOverloads constructor(
 
     // ------------------------------------------------------------------ alternates popup
 
-    /** The long-press popup options for [id] (base first, then accents/niqqud), or null if none. */
+    /** The tiny corner label (number/symbol) for a letter key, or null. */
+    private fun hintFor(id: String): String? {
+        if (layer != Layer.LETTERS || id.length != 1) return null
+        return if (lang == Lang.HE) Hint.he[id[0]] else Hint.en[id[0].lowercaseChar()]
+    }
+
+    /** The long-press popup options for [id] (base, then its number/symbol, then accents/niqqud). */
     private fun alternatesFor(id: String): List<String>? {
         if (layer != Layer.LETTERS || id.length != 1) return null
         val ch = id[0]
@@ -699,7 +752,8 @@ class LightKeyboardView @JvmOverloads constructor(
             } ?: emptyList()
             else -> emptyList()
         }
-        return if (accents.isEmpty()) null else listOf(labelFor(id)) + accents
+        val extras = listOfNotNull(hintFor(id)) + accents
+        return if (extras.isEmpty()) null else listOf(labelFor(id)) + extras
     }
 
     private fun showAltPopup() {
@@ -708,6 +762,13 @@ class LightKeyboardView @JvmOverloads constructor(
         if (k.id == Key.PERIOD) {
             endAltLongPress()
             if (Prefs.voiceEnabled(context)) { tap(); listener?.onBackspace(); listener?.onMic() }
+            return
+        }
+        // Long-press the emoji key → a comma (the tap-to-open-panel happens on release instead).
+        if (k.id == Key.EMOJI) {
+            pendingEmojiPointer = -1   // consumed as a comma, so release won't open the panel
+            endAltLongPress()
+            tap(); listener?.onText(",")
             return
         }
         // Long-press space → edit menu. Retract the space committed on down; it wasn't wanted.
@@ -974,7 +1035,7 @@ class LightKeyboardView @JvmOverloads constructor(
     fun reset() {
         stopBackspaceRepeat()
         endAltLongPress()
-        spacePointerId = -1; spaceSwiping = false
+        spacePointerId = -1; spaceSwiping = false; pendingEmojiPointer = -1
         layer = Layer.LETTERS; shifted = true; capsLock = false; listening = false; rebuild()
     }
 
@@ -1015,7 +1076,31 @@ class LightKeyboardView @JvmOverloads constructor(
         }
     }
 
-    private fun tap() = performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+    // iPhone-style haptics: short, crisp, low-amplitude vibrations rather than the heavier system
+    // key-click. A key press is a touch firmer than a caret tick. Respects the device haptic toggle.
+    private val vibrator: android.os.Vibrator? by lazy {
+        if (android.os.Build.VERSION.SDK_INT >= 31) {
+            (context.getSystemService(android.os.VibratorManager::class.java))?.defaultVibrator
+        } else {
+            @Suppress("DEPRECATION")
+            context.getSystemService(Context.VIBRATOR_SERVICE) as? android.os.Vibrator
+        }
+    }
+    private val hapticsEnabled: Boolean by lazy {
+        android.provider.Settings.System.getInt(
+            context.contentResolver, android.provider.Settings.System.HAPTIC_FEEDBACK_ENABLED, 1,
+        ) != 0
+    }
+
+    private fun buzz(ms: Long, amplitude: Int) {
+        if (!hapticsEnabled) return
+        val v = vibrator ?: return
+        if (!v.hasVibrator()) return
+        runCatching { v.vibrate(android.os.VibrationEffect.createOneShot(ms, amplitude)) }
+    }
+
+    private fun tap() = buzz(12, 90)          // crisp, light key press
+    private fun cursorTick() = buzz(7, 45)    // softer tick for caret movement
 
     private val DOUBLE_TAP_MS = 300L
     private val BACKSPACE_INITIAL_DELAY_MS = 400L   // pause before key-repeat kicks in
@@ -1025,8 +1110,9 @@ class LightKeyboardView @JvmOverloads constructor(
     private val ALT_LONGPRESS_MS = 300L             // hold a letter this long → accents/niqqud popup
     private val POPUP_CELL_DP = 38                  // alternates popup: cell width / height
     private val POPUP_CELL_H_DP = 46
-    private val SPACE_SWIPE_START = dpf(18)         // horizontal travel before space-swipe engages
-    private val SPACE_SWIPE_STEP = dpf(12)          // travel per one-character caret move
+    private val SPACE_SWIPE_START = dpf(16)         // travel before space-swipe engages
+    private val SPACE_SWIPE_STEP = dpf(11)          // travel per one-character caret move
+    private val SPACE_SWIPE_VSTEP = dpf(22)         // vertical travel per line move
 
     private fun dpf(v: Int): Float = v * resources.displayMetrics.density
     private fun spf(v: Int): Float =

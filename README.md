@@ -45,13 +45,10 @@ The settings below it:
 - **Languages**: English and Hebrew. The globe key (bottom row) switches between them; the emoji key
   opens emoji. Hebrew is caseless, so there's no shift key — just the 27 letter forms in the standard
   Israeli arrangement.
-- **Autocorrect** (on by default): fixes misspellings as you type. English uses your phone's built-in
-  dictionary; Hebrew uses a dictionary bundled into the app (no Hebrew spell checker is needed on the
-  phone). Turn it off to type exactly what you tap.
-- **Word completion** (on by default): as you type, the rest of the word is previewed inline
-  (underlined) after the cursor, in English and Hebrew — press **space** to accept it, or keep typing
-  to ignore. It learns the words you use. (Android only lets a keyboard show *composing* text, so the
-  preview is underlined rather than gray.)
+- **Autocorrect** (on by default): fixes misspellings as you type, using bundled English and Hebrew
+  frequency dictionaries that also learn the words you use. Keyboard-aware (it prefers fixes that are a
+  neighbouring-key slip or a swapped pair) and conservative, so it doesn't replace words you meant.
+  Fully offline. Turn it off to type exactly what you tap.
 - **Number row** (off by default): a persistent row of digits above the letters.
 - **Voice dictation** (off by default): turning it on downloads the ~40 MB offline English model once,
   then a mic key lets you speak instead of type. English runs entirely on-device; Hebrew dictation uses
@@ -62,16 +59,20 @@ That is the whole setup.
 
 ## Gestures
 
-- **Globe** — switches English ⇄ Hebrew. **Emoji key** — opens the emoji panel (recently-used float
-  to the front).
+- **Globe** — switches English ⇄ Hebrew. **Emoji key** — tap opens the emoji panel (recently-used
+  float to the front); **long-press types a comma**.
 - **Long-press a letter** — its corner number/symbol, plus accents in English (`a → à á â ä …`) or
   vowel points (niqqud) in Hebrew. Slide to a choice and release.
 - **Long-press the period** — starts voice dictation.
 - **Double-tap space** — inserts `. ` (sentence end).
-- **Swipe the space bar** — moves the cursor left/right.
+- **Drag the space bar** — moves the cursor like an iPhone trackpad: left/right by character, up/down
+  by line.
 - **Long-press the space bar** — opens an edit menu: select all · copy · cut · paste.
 - **Hold backspace** — repeats, then deletes whole words after a longer hold.
 - **Swipe down** — hides the keyboard.
+
+Haptics are light and crisp (short, low-amplitude), tuned to feel close to the iPhone keyboard, and
+respect the device's haptic-feedback setting.
 
 Hebrew also snaps a letter to its **final form** at the end of a word automatically (e.g. typing מ as
 the last letter becomes ם), and back when the word continues.

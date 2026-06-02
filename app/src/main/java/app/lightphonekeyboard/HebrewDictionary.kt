@@ -22,6 +22,8 @@ object HebrewDictionary {
     private const val ASSET = "he_words.txt"
     /** The 27 Hebrew letter forms (alef..tav, finals included) used to generate edit candidates. */
     private const val ALPHABET = "אבגדהוזחטיךכלםמןנסעףפץצקרשת"
+    // Key adjacency from the on-screen Hebrew layout, for keyboard-aware autocorrect.
+    private val adj = WordPredict.adjacency(listOf("׳־קראטוןםפ", "שדגכעיחלךף", "זסבהנמצתץ"))
 
     // Learned words the user actually types. They become "known" (so they stop being autocorrected
     // away) and can be suggested. Each typed occurrence raises its count; the count maps to an
@@ -151,7 +153,7 @@ object HebrewDictionary {
     fun correct(word: String): String? {
         if (!ready || word.length < 3) return null
         if (memo.containsKey(word)) return memo[word]
-        val fix = WordPredict.bestCorrection(word, ALPHABET, ::isWord) { effectiveFreq(it) ?: 0L }
+        val fix = WordPredict.bestCorrection(word, ALPHABET, adj, ::isWord) { effectiveFreq(it) ?: 0L }
         memo[word] = fix
         return fix
     }

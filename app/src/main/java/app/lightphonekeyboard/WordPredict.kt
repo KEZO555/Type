@@ -49,52 +49,72 @@ object WordPredict {
         return best
     }
 
+    // Edit costs, lowest = most likely a real typo. Swapping two letters or hitting a physically
+    // adjacent key are the common slips, so they win over arbitrary insert/delete/substitution.
+    private const val COST_TRANSPOSE = 0
+    private const val COST_ADJACENT = 1
+    private const val COST_INDEL = 2     // insertion / deletion (a missed or doubled key)
+    private const val COST_SUB = 3       // substitution of a non-adjacent key (least likely)
+
     /**
-     * Norvig-style autocorrection: the highest-frequency *known* word within edit distance 1 (then 2)
-     * of [word], or null if [word] is already known or nothing confident is found. [isKnown] tells
-     * whether a candidate is a real word (dictionary or learned); [freqOf] ranks the known candidates.
-     * Used for both English and Hebrew so the two behave the same way.
+     * Keyboard-aware autocorrection: among the real words ([isKnown]) within a single edit of [word],
+     * pick the most likely — preferring transpositions and adjacent-key slips (per [adjacency]), then
+     * the most frequent ([freqOf]). Edit distance is capped at 1 to stay conservative (no surprise
+     * replacements). Returns null if [word] is already a word or nothing confident is found.
      */
     fun bestCorrection(
         word: String,
         alphabet: String,
+        adjacency: Map<Char, String>,
         isKnown: (String) -> Boolean,
         freqOf: (String) -> Long,
     ): String? {
         if (isKnown(word)) return null
-        val e1 = edits1(word, alphabet)
-        var best = pickBest(e1, isKnown, freqOf)
-        if (best == null) {
-            val e2 = HashSet<String>()
-            for (w in e1) for (c in edits1(w, alphabet)) if (isKnown(c)) e2.add(c)
-            best = pickBest(e2, isKnown, freqOf)
-        }
-        return best?.takeIf { it != word }
-    }
-
-    private fun pickBest(cands: Collection<String>, isKnown: (String) -> Boolean, freqOf: (String) -> Long): String? {
         var best: String? = null
+        var bestCost = Int.MAX_VALUE
         var bestFreq = -1L
-        for (c in cands) {
-            if (!isKnown(c)) continue
-            val f = freqOf(c)
-            if (f > bestFreq) { bestFreq = f; best = c }
+        fun consider(cand: String, cost: Int) {
+            if (cand == word || !isKnown(cand)) return
+            val f = freqOf(cand)
+            if (cost < bestCost || (cost == bestCost && f > bestFreq)) {
+                bestCost = cost; bestFreq = f; best = cand
+            }
+        }
+        for (i in 0..word.length) {
+            val l = word.substring(0, i)
+            val r = word.substring(i)
+            if (r.isNotEmpty()) {
+                consider(l + r.substring(1), COST_INDEL)                               // delete
+                if (r.length > 1) consider(l + r[1] + r[0] + r.substring(2), COST_TRANSPOSE)
+                val typed = r[0]
+                val near = adjacency[typed].orEmpty()
+                for (c in alphabet) {
+                    if (c == typed) continue
+                    consider(l + c + r.substring(1), if (c in near) COST_ADJACENT else COST_SUB)
+                }
+            }
+            for (c in alphabet) consider(l + c + r, COST_INDEL)                         // insert
         }
         return best
     }
 
-    /** All strings one edit (delete / transpose / replace / insert over [alphabet]) away from [w]. */
-    private fun edits1(w: String, alphabet: String): Set<String> {
-        val out = HashSet<String>()
-        for (i in 0..w.length) {
-            val l = w.substring(0, i)
-            val r = w.substring(i)
-            if (r.isNotEmpty()) {
-                out.add(l + r.substring(1))                                   // delete
-                if (r.length > 1) out.add(l + r[1] + r[0] + r.substring(2))   // transpose
-                for (c in alphabet) out.add(l + c + r.substring(1))           // replace
+    /**
+     * Build a key-adjacency map from keyboard [rows] (each a string of single-char keys). Two keys are
+     * neighbours if they're in the same or an adjacent row within one column — a simple grid model
+     * (ignoring stagger), which is plenty for typo correction.
+     */
+    fun adjacency(rows: List<String>): Map<Char, String> {
+        val pos = HashMap<Char, Pair<Int, Int>>()
+        rows.forEachIndexed { r, row -> row.forEachIndexed { c, ch -> pos[ch] = r to c } }
+        val out = HashMap<Char, String>()
+        for ((ch, rc) in pos) {
+            val (r, c) = rc
+            val sb = StringBuilder()
+            for ((other, orc) in pos) {
+                if (other == ch) continue
+                if (kotlin.math.abs(orc.first - r) <= 1 && kotlin.math.abs(orc.second - c) <= 1) sb.append(other)
             }
-            for (c in alphabet) out.add(l + c + r)                            // insert
+            out[ch] = sb.toString()
         }
         return out
     }

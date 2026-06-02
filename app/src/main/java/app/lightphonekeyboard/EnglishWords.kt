@@ -19,6 +19,8 @@ object EnglishWords {
     private const val LEARN_WEIGHT = 50_000L
     private const val MAX_LEARNED = 2000
     private const val ALPHABET = "abcdefghijklmnopqrstuvwxyz"
+    // QWERTY key adjacency, for keyboard-aware autocorrect.
+    private val adj = WordPredict.adjacency(listOf("qwertyuiop", "asdfghjkl", "zxcvbnm"))
 
     private val main = Handler(Looper.getMainLooper())
     private val freq = HashMap<String, Long>(34_000)
@@ -88,7 +90,7 @@ object EnglishWords {
         if (!ready || word.length < 3) return null
         val w = word.lowercase()
         if (memo.containsKey(w)) return memo[w]
-        val fix = WordPredict.bestCorrection(w, ALPHABET, ::isWord) { effectiveFreq(it) }
+        val fix = WordPredict.bestCorrection(w, ALPHABET, adj, ::isWord) { effectiveFreq(it) }
         memo[w] = fix
         return fix
     }

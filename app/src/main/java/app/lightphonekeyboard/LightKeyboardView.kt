@@ -87,7 +87,25 @@ class LightKeyboardView @JvmOverloads constructor(
         const val LETTERS = "ABC"
         const val MORE = "=\\<"
         const val COMMA = ","
+        // In-keyboard quick-settings panel (opened by holding the globe). Each row toggles/cycles a pref.
+        const val SET_HAPTIC = "__SET_HAPTIC__"
+        const val SET_AUTOCORRECT = "__SET_AC__"
+        const val SET_AUTOCAP = "__SET_CAP__"
+        const val SET_DBLSPACE = "__SET_DSP__"
+        const val SET_NUMROW = "__SET_NUM__"
+        const val SET_DONE = "__SET_DONE__"
+        const val SET_ALL = "__SET_ALL__"
     }
+
+    // The quick-settings panel: one full-width tappable row per setting, then a Done / All-settings row.
+    private fun settingsRows(): List<List<String>> = listOf(
+        listOf(Key.SET_HAPTIC),
+        listOf(Key.SET_AUTOCORRECT),
+        listOf(Key.SET_AUTOCAP),
+        listOf(Key.SET_DBLSPACE),
+        listOf(Key.SET_NUMROW),
+        listOf(Key.SET_DONE, Key.SET_ALL),
+    )
 
     // One bottom row in every mode, space centred: [toggle] · comma · globe · space · [. | ⌫] · enter.
     // The comma key types "," on tap and opens the emoji panel on long-press (emoji shown small in its
@@ -134,7 +152,7 @@ class LightKeyboardView @JvmOverloads constructor(
         )
     }
 
-    private enum class Layer { LETTERS, SYMBOLS, MORE, EMOJI }
+    private enum class Layer { LETTERS, SYMBOLS, MORE, EMOJI, SETTINGS }
 
     enum class Lang { EN, HE }
 
@@ -270,11 +288,12 @@ class LightKeyboardView @JvmOverloads constructor(
     private val currentRows: List<List<String>>
         get() {
             if (layer == Layer.EMOJI) return emptyList()   // emoji is laid out separately
+            if (layer == Layer.SETTINGS) return settingsRows()
             var rows = when (layer) {
                 Layer.LETTERS -> if (lang == Lang.HE) Layout.hebrew else Layout.letters
                 Layer.SYMBOLS -> Layout.symbols
                 Layer.MORE -> Layout.more
-                Layer.EMOJI -> emptyList()
+                Layer.EMOJI, Layer.SETTINGS -> emptyList()
             }
             // Optional persistent number row sits above the letters (the symbols layer has its own).
             if (layer == Layer.LETTERS && Prefs.numberRow(context)) {
@@ -491,6 +510,7 @@ class LightKeyboardView @JvmOverloads constructor(
 
     private fun drawKey(canvas: Canvas, pk: PlacedKey) {
         val id = pk.id
+        if (id.startsWith("__SET_")) { drawSettingRow(canvas, pk); return }
         if (id == Key.SPACE) {
             // Plain centred line, matching the LightOS keyboard. (Double-tap inserts ". "; a horizontal
             // drag moves the caret — no label clutter on the bar itself.)
@@ -506,6 +526,15 @@ class LightKeyboardView @JvmOverloads constructor(
                 val cx = pk.vis.centerX()
                 val y = pk.vis.centerY() + dpf(11)
                 canvas.drawRect(cx - dpf(7), y - dpf(1), cx + dpf(7), y + dpf(1), spacePaint)
+            }
+            // Tiny gear badge in the globe's corner: hold the globe to open keyboard settings.
+            if (id == Key.GLOBE) {
+                val s = dpf(11)
+                val d = iconCache.getOrPut(R.drawable.ic_kb_gear) { context.getDrawable(R.drawable.ic_kb_gear)!! }
+                val right = pk.vis.right - dpf(2)
+                val top = pk.vis.top + dpf(2)
+                d.setBounds((right - s).toInt(), top.toInt(), right.toInt(), (top + s).toInt())
+                d.draw(canvas)
             }
             return
         }
@@ -528,6 +557,15 @@ class LightKeyboardView @JvmOverloads constructor(
             textPaint.color = Color.WHITE
             textPaint.textAlign = Paint.Align.CENTER
         }
+        // The 123 key holds for vowel points (Hebrew) / accents (English) — hint it in the corner.
+        if (id == Key.SYMBOLS && layer == Layer.LETTERS) {
+            textPaint.textSize = spf(10)
+            textPaint.textAlign = Paint.Align.RIGHT
+            textPaint.color = Color.argb(140, 255, 255, 255)
+            canvas.drawText(if (lang == Lang.HE) "◌ָ" else "á", pk.vis.right - dpf(4), pk.vis.top + dpf(13), textPaint)
+            textPaint.color = Color.WHITE
+            textPaint.textAlign = Paint.Align.CENTER
+        }
         // The period doubles as the voice key (long-press) in English — show a small mic so it's
         // discoverable. Hidden in Hebrew, where dictation isn't available.
         if (id == Key.PERIOD && Prefs.voiceEnabled(context) && lang == Lang.EN) {
@@ -547,6 +585,49 @@ class LightKeyboardView @JvmOverloads constructor(
             d.setBounds((cx - s / 2f).toInt(), top.toInt(), (cx + s / 2f).toInt(), (top + s).toInt())
             d.draw(canvas)
         }
+    }
+
+    /** A quick-settings row: label on the left, current value on the right (Done/All-settings centred). */
+    private fun drawSettingRow(canvas: Canvas, pk: PlacedKey) {
+        val (label, value) = settingLabel(pk.id)
+        val baseline = pk.vis.centerY() - (textPaint.descent() + textPaint.ascent()) / 2f
+        textPaint.textSize = spf(17)
+        if (value == null) {                                   // Done / All settings — centred buttons
+            canvas.drawText(label, pk.vis.centerX(), baseline, textPaint)
+            return
+        }
+        val padX = dpf(18)
+        textPaint.textAlign = Paint.Align.LEFT
+        canvas.drawText(label, pk.vis.left + padX, baseline, textPaint)
+        textPaint.textAlign = Paint.Align.RIGHT
+        textPaint.color = Color.argb(190, 255, 255, 255)
+        canvas.drawText(value, pk.vis.right - padX, baseline, textPaint)
+        textPaint.color = Color.WHITE
+        textPaint.textAlign = Paint.Align.CENTER
+    }
+
+    /** Label + current-value text for a quick-settings row (value null = a plain centred button). */
+    private fun settingLabel(id: String): Pair<String, String?> {
+        fun onOff(b: Boolean) = if (b) "On" else "Off"
+        return when (id) {
+            Key.SET_HAPTIC ->
+                "Haptics" to listOf("Off", "Light", "Medium", "Strong")[Prefs.hapticLevel(context).coerceIn(0, 3)]
+            Key.SET_AUTOCORRECT -> "Autocorrect" to onOff(Prefs.autocorrect(context))
+            Key.SET_AUTOCAP -> "Auto-capitalize" to onOff(Prefs.autoCap(context))
+            Key.SET_DBLSPACE -> "Double-space  ." to onOff(Prefs.doubleSpacePeriod(context))
+            Key.SET_NUMROW -> "Number row" to onOff(Prefs.numberRow(context))
+            Key.SET_DONE -> "Done" to null
+            Key.SET_ALL -> "All settings  ›" to null
+            else -> "" to null
+        }
+    }
+
+    /** Buzz once at [level]'s key-press strength (used when the haptics row is cycled). */
+    private fun previewHaptic(level: Int) = when (level) {
+        Prefs.HAPTIC_LIGHT -> buzz(18, 130)
+        Prefs.HAPTIC_MEDIUM -> buzz(30, 200)
+        Prefs.HAPTIC_STRONG -> buzz(45, 255)
+        else -> Unit
     }
 
     private fun drawIcon(canvas: Canvas, res: Int, vis: RectF, pad: Float) {
@@ -775,11 +856,11 @@ class LightKeyboardView @JvmOverloads constructor(
             tap(); listener?.onBackspace(); layer = Layer.EMOJI; rebuild()
             return
         }
-        // Long-press the globe → open the keyboard settings.
+        // Long-press the globe → open the on-keyboard quick-settings panel.
         if (k.id == Key.GLOBE) {
             pendingReleasePointer = -1   // consumed as settings, so release won't switch language
             endAltLongPress()
-            tap(); listener?.onOpenSettings()
+            tap(); layer = Layer.SETTINGS; rebuild()
             return
         }
         // Long-press the 123/ABC toggle → the accents / vowel-points picker.
@@ -965,6 +1046,16 @@ class LightKeyboardView @JvmOverloads constructor(
             Key.LETTERS -> { layer = Layer.LETTERS; rebuild() }
             Key.GLOBE -> toggleLang()
             Key.EMOJI -> { layer = Layer.EMOJI; rebuild() }
+            Key.SET_HAPTIC -> {
+                val next = (Prefs.hapticLevel(context) + 1) % 4
+                Prefs.setHapticLevel(context, next); previewHaptic(next); invalidate()
+            }
+            Key.SET_AUTOCORRECT -> { Prefs.setAutocorrect(context, !Prefs.autocorrect(context)); invalidate() }
+            Key.SET_AUTOCAP -> { Prefs.setAutoCap(context, !Prefs.autoCap(context)); invalidate() }
+            Key.SET_DBLSPACE -> { Prefs.setDoubleSpacePeriod(context, !Prefs.doubleSpacePeriod(context)); invalidate() }
+            Key.SET_NUMROW -> { Prefs.setNumberRow(context, !Prefs.numberRow(context)); invalidate() }
+            Key.SET_DONE -> { layer = Layer.LETTERS; rebuild() }
+            Key.SET_ALL -> listener?.onOpenSettings()
             Key.MIC -> listener?.onMic()
             Key.PERIOD -> { listener?.onText("."); return true }   // long-press → voice (handled in touch)
             Key.COMMA -> { listener?.onText(","); return true }

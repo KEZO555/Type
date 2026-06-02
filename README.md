@@ -62,10 +62,13 @@ That is the whole setup.
 
 ## Gestures
 
-- **Globe** — tap switches English ⇄ Hebrew; **long-press opens the settings screen**. **Comma key** —
+- **Globe** (marked with a small ⚙) — tap switches English ⇄ Hebrew; **long-press opens a quick-settings
+  panel** right on the keyboard (haptic strength, autocorrect, auto-capitalize, double-space, number row,
+  plus a shortcut to the full settings) — no need to leave the app you're typing in. **Comma key** —
   tap types a comma; **long-press opens the emoji panel** (recently-used float to the front).
 - **Long-press a letter** — types its corner number/symbol directly.
-- **Long-press the `123`/`ABC` key** — a picker of accented letters (English) / vowel points (Hebrew).
+- **Long-press the `123`/`ABC` key** (marked with `◌ָ` in Hebrew, `á` in English) — a picker of vowel
+  points (Hebrew) / accented letters (English).
 - **Long-press the period** — starts voice dictation (English only; Hebrew dictation needs a system
   recognizer most Light Phones don't have).
 - **Double-tap space** — inserts `. ` (sentence end).

@@ -124,9 +124,10 @@ class LightKeyboardView @JvmOverloads constructor(
             listOf(Key.SHIFT, "z", "x", "c", "v", "b", "n", "m", Key.BACKSPACE),
         )
         // Hebrew (standard Israeli layout, finals included; no case → no shift key). Row 1 leads with
-        // geresh + maqaf so all three rows are full width, matching the system Hebrew keyboard.
+        // geresh + a regular hyphen so all three rows are full width. (A Hebrew maqaf "־" sits too high
+        // visually, so we use the normal hyphen-minus "-", which is also what people usually want.)
         val hebrew = listOf(
-            listOf("׳", "־", "ק", "ר", "א", "ט", "ו", "ן", "ם", "פ"),
+            listOf("׳", "-", "ק", "ר", "א", "ט", "ו", "ן", "ם", "פ"),
             listOf("ש", "ד", "ג", "כ", "ע", "י", "ח", "ל", "ך", "ף"),
             listOf("ז", "ס", "ב", "ה", "נ", "מ", "צ", "ת", "ץ", Key.BACKSPACE),
         )
@@ -243,7 +244,7 @@ class LightKeyboardView @JvmOverloads constructor(
             'z' to "*", 'x' to "\"", 'c' to "'", 'v' to ":", 'b' to ";", 'n' to "!", 'm' to "?",
         )
         val he = mapOf(
-            '׳' to "1", '־' to "2", 'ק' to "3", 'ר' to "4", 'א' to "5",
+            '׳' to "1", '-' to "2", 'ק' to "3", 'ר' to "4", 'א' to "5",
             'ט' to "6", 'ו' to "7", 'ן' to "8", 'ם' to "9", 'פ' to "0",
             'ש' to "@", 'ד' to "#", 'ג' to "₪", 'כ' to "_", 'ע' to "&",
             'י' to "-", 'ח' to "+", 'ל' to "(", 'ך' to ")", 'ף' to "/",

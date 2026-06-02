@@ -156,7 +156,7 @@ class LightImeService : InputMethodService(), LightKeyboardView.Listener {
         if (s.length == 1 && isWordChar(s[0])) {
             clearUndo()
             // A letter continues the word, so a preceding Hebrew *final* form is no longer word-final.
-            fixMedialBeforeTyping()
+            fixMedialBeforeTyping(s[0])
             ic.commitText(s, 1)
             return
         }
@@ -337,13 +337,16 @@ class LightImeService : InputMethodService(), LightKeyboardView.Listener {
         ic.beginBatchEdit(); ic.deleteSurroundingText(1, 0); ic.commitText(fin.toString(), 1); ic.endBatchEdit()
     }
 
-    /** Before appending a letter: if a final form sits before the cursor, the word continues, so
-     *  convert it back to its medial form. */
-    private fun fixMedialBeforeTyping() {
+    /** Before appending [next]: if a final form sits before the cursor, the word continues, so convert
+     *  it back to its medial form — unless [next] repeats that same final letter (e.g. חלוםםם), which
+     *  means the user deliberately wants the final form, so we leave it untouched. */
+    private fun fixMedialBeforeTyping(next: Char) {
         if (!hebrew) return
         val ic = currentInputConnection ?: return
         val before = ic.getTextBeforeCursor(1, 0)?.toString().orEmpty()
-        val med = before.firstOrNull()?.let { finalToMedial[it] } ?: return
+        val prev = before.firstOrNull() ?: return
+        if (next == prev) return                       // repeated same final letter → keep it final
+        val med = finalToMedial[prev] ?: return
         ic.beginBatchEdit(); ic.deleteSurroundingText(1, 0); ic.commitText(med.toString(), 1); ic.endBatchEdit()
     }
 

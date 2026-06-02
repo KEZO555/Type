@@ -3,18 +3,20 @@ package app.lightphonekeyboard
 import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
 import android.view.Gravity
-import android.widget.GridLayout
+import android.view.View
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 
 /**
- * Standalone emoji picker. A scrollable grid of candidate emoji; tapping toggles whether each appears
- * in the keyboard's emoji panel (selected = full opacity on a subtle fill, hidden = dimmed). Saved live
- * to [Prefs]. Kept in its own screen so the main setup list stays short.
+ * Standalone emoji picker. A grid of candidate emoji (built from weighted LinearLayout rows, which size
+ * reliably — unlike GridLayout column weights); tapping toggles whether each appears in the keyboard's
+ * emoji panel (selected = full opacity on a subtle fill, hidden = dimmed). Saved live to [Prefs].
  */
 class EmojiSettingsActivity : AppCompatActivity() {
+
+    private val cols = 8
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -41,43 +43,61 @@ class EmojiSettingsActivity : AppCompatActivity() {
         })
     }
 
-    private fun buildGrid(): GridLayout {
+    private fun buildGrid(): LinearLayout {
         val density = resources.displayMetrics.density
         val selected = LinkedHashSet(Prefs.emojiSet(this).ifEmpty { LightKeyboardView.EMOJI_DEFAULT })
-        val grid = GridLayout(this).apply {
-            columnCount = 8
+        val container = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
             setPadding(0, (12 * density).toInt(), 0, 0)
         }
-        for (glyph in LightKeyboardView.EMOJI_CANDIDATES) {
-            val cell = TextView(this).apply {
-                text = glyph
-                textSize = 24f
-                gravity = Gravity.CENTER
-                val p = (8 * density).toInt()
-                setPadding(p, p, p, p)
-                isClickable = true
+        val cands = LightKeyboardView.EMOJI_CANDIDATES
+        var i = 0
+        while (i < cands.size) {
+            val rowView = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+            for (c in 0 until cols) {
+                if (i < cands.size) {
+                    rowView.addView(cell(cands[i], selected, density), weightParams())
+                } else {
+                    rowView.addView(View(this), weightParams())   // pad the last row so columns align
+                }
+                i++
             }
-            fun render() {
-                val on = glyph in selected
-                cell.alpha = if (on) 1f else 0.3f
-                cell.background = if (on) GradientDrawable().apply {
-                    cornerRadius = 8 * density
-                    setColor(0xFF2C2C2C.toInt())
-                } else null
-            }
-            cell.setOnClickListener {
-                if (!selected.remove(glyph)) selected.add(glyph)
-                Prefs.setEmojiSet(this, selected.toList())
-                render()
-            }
-            render()
-            grid.addView(cell, GridLayout.LayoutParams().apply {
-                width = 0
-                height = GridLayout.LayoutParams.WRAP_CONTENT
-                columnSpec = GridLayout.spec(GridLayout.UNDEFINED, 1f)
-                setGravity(Gravity.CENTER)
-            })
+            container.addView(
+                rowView,
+                LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT,
+                ),
+            )
         }
-        return grid
+        return container
+    }
+
+    private fun weightParams() =
+        LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+
+    private fun cell(glyph: String, selected: MutableSet<String>, density: Float): TextView {
+        val cell = TextView(this).apply {
+            text = glyph
+            textSize = 24f
+            gravity = Gravity.CENTER
+            val p = (10 * density).toInt()
+            setPadding(p, p, p, p)
+            isClickable = true
+        }
+        fun render() {
+            val on = glyph in selected
+            cell.alpha = if (on) 1f else 0.3f
+            cell.background = if (on) GradientDrawable().apply {
+                cornerRadius = 8 * density
+                setColor(0xFF2C2C2C.toInt())
+            } else null
+        }
+        cell.setOnClickListener {
+            if (!selected.remove(glyph)) selected.add(glyph)
+            Prefs.setEmojiSet(this, selected.toList())
+            render()
+        }
+        render()
+        return cell
     }
 }

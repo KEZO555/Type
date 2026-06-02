@@ -85,15 +85,14 @@ class LightKeyboardView @JvmOverloads constructor(
         const val COMMA = ","
     }
 
-    // One bottom row in every mode, same key positions throughout: [toggle] · [emoji|comma] · globe ·
-    // space · [. | ⌫] · enter. Only the context-appropriate keys change — the layer toggle (123/ABC),
-    // the second key (emoji on letters, comma elsewhere), and the fifth (period normally, but backspace
-    // in the emoji panel, which has no letter row to delete from).
+    // One bottom row in every mode, same key positions throughout: [toggle] · emoji · globe · comma ·
+    // space · [. | ⌫] · enter. Comma sits just left of the space bar and the period just right of it.
+    // Only the context-appropriate keys change — the layer toggle (123/ABC) and the key right of space
+    // (period normally, but backspace in the emoji panel, which has no letter row to delete from).
     private fun bottomRow(): List<String> {
         val toggle = if (layer == Layer.LETTERS) Key.SYMBOLS else Key.LETTERS
-        val second = if (layer == Layer.LETTERS) Key.EMOJI else Key.COMMA
-        val fifth = if (layer == Layer.EMOJI) Key.BACKSPACE else Key.PERIOD
-        return listOf(toggle, second, Key.GLOBE, Key.SPACE, fifth, Key.ENTER)
+        val rightOfSpace = if (layer == Layer.EMOJI) Key.BACKSPACE else Key.PERIOD
+        return listOf(toggle, Key.EMOJI, Key.GLOBE, Key.COMMA, Key.SPACE, rightOfSpace, Key.ENTER)
     }
 
     private object Layout {

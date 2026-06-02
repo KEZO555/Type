@@ -13,6 +13,7 @@ object Prefs {
     private const val KEY_DOUBLE_SPACE = "double_space_period"
     private const val KEY_RECENT_EMOJI = "recent_emoji"
     private const val RECENT_EMOJI_MAX = 12
+    private const val KEY_EMOJI_SET = "emoji_set"
     private const val KEY_SOUND = "key_sound"
     private const val KEY_LP_DELAY = "longpress_delay"
     private const val KEY_SWIPE_SENS = "swipe_sensitivity"
@@ -90,6 +91,14 @@ object Prefs {
 
     fun setKeyboardHeight(c: Context, value: Int) =
         prefs(c).edit().putInt(KEY_KB_HEIGHT, value).apply()
+
+    /** The user's chosen emoji set (newline-separated), or empty if they haven't customized it — in
+     *  which case the keyboard falls back to its default set. */
+    fun emojiSet(c: Context): List<String> =
+        prefs(c).getString(KEY_EMOJI_SET, "")!!.split('\n').filter { it.isNotEmpty() }
+
+    fun setEmojiSet(c: Context, list: List<String>) =
+        prefs(c).edit().putString(KEY_EMOJI_SET, list.joinToString("\n")).apply()
 
     /** Most-recently-used emoji, newest first (newline-separated). Drives the emoji grid order. */
     fun recentEmoji(c: Context): List<String> =

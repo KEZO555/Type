@@ -144,13 +144,27 @@ class LightKeyboardView @JvmOverloads constructor(
             listOf("£", "¢", "€", "¥", "^", "°", "=", "{", "}", "\\"),
             listOf(Key.SYMBOLS, "%", "©", "®", "™", "[", "]", "<", ">", Key.BACKSPACE),
         )
-        // The eight curated favourites first, then the twenty most-common emoji. Laid out as a grid
-        // in the emoji panel (see layoutEmoji).
-        val emoji = listOf(
+    }
+
+    companion object {
+        // The emoji shown in the panel when the user hasn't customised the set: eight curated
+        // favourites first, then the twenty most-common. Laid out as a grid (see layoutEmoji).
+        val EMOJI_DEFAULT = listOf(
             "🧞‍♂️", "🦾", "🪬", "👾", "🫶🏻", "🌸", "🫠", "🤌🏻",
             "😀", "😂", "🥹", "😍", "😎", "😭", "🥰", "😘", "😉", "🙃",
             "👍", "🙏", "🙌", "👀", "🔥", "💙", "✨", "🎉", "💯", "🤔",
         )
+        // The full pool the user can pick from in Settings (defaults first, then more common emoji).
+        val EMOJI_CANDIDATES = EMOJI_DEFAULT + listOf(
+            "😅", "😊", "🙂", "😉", "😇", "🤩", "😋", "😜", "🤪", "🤗",
+            "🤭", "🤫", "🤐", "😐", "😶", "😬", "🙄", "😏", "😴", "😪",
+            "😌", "🥱", "😤", "😠", "😡", "🤬", "😱", "😨", "😰", "😥",
+            "🥲", "😢", "🥺", "😞", "😟", "😔", "🤯", "😳", "🤥", "😈",
+            "💀", "👻", "🤡", "🤖", "💩", "👋", "🤝", "💪", "👏", "🙈",
+            "❤️", "🧡", "💛", "💚", "💜", "🖤", "🤍", "💔", "⭐", "🌟",
+            "☀️", "🌙", "⚡", "🌈", "🍀", "🎈", "🎁", "☕", "🍕", "🍺",
+            "⚽", "🎵", "📞", "💬", "✅", "❌", "❓", "❗", "💤", "🥳",
+        ).distinct()
     }
 
     private enum class Layer { LETTERS, SYMBOLS, MORE, EMOJI, SETTINGS }
@@ -267,7 +281,8 @@ class LightKeyboardView @JvmOverloads constructor(
     private val rowPitch: Float get() = rowKeyH + keyGap * 2   // ~49dp per row at normal height
 
     private val emojiCols = 10
-    private val emojiGridRows = (Layout.emoji.size + emojiCols - 1) / emojiCols  // 28 / 10 = 3
+    // Rows depend on how many emoji are in the active set (default 28 → 3 rows), recomputed live.
+    private val emojiGridRows: Int get() = maxOf(1, (activeEmojiBase().size + emojiCols - 1) / emojiCols)
 
     // --- paints / icon cache ---
     private val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -448,11 +463,15 @@ class LightKeyboardView @JvmOverloads constructor(
         }
     }
 
-    /** The curated emoji set, with recently-used ones pulled to the front (same 28 glyphs, reordered). */
+    /** The active emoji set: the user's chosen set in Settings, or the default if they haven't picked. */
+    private fun activeEmojiBase(): List<String> =
+        Prefs.emojiSet(context).ifEmpty { EMOJI_DEFAULT }
+
+    /** The active emoji set, with recently-used ones pulled to the front (same glyphs, reordered). */
     private fun displayedEmoji(): List<String> {
-        val recents = Prefs.recentEmoji(context).filter { it in Layout.emoji }
-        if (recents.isEmpty()) return Layout.emoji
-        return recents + Layout.emoji.filter { it !in recents }
+        val base = activeEmojiBase()
+        val recents = Prefs.recentEmoji(context).filter { it in base }
+        return if (recents.isEmpty()) base else recents + base.filter { it !in recents }
     }
 
     // ------------------------------------------------------------------ drawing
@@ -577,7 +596,7 @@ class LightKeyboardView @JvmOverloads constructor(
         }
         // Emoji glyphs are large; everything else (letters, the layer toggle, the period) is normal.
         val size = when {
-            layer == Layer.EMOJI && id in Layout.emoji -> spf(24)
+            layer == Layer.EMOJI && id in EMOJI_CANDIDATES -> spf(24)
             id.length == 1 -> spf(23)
             else -> spf(18)
         }

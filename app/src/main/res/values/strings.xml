@@ -24,6 +24,8 @@
     <string name="setup_swipe_sub">How far you slide on the space bar to move the cursor one step. Tap to cycle.</string>
     <string name="setup_kb_height_sub">Overall keyboard height. Tap to cycle.</string>
     <string name="setup_tip">Tip: hold the globe key (⚙) on the keyboard for a quick-settings panel — haptics, autocorrect, auto-capitalize, double-space and number row, without leaving the app you\'re in.</string>
+    <string name="setup_emoji">Emoji</string>
+    <string name="setup_emoji_sub">Tap to choose which emoji appear in the keyboard\'s emoji panel. Dim = hidden.</string>
     <string name="setup_voice">Voice dictation</string>
     <string name="setup_voice_sub">English is private and on-device (downloads 40 MB once). Hebrew uses the phone\'s own voice service, which may need a connection.</string>
     <string name="setup_voice_clear">Delete voice model (frees ~40 MB)</string>

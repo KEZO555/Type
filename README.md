@@ -60,6 +60,8 @@ The settings below it:
 - **Cursor swipe**: Low / Normal / High — how far you slide on the space bar to move the caret one step.
 - **Keyboard height**: Compact / Normal / Tall.
 - **Number row** (off by default): a persistent row of digits above the letters.
+- **Emoji**: tap a grid of candidate emoji to choose which ones appear in the keyboard's emoji panel
+  (recently-used still float to the front).
 - **Voice dictation** (off by default): turning it on downloads the ~40 MB offline English model once,
   then a mic key lets you speak instead of type. English runs entirely on-device; Hebrew dictation uses
   the phone's own voice service. Once downloaded, a **Delete voice model** button appears to reclaim the

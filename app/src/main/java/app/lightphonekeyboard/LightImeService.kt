@@ -171,8 +171,12 @@ class LightImeService : InputMethodService(), LightKeyboardView.Listener {
         fixFinalForWordEnd()
         val original = trailingWord()
         val fix = if (autocorrectOn()) autocorrectFix(original) else null
-        if (fix != null && !fix.equals(original, ignoreCase = true)) {
-            val cased = applyCase(original, fix)
+        // A non-null fix means `original` is unfamiliar (sits one edit from a real word). The first time
+        // we offer the correction in case it's a typo; once you've used the same unfamiliar word again,
+        // we trust it — learn it and leave it alone from now on.
+        val correct = fix != null && !fix.equals(original, ignoreCase = true) && !registerUnknownUse(original)
+        if (correct) {
+            val cased = applyCase(original, fix!!)
             ic.beginBatchEdit()
             ic.deleteSurroundingText(original.length, 0)
             ic.commitText(cased, 1)
@@ -246,8 +250,9 @@ class LightImeService : InputMethodService(), LightKeyboardView.Listener {
         // Fix the last word before firing the action / newline.
         val original = trailingWord()
         val fix = if (autocorrectOn()) autocorrectFix(original) else null
-        if (fix != null && !fix.equals(original, ignoreCase = true)) {
-            val cased = applyCase(original, fix)
+        val correct = fix != null && !fix.equals(original, ignoreCase = true) && !registerUnknownUse(original)
+        if (correct) {
+            val cased = applyCase(original, fix!!)
             ic.beginBatchEdit()
             ic.deleteSurroundingText(original.length, 0)
             ic.commitText(cased, 1)
@@ -459,6 +464,26 @@ class LightImeService : InputMethodService(), LightKeyboardView.Listener {
         if (hebrew) HebrewDictionary.learn(this, word) else EnglishWords.learn(this, word)
     }
 
+    // How many times an unfamiliar word has been typed this session (cleared if it grows large). Lets us
+    // tell a one-off typo (correct it) from a word you actually use (learn it on the repeat).
+    private val unknownUses = HashMap<String, Int>()
+
+    /** Count one use of an unfamiliar [word]; returns true once it has been used enough to be trusted
+     *  as a real word — at which point it's learned (in EN or HE) so it's never autocorrected again. */
+    private fun registerUnknownUse(word: String): Boolean {
+        if (word.length < 2) return false
+        if (unknownUses.size > 500) unknownUses.clear()
+        val key = if (hebrew) "he:$word" else "en:$word"
+        val n = (unknownUses[key] ?: 0) + 1
+        unknownUses[key] = n
+        if (n >= LEARN_AFTER_USES) {
+            unknownUses.remove(key)
+            learnTyped(word)
+            return true
+        }
+        return false
+    }
+
     // ------------------------------------------------------------------ helpers
 
     private fun isWordChar(c: Char): Boolean = c.isLetter() || c == '\''
@@ -493,5 +518,7 @@ class LightImeService : InputMethodService(), LightKeyboardView.Listener {
         const val EXTRA_VISIBLE = "visible"
         /** Window of text to inspect when deleting the last grapheme cluster (covers long emoji). */
         private const val GRAPHEME_LOOKBACK = 16
+        /** Use an unfamiliar word this many times → it's added to your vocabulary (and stops correcting). */
+        private const val LEARN_AFTER_USES = 2
     }
 }

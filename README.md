@@ -48,7 +48,10 @@ The settings below it:
 - **Autocorrect** (on by default): fixes misspellings as you type, using bundled English and Hebrew
   frequency dictionaries that also learn the words you use. Keyboard-aware (it prefers fixes that are a
   neighbouring-key slip or a swapped pair) and conservative, so it doesn't replace words you meant.
-  Fully offline. Turn it off to type exactly what you tap.
+  Fully offline. Turn it off to type exactly what you tap. **It learns your vocabulary** (English and
+  Hebrew): an unfamiliar word with no near match is kept the first time; one that looks like a typo is
+  offered as a correction once, but the second time you type it the keyboard trusts it — adds it to your
+  vocabulary and stops correcting it. Rejecting a correction (backspace) also teaches it your word.
 - **Auto-capitalize** (on by default): capitalize the first letter of each sentence.
 - **Double-space for period** (on by default): tap space twice to insert `. `.
 - **Haptic feedback**: cycle Off / Light / Medium / Strong; tapping previews the strength.

@@ -171,17 +171,12 @@ class LightKeyboardView @JvmOverloads constructor(
     private var popupOptions: List<String> = emptyList()
     private var popupIndex = 0
     private var popupKey: PlacedKey? = null
-    private var popupEdit = false                 // true = edit menu (actions), false = text alternates
     private val altLongPress = Runnable { showAltPopup() }
 
-    // Some keys act on release so a long-press can do something else: emoji (tap = panel, hold =
-    // comma) and the 123/ABC toggle (tap = switch layer, hold = edit menu). This tracks the in-flight
-    // such press, resolved on UP.
+    // The 123/ABC toggle acts on release so its long-press can open the accents picker: tap = switch
+    // layer, hold = picker. This tracks the in-flight such press, resolved on UP.
     private var pendingReleasePointer = -1
     private var pendingReleaseId = ""
-
-    // Long-press the space bar → an edit menu. Indices match EDIT_ACTIONS order.
-    private val EDIT_ACTIONS = listOf("Select all", "Copy", "Cut", "Paste")
 
     // Space-bar gestures: double-tap → ". ", drag → move the caret (iPhone trackpad style, 2D).
     private var spacePointerId = -1
@@ -434,7 +429,7 @@ class LightKeyboardView @JvmOverloads constructor(
         val card = RectF(left, top, left + totalW, top + cellH)
         canvas.drawRoundRect(card, r, r, popupBgPaint)
         canvas.drawRoundRect(card, r, r, popupBorderPaint)
-        textPaint.textSize = if (popupEdit) spf(14) else spf(22)   // word labels need smaller text
+        textPaint.textSize = spf(22)
         for (j in opts.indices) {
             val cl = left + cellW * j
             if (j == popupIndex) {
@@ -445,8 +440,11 @@ class LightKeyboardView @JvmOverloads constructor(
             } else {
                 textPaint.color = Color.WHITE
             }
+            // A bare Hebrew vowel point renders on a dotted circle so it's visible in the picker.
+            val o = opts[j]
+            val label = if (o.length == 1 && o[0] in 'ְ'..'ּ') "◌$o" else o
             val baseline = card.centerY() - (textPaint.descent() + textPaint.ascent()) / 2f
-            canvas.drawText(opts[j], cl + cellW / 2f, baseline, textPaint)
+            canvas.drawText(label, cl + cellW / 2f, baseline, textPaint)
         }
         textPaint.color = Color.WHITE     // restore for subsequent draws
     }
@@ -727,8 +725,8 @@ class LightKeyboardView @JvmOverloads constructor(
             spaceDownY = y
             spaceSwiping = false
         }
-        // Long-press: a letter → accents/niqqud popup; the period → voice; the comma → emoji panel.
-        if (alternatesFor(key.id) != null ||
+        // Long-press: a letter → its symbol; the period → voice; the comma → emoji panel.
+        if (hintFor(key.id) != null ||
             (key.id == Key.PERIOD && Prefs.voiceEnabled(context)) ||
             key.id == Key.COMMA
         ) {
@@ -753,20 +751,10 @@ class LightKeyboardView @JvmOverloads constructor(
         return if (lang == Lang.HE) Hint.he[id[0]] else Hint.en[id[0].lowercaseChar()]
     }
 
-    /** The long-press popup options for [id] (base, then its number/symbol, then accents/niqqud). */
-    private fun alternatesFor(id: String): List<String>? {
-        if (layer != Layer.LETTERS || id.length != 1) return null
-        val ch = id[0]
-        val accents: List<String> = when {
-            lang == Lang.HE && ch in spec -> Alt.niqqud.map { id + it }
-            lang == Lang.EN -> Alt.en[ch.lowercaseChar()]?.let { extra ->
-                (if (shifted) extra.uppercase() else extra).map { it.toString() }
-            } ?: emptyList()
-            else -> emptyList()
-        }
-        val extras = listOfNotNull(hintFor(id)) + accents
-        return if (extras.isEmpty()) null else listOf(labelFor(id)) + extras
-    }
+    // Accented letters (English) / vowel points (Hebrew), reached by holding the 123/ABC key.
+    private val enAccents = listOf("á", "é", "í", "ó", "ú", "à", "è", "ñ", "ç", "ü", "ö", "ä")
+    private fun accentSet(): List<String> =
+        if (lang == Lang.HE) Alt.niqqud.map { it.toString() } else enAccents
 
     private fun showAltPopup() {
         val k = longPressCandidate ?: return
@@ -779,65 +767,47 @@ class LightKeyboardView @JvmOverloads constructor(
         // Long-press the comma key → open the emoji panel (retract the ',' typed on down).
         if (k.id == Key.COMMA) {
             endAltLongPress()
-            if (firstPointerId == longPressPointerId) firstKeyRetractable = false  // we retract it here
-            tap()
-            listener?.onBackspace()      // remove the comma committed on the press
-            layer = Layer.EMOJI
-            rebuild()
+            if (firstPointerId == longPressPointerId) firstKeyRetractable = false
+            tap(); listener?.onBackspace(); layer = Layer.EMOJI; rebuild()
             return
         }
-        // Long-press the 123/ABC toggle → the edit menu (select all · copy · cut · paste).
+        // Long-press the 123/ABC toggle → the accents / vowel-points picker.
         if (k.id == Key.SYMBOLS || k.id == Key.LETTERS) {
-            pendingReleasePointer = -1   // consumed as the menu, so release won't switch layer
-            popupEdit = true
-            popupOptions = EDIT_ACTIONS
-        } else {
-            popupEdit = false
-            popupOptions = alternatesFor(k.id) ?: return
+            pendingReleasePointer = -1   // consumed as the picker, so release won't switch layer
+            popupOptions = accentSet()
+            popupActive = true; popupKey = k; popupIndex = -1
+            tap(); invalidate()
+            return
         }
-        popupActive = true
-        popupKey = k
-        popupIndex = if (popupEdit) -1 else 0     // edit: nothing selected until you slide into it
-        tap()
-        invalidate()
+        // Long-press a letter → type its corner number/symbol (replacing the letter typed on down).
+        val hint = hintFor(k.id)
+        endAltLongPress()
+        if (hint != null) {
+            if (firstPointerId == longPressPointerId) firstKeyRetractable = false
+            tap(); listener?.onBackspace(); listener?.onText(hint)
+        }
     }
 
-    /** Popup cell width. The edit menu uses wide cells (word labels); alternates use compact cells. */
-    private fun popupCellW(n: Int): Float {
-        val avail = (width - padSide * 2) / n.coerceAtLeast(1)
-        return if (popupEdit) avail else minOf(dpf(POPUP_CELL_DP), avail)
-    }
+    private fun popupCellW(n: Int): Float =
+        minOf(dpf(POPUP_CELL_DP), (width - padSide * 2) / n.coerceAtLeast(1))
 
-    /** Pick the option under finger x. For the edit menu, only select once the finger slides up into
-     *  the menu (above the key) — so a plain hold-and-release doesn't fire an action. */
+    /** Pick the option under finger x — but only once the finger slides up into the popup (above the
+     *  key), so a plain hold-and-release commits nothing. */
     private fun updatePopupSelection(x: Float, y: Float) {
         val opts = popupOptions
         if (opts.isEmpty()) return
-        if (popupEdit && (popupKey == null || y > popupKey!!.vis.top)) { popupIndex = -1; return }
+        if (popupKey == null || y > popupKey!!.vis.top) { popupIndex = -1; return }
         val cellW = popupCellW(opts.size)
         val totalW = cellW * opts.size
         val left = popupLeft(totalW)
         popupIndex = (((x - left) / cellW).toInt()).coerceIn(0, opts.size - 1)
     }
 
-    /** Commit the popup selection and reset. For the edit menu, run the chosen action; for text
-     *  alternates, index 0 is the base char (already typed → no change). */
+    /** Commit the picked character (a Hebrew vowel point attaches to the preceding letter) and reset. */
     private fun commitPopupAndReset() {
-        if (popupActive) {
-            val opts = popupOptions
-            if (popupEdit) {
-                when (popupIndex) {
-                    0 -> listener?.onSelectAll()
-                    1 -> listener?.onCopy()
-                    2 -> listener?.onCut()
-                    3 -> listener?.onPaste()
-                }
-                tap()
-            } else if (popupIndex in 1 until opts.size) {
-                listener?.onBackspace()              // retract the base committed on down
-                listener?.onText(opts[popupIndex])
-                tap()
-            }
+        if (popupActive && popupIndex in popupOptions.indices) {
+            listener?.onText(popupOptions[popupIndex])
+            tap()
         }
         endAltLongPress()
     }
@@ -847,7 +817,7 @@ class LightKeyboardView @JvmOverloads constructor(
         longPressPointerId = -1
         longPressCandidate = null
         if (popupActive) {
-            popupActive = false; popupEdit = false; popupKey = null; popupOptions = emptyList(); invalidate()
+            popupActive = false; popupKey = null; popupOptions = emptyList(); invalidate()
         }
     }
 
@@ -1112,8 +1082,8 @@ class LightKeyboardView @JvmOverloads constructor(
         runCatching { v.vibrate(android.os.VibrationEffect.createOneShot(ms, amplitude)) }
     }
 
-    private fun tap() = buzz(18, 180)         // firm, crisp key press
-    private fun cursorTick() = buzz(11, 110)  // lighter tick for caret movement
+    private fun tap() = buzz(22, 255)         // firm, clearly-felt key press (max amplitude)
+    private fun cursorTick() = buzz(12, 140)  // lighter tick for caret movement
 
     private val DOUBLE_TAP_MS = 300L
     private val BACKSPACE_INITIAL_DELAY_MS = 400L   // pause before key-repeat kicks in

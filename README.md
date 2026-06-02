@@ -8,17 +8,16 @@ system keyboard you can set as the default, so every app on a modified Light Pho
 
 Optional autocorrect and optional voice dictation. Swipe down on the keyboard to hide it.
 
-**English and Hebrew.** The globe key switches between them; the emoji key opens emoji. Each language
-has its own dictionary, autocorrect, and voice input:
+**Multiple languages.** Choose which languages the globe key cycles through in **Settings → Languages**:
+English, Hebrew, Spanish, French, German, Italian, Portuguese (each with its own layout and long-press
+accents). The emoji key opens emoji.
 
-| | English | Hebrew |
-|---|---|---|
-| Layout | QWERTY | Standard Israeli (SI-1452), finals included |
-| Autocorrect | Bundled offline dictionary + edit-distance corrector (learns your words) | Bundled offline dictionary + edit-distance corrector (learns your words) |
-| Voice | Offline, on-device (Vosk) — fully private | Phone's own voice service (`he-IL`) — may need a connection |
-
-(Vosk has no Hebrew model, so Hebrew dictation uses Android's speech recognizer instead of the offline
-English path. The English experience stays fully on-device.)
+- **English** — QWERTY, offline autocorrect (Vosk voice), learns your words.
+- **Hebrew** — Standard Israeli layout (finals included), offline autocorrect, learns your words; voice
+  via the phone's own service (`he-IL`).
+- **Spanish / French / German / Italian / Portuguese** — full typing with their layouts (QWERTY, AZERTY,
+  QWERTZ) and accents on the 123-key long-press. Offline autocorrect dictionaries for these download on
+  demand (coming next).
 
 ## Install
 

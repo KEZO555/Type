@@ -14,6 +14,8 @@ object Prefs {
     private const val KEY_RECENT_EMOJI = "recent_emoji"
     private const val RECENT_EMOJI_MAX = 12
     private const val KEY_EMOJI_SET = "emoji_set"
+    private const val KEY_ENABLED_LANGS = "enabled_languages"
+    private const val KEY_ACTIVE_LANG = "active_language"
     private const val KEY_SOUND = "key_sound"
     private const val KEY_LP_DELAY = "longpress_delay"
     private const val KEY_SWIPE_SENS = "swipe_sensitivity"
@@ -91,6 +93,20 @@ object Prefs {
 
     fun setKeyboardHeight(c: Context, value: Int) =
         prefs(c).edit().putInt(KEY_KB_HEIGHT, value).apply()
+
+    /** Languages enabled in the globe rotation (comma-separated ISO codes). English + Hebrew by
+     *  default, preserving the original behaviour. */
+    fun enabledLanguages(c: Context): Set<String> =
+        prefs(c).getString(KEY_ENABLED_LANGS, "en,he")!!.split(',').filter { it.isNotEmpty() }.toSet()
+
+    fun setEnabledLanguages(c: Context, codes: Collection<String>) =
+        prefs(c).edit().putString(KEY_ENABLED_LANGS, codes.joinToString(",")).apply()
+
+    /** The language the keyboard last showed, so it reopens in the same one. */
+    fun activeLanguage(c: Context): String = prefs(c).getString(KEY_ACTIVE_LANG, "en")!!
+
+    fun setActiveLanguage(c: Context, code: String) =
+        prefs(c).edit().putString(KEY_ACTIVE_LANG, code).apply()
 
     /** The user's chosen emoji set (newline-separated), or empty if they haven't customized it — in
      *  which case the keyboard falls back to its default set. */

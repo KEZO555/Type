@@ -151,8 +151,10 @@ class SetupActivity : AppCompatActivity() {
         }
         val emojiSub = label(getString(R.string.setup_emoji_sub), 14f, R.color.gray)
         val tipView = label(getString(R.string.setup_tip), 14f, R.color.gray)
-        // Languages: informational — the globe key on the keyboard cycles English → Hebrew → emoji.
-        val languagesView = label(getString(R.string.setup_languages), 20f, R.color.white)
+        // Languages — opens its own screen to choose which the globe key cycles through.
+        val languagesRow = stepRow(getString(R.string.setup_languages)) {
+            startActivity(Intent(this, LanguagesActivity::class.java))
+        }
         val languagesSub = label(getString(R.string.setup_languages_sub), 14f, R.color.gray)
         // Voice dictation — turning it on downloads the offline model once.
         voiceStatus = label("", 14f, R.color.gray)
@@ -162,7 +164,7 @@ class SetupActivity : AppCompatActivity() {
 
         listOf(
             titleView, blurbView, step1, step2, doneView,
-            languagesView, languagesSub,
+            languagesRow, languagesSub,
             autocorrectToggle, autocorrectSub,
             autoCapToggle, autoCapSub,
             doubleSpaceToggle, doubleSpaceSub,

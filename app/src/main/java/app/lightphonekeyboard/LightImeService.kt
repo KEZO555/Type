@@ -26,9 +26,10 @@ class LightImeService : InputMethodService(), LightKeyboardView.Listener {
     private val dictation by lazy { VoiceDictation(this) }          // English: offline Vosk
     private val sysDictation by lazy { SystemDictation(this) }      // Hebrew: platform recognizer
 
-    // Current letters language, mirrored from the keyboard (globe key). Autocorrect uses the bundled
-    // English or Hebrew dictionary accordingly.
-    private var hebrew = false
+    // Current letters language code, mirrored from the keyboard (globe key). Autocorrect uses the
+    // matching dictionary (English/Hebrew bundled today; other languages download in a later phase).
+    private var langCode = "en"
+    private val hebrew: Boolean get() = langCode == "he"
 
     // Revert-on-backspace: after a correction the text before the cursor ends with [undoFrom];
     // the next backspace restores [undoTo] instead of deleting a character. [undoWord] is the word the
@@ -59,12 +60,18 @@ class LightImeService : InputMethodService(), LightKeyboardView.Listener {
         sysDictation.destroy()
         clearUndo()
         // The keyboard keeps its language across fields; sync ours and warm the dictionaries.
-        hebrew = keyboard?.isHebrew ?: false
-        if (Prefs.autocorrect(this)) {
-            EnglishWords.prepare(this)
-            HebrewDictionary.prepare(this)
-        }
+        langCode = keyboard?.langCode ?: "en"
+        if (Prefs.autocorrect(this)) prepareDict(langCode)
         updateShift()
+    }
+
+    /** Warm the autocorrect dictionary for [code], if one exists for that language. */
+    private fun prepareDict(code: String) {
+        when (code) {
+            "en" -> EnglishWords.prepare(this)
+            "he" -> HebrewDictionary.prepare(this)
+            // Other languages: downloadable dictionaries arrive in a later phase.
+        }
     }
 
     override fun onDestroy() {
@@ -73,11 +80,11 @@ class LightImeService : InputMethodService(), LightKeyboardView.Listener {
         super.onDestroy()
     }
 
-    /** Globe key flipped the letters language. Swap autocorrect engines and warm the Hebrew dictionary. */
-    override fun onLanguageChange(hebrew: Boolean) {
-        this.hebrew = hebrew
+    /** Globe key changed the letters language. Swap autocorrect engine and warm its dictionary. */
+    override fun onLanguageChange(code: String) {
+        langCode = code
         clearUndo()
-        if (hebrew) HebrewDictionary.prepare(this)
+        if (Prefs.autocorrect(this)) prepareDict(code)
     }
 
     /** Keep the keyboard's language in sync when the user switches our subtype via the system globe. */
@@ -86,10 +93,10 @@ class LightImeService : InputMethodService(), LightKeyboardView.Listener {
         super.onCurrentInputMethodSubtypeChanged(subtype)
         val tag = subtype?.languageTag?.takeIf { it.isNotEmpty() } ?: subtype?.locale.orEmpty()
         val he = tag.startsWith("he") || tag.startsWith("iw")   // "iw" is the legacy Hebrew code
-        hebrew = he
-        keyboard?.setLanguage(he)
+        langCode = if (he) "he" else "en"
+        keyboard?.setLanguageCode(langCode)
         clearUndo()
-        if (he) HebrewDictionary.prepare(this)
+        if (Prefs.autocorrect(this)) prepareDict(langCode)
     }
 
     override fun onUpdateSelection(
@@ -416,19 +423,26 @@ class LightImeService : InputMethodService(), LightKeyboardView.Listener {
     private fun autocorrectOn(): Boolean = Prefs.autocorrect(this)
 
     /**
-     * The autocorrection for a finished [word], or null. Both languages use their bundled
-     * frequency dictionary (+ your learned words): the highest-frequency real word within a small
-     * edit distance of what you typed. Consistent, offline, and the same for English and Hebrew.
+     * The autocorrection for a finished [word], or null. English & Hebrew use their bundled frequency
+     * dictionary (+ your learned words): the highest-frequency real word within a small edit distance
+     * of what you typed. Languages without a dictionary yet return null (no correction).
      */
     private fun autocorrectFix(word: String): String? {
         if (!autocorrectOn() || word.length < 3) return null
-        return if (hebrew) HebrewDictionary.correct(word) else EnglishWords.correct(word)
+        return when (langCode) {
+            "en" -> EnglishWords.correct(word)
+            "he" -> HebrewDictionary.correct(word)
+            else -> null
+        }
     }
 
-    /** Remember a word the user typed, in the active language's prediction dictionary. */
+    /** Remember a word the user typed, in the active language's dictionary (if it has one). */
     private fun learnTyped(word: String) {
         if (word.length < 2) return
-        if (hebrew) HebrewDictionary.learn(this, word) else EnglishWords.learn(this, word)
+        when (langCode) {
+            "en" -> EnglishWords.learn(this, word)
+            "he" -> HebrewDictionary.learn(this, word)
+        }
     }
 
     // How many times an unfamiliar word has been typed this session (cleared if it grows large). Lets us
@@ -440,7 +454,7 @@ class LightImeService : InputMethodService(), LightKeyboardView.Listener {
     private fun registerUnknownUse(word: String): Boolean {
         if (word.length < 2) return false
         if (unknownUses.size > 500) unknownUses.clear()
-        val key = if (hebrew) "he:$word" else "en:$word"
+        val key = "$langCode:$word"
         val n = (unknownUses[key] ?: 0) + 1
         unknownUses[key] = n
         if (n >= LEARN_AFTER_USES) {

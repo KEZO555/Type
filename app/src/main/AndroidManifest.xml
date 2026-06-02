@@ -59,5 +59,12 @@
             android:exported="false"
             android:label="@string/setup_emoji"
             android:screenOrientation="portrait" />
+
+        <!-- Languages: choose which languages the globe key cycles through. -->
+        <activity
+            android:name=".LanguagesActivity"
+            android:exported="false"
+            android:label="@string/setup_languages"
+            android:screenOrientation="portrait" />
     </application>
 </manifest>

@@ -54,9 +54,9 @@ class LightKeyboardView @JvmOverloads constructor(
         fun onMic()
         /** Listening surface tapped — cancel dictation. */
         fun onMicCancel()
-        /** Globe key toggled the letters language (true = Hebrew). Lets the host pick the right
-         *  autocorrect engine and dictation backend. */
-        fun onLanguageChange(hebrew: Boolean)
+        /** Globe key changed the letters language (ISO code, e.g. "en"/"he"/"es"). Lets the host pick
+         *  the right autocorrect engine and dictation backend. */
+        fun onLanguageChange(code: String)
         /** Double-tap on space — turn the trailing space into ". " (sentence end). */
         fun onDoubleSpace()
         /** Space-bar swipe — move the caret by [steps] (negative = left, positive = right). */
@@ -117,20 +117,9 @@ class LightKeyboardView @JvmOverloads constructor(
         return listOf(toggle, Key.COMMA, Key.GLOBE, Key.SPACE, rightOfSpace, Key.ENTER)
     }
 
+    // Letter layouts now live per-language in [Languages]; this object holds the language-independent
+    // layers (number row, symbols pages).
     private object Layout {
-        val letters = listOf(
-            listOf("q", "w", "e", "r", "t", "y", "u", "i", "o", "p"),
-            listOf("a", "s", "d", "f", "g", "h", "j", "k", "l"),
-            listOf(Key.SHIFT, "z", "x", "c", "v", "b", "n", "m", Key.BACKSPACE),
-        )
-        // Hebrew (standard Israeli layout, finals included; no case → no shift key). Row 1 leads with
-        // geresh + a regular hyphen so all three rows are full width. (A Hebrew maqaf "־" sits too high
-        // visually, so we use the normal hyphen-minus "-", which is also what people usually want.)
-        val hebrew = listOf(
-            listOf("׳", "-", "ק", "ר", "א", "ט", "ו", "ן", "ם", "פ"),
-            listOf("ש", "ד", "ג", "כ", "ע", "י", "ח", "ל", "ך", "ף"),
-            listOf("ז", "ס", "ב", "ה", "נ", "מ", "צ", "ת", "ץ", Key.BACKSPACE),
-        )
         // Optional persistent number row (prepended to the letters layers when enabled in setup).
         val numberRow = listOf("1", "2", "3", "4", "5", "6", "7", "8", "9", "0")
         // Symbols page 1, matching the system keyboard. =\< leads to page 2 (more).
@@ -172,10 +161,17 @@ class LightKeyboardView @JvmOverloads constructor(
 
     private enum class Layer { LETTERS, SYMBOLS, MORE, EMOJI, SETTINGS }
 
-    enum class Lang { EN, HE }
+    private var lang: LangDef = initialLang()
+    val isHebrew: Boolean get() = lang.code == "he"
+    val langCode: String get() = lang.code
 
-    private var lang = Lang.EN
-    val isHebrew: Boolean get() = lang == Lang.HE
+    /** Reopen in the last-used language, but only if it's still enabled; otherwise the first enabled. */
+    private fun initialLang(): LangDef {
+        val enabled = Prefs.enabledLanguages(context)
+        val active = Prefs.activeLanguage(context)
+        return if (active in enabled) Languages.byCode(active)
+        else Languages.ALL.firstOrNull { it.code in enabled } ?: Languages.EN
+    }
 
     private var layer = Layer.LETTERS
     private var shifted = true
@@ -225,35 +221,6 @@ class LightKeyboardView @JvmOverloads constructor(
     private var spaceSwipeRefX = 0f
     private var spaceSwipeRefY = 0f
     private var lastSpaceTapMs = 0L
-
-    // English accent alternates, and the Hebrew niqqud (vowel points) offered on any Hebrew letter.
-    private object Alt {
-        val en = mapOf(
-            'a' to "àáâäãå", 'e' to "èéêëē", 'i' to "ìíîïī", 'o' to "òóôöõø",
-            'u' to "ùúûü", 'n' to "ñ", 'c' to "ç", 's' to "ß", 'y' to "ýÿ", 'z' to "ž",
-        )
-        // Combining marks: patah, qamats, segol, tsere, hiriq, holam, sheva, dagesh.
-        val niqqud = listOf('ַ', 'ָ', 'ֶ', 'ֵ', 'ִ', 'ֹ', 'ְ', 'ּ')
-    }
-
-    // Tiny corner labels: a number/symbol typed by long-pressing the key. Kept minimal (small + dim).
-    private object Hint {
-        val en = mapOf(
-            'q' to "1", 'w' to "2", 'e' to "3", 'r' to "4", 't' to "5",
-            'y' to "6", 'u' to "7", 'i' to "8", 'o' to "9", 'p' to "0",
-            'a' to "@", 's' to "#", 'd' to "$", 'f' to "_", 'g' to "&",
-            'h' to "-", 'j' to "+", 'k' to "(", 'l' to ")",
-            'z' to "*", 'x' to "\"", 'c' to "'", 'v' to ":", 'b' to ";", 'n' to "!", 'm' to "?",
-        )
-        val he = mapOf(
-            '׳' to "1", '-' to "2", 'ק' to "3", 'ר' to "4", 'א' to "5",
-            'ט' to "6", 'ו' to "7", 'ן' to "8", 'ם' to "9", 'פ' to "0",
-            'ש' to "@", 'ד' to "#", 'ג' to "₪", 'כ' to "_", 'ע' to "&",
-            'י' to "-", 'ח' to "+", 'ל' to "(", 'ך' to ")", 'ף' to "/",
-            'ז' to "`", 'ס' to "*", 'ב' to "\"", 'ה' to "'", 'נ' to ";",
-            'מ' to ":", 'צ' to "!", 'ת' to "?", 'ץ' to "\\",
-        )
-    }
 
     /** One key with its (gapless) hit rect and its inset, drawn-to rect. */
     private class PlacedKey(val id: String, val hit: RectF, val vis: RectF) {
@@ -330,7 +297,7 @@ class LightKeyboardView @JvmOverloads constructor(
             if (layer == Layer.EMOJI) return emptyList()   // emoji is laid out separately
             if (layer == Layer.SETTINGS) return settingsRows()
             var rows = when (layer) {
-                Layer.LETTERS -> if (lang == Lang.HE) Layout.hebrew else Layout.letters
+                Layer.LETTERS -> lang.rows
                 Layer.SYMBOLS -> Layout.symbols
                 Layer.MORE -> Layout.more
                 Layer.EMOJI, Layer.SETTINGS -> emptyList()
@@ -350,7 +317,7 @@ class LightKeyboardView @JvmOverloads constructor(
         // The emoji panel is laid out to the same row count as the letters layer, so the keyboard
         // keeps a constant height and doesn't jump when you switch to emoji.
         val rowCount = when {
-            listening -> Layout.letters.size           // keep height constant while listening
+            listening -> lang.rows.size                // keep height constant while listening
             layer == Layer.EMOJI -> emojiGridRows + 1  // emoji rows + control row (= 4, same as letters)
             layer == Layer.SETTINGS -> lettersRowCount()  // match the letters height → no jump on open/close
             else -> currentRows.size
@@ -464,7 +431,7 @@ class LightKeyboardView @JvmOverloads constructor(
     /** How many rows the letters layer occupies right now (letters + bottom, plus the number row if on).
      *  The settings panel matches this so opening/closing it never changes the keyboard's height. */
     private fun lettersRowCount(): Int =
-        (if (Prefs.numberRow(context)) 1 else 0) + Layout.letters.size + 1
+        (if (Prefs.numberRow(context)) 1 else 0) + lang.rows.size + 1
 
     /** Lay the quick-settings rows out to fill the same total height as the letters layer (even bands). */
     private fun layoutSettings() {
@@ -630,18 +597,20 @@ class LightKeyboardView @JvmOverloads constructor(
             textPaint.color = Color.WHITE
             textPaint.textAlign = Paint.Align.CENTER
         }
-        // The 123 key holds for vowel points (Hebrew) / accents (English) — hint it in the corner.
-        if (id == Key.SYMBOLS && layer == Layer.LETTERS) {
+        // The 123 key holds for the language's accents / vowel points — hint it with the first one.
+        if (id == Key.SYMBOLS && layer == Layer.LETTERS && lang.accents.isNotEmpty()) {
+            val a = lang.accents[0]
+            val glyph = if (a.length == 1 && a[0] in 'ְ'..'ּ') "◌$a" else a   // dotted circle for a bare niqqud
             textPaint.textSize = spf(10)
             textPaint.textAlign = Paint.Align.RIGHT
             textPaint.color = Color.argb(140, 255, 255, 255)
-            canvas.drawText(if (lang == Lang.HE) "◌ָ" else "á", pk.vis.right - dpf(4), pk.vis.top + dpf(13), textPaint)
+            canvas.drawText(glyph, pk.vis.right - dpf(4), pk.vis.top + dpf(13), textPaint)
             textPaint.color = Color.WHITE
             textPaint.textAlign = Paint.Align.CENTER
         }
         // The period doubles as the voice key (long-press) in English — show a small mic so it's
         // discoverable. Hidden in Hebrew, where dictation isn't available.
-        if (id == Key.PERIOD && Prefs.voiceEnabled(context) && lang == Lang.EN) {
+        if (id == Key.PERIOD && Prefs.voiceEnabled(context) && lang.code == "en") {
             val s = dpf(15)
             val d = iconCache.getOrPut(R.drawable.ic_kb_mic) { context.getDrawable(R.drawable.ic_kb_mic)!! }
             val cx = pk.vis.centerX()
@@ -733,12 +702,11 @@ class LightKeyboardView @JvmOverloads constructor(
         else -> dpf(6)
     }
 
-    // Only English has letter case; Hebrew letters are returned verbatim (uppercase() is a no-op on
-    // them anyway, but the explicit guard keeps the intent clear). The "back to letters" key shows a
-    // Hebrew label when Hebrew is the active letters language.
+    // Latin scripts have case; caseless scripts (Hebrew) return letters verbatim. The "back to letters"
+    // toggle shows the active language's own label (e.g. "אבג" for Hebrew).
     private fun labelFor(id: String): String = when {
-        id == Key.LETTERS && lang == Lang.HE -> "אבג"
-        lang == Lang.EN && shifted && layer == Layer.LETTERS && id.length == 1 && id[0].isLetter() ->
+        id == Key.LETTERS -> lang.lettersLabel
+        lang.hasCase && shifted && layer == Layer.LETTERS && id.length == 1 && id[0].isLetter() ->
             upperCache[id] ?: id.uppercase().also { upperCache[id] = it }
         else -> id
     }
@@ -890,7 +858,7 @@ class LightKeyboardView @JvmOverloads constructor(
         // Long-press: a letter → its symbol; the period → voice (English only — Hebrew dictation isn't
         // supported on this kind of device); the comma → emoji panel.
         if (hintFor(key.id) != null ||
-            (key.id == Key.PERIOD && Prefs.voiceEnabled(context) && lang == Lang.EN) ||
+            (key.id == Key.PERIOD && Prefs.voiceEnabled(context) && lang.code == "en") ||
             key.id == Key.COMMA
         ) {
             longPressPointerId = pointerId
@@ -911,13 +879,11 @@ class LightKeyboardView @JvmOverloads constructor(
     /** The tiny corner label (number/symbol) for a letter key, or null. */
     private fun hintFor(id: String): String? {
         if (layer != Layer.LETTERS || id.length != 1) return null
-        return if (lang == Lang.HE) Hint.he[id[0]] else Hint.en[id[0].lowercaseChar()]
+        return lang.hints[id[0].lowercaseChar()]
     }
 
-    // Accented letters (English) / vowel points (Hebrew), reached by holding the 123/ABC key.
-    private val enAccents = listOf("á", "é", "í", "ó", "ú", "à", "è", "ñ", "ç", "ü", "ö", "ä")
-    private fun accentSet(): List<String> =
-        if (lang == Lang.HE) Alt.niqqud.map { it.toString() } else enAccents
+    // Accents / vowel points for the active language, reached by holding the 123/ABC key.
+    private fun accentSet(): List<String> = lang.accents
 
     private fun showAltPopup() {
         val k = longPressCandidate ?: return
@@ -1060,16 +1026,19 @@ class LightKeyboardView @JvmOverloads constructor(
         }
     }
 
+    // The typing-accuracy trigram model exists only for English & Hebrew; other languages have no spec
+    // and fall back to plain nearest-key hit-testing.
     private val specEn = LangSpec('a', 26, R.raw.charmodel)
     private val specHe = LangSpec('א', 27, R.raw.hebcharmodel)   // U+05D0 = א
-    private val spec: LangSpec get() = if (lang == Lang.HE) specHe else specEn
+    private val spec: LangSpec? get() = when (lang.code) { "en" -> specEn; "he" -> specHe; else -> null }
 
     // Cache per language. containsKey (not getOrPut) so a failed load caches null instead of retrying
     // a resource read on every tap.
-    private val charModels = HashMap<Lang, CharModel?>()
+    private val charModels = HashMap<String, CharModel?>()
     private fun charModel(): CharModel? {
-        if (!charModels.containsKey(lang)) charModels[lang] = loadCharModel(spec)
-        return charModels[lang]
+        val sp = spec ?: return null
+        if (!charModels.containsKey(lang.code)) charModels[lang.code] = loadCharModel(sp)
+        return charModels[lang.code]
     }
 
     // Tunables. biasY shifts the effective touch point up because fingers tend to land low; if a
@@ -1081,7 +1050,10 @@ class LightKeyboardView @JvmOverloads constructor(
     private val radiusFrac = 1.5f     // only score candidates within this many key units
     private val lambda = 1.0f
 
-    private fun isLetter(id: String): Boolean = id.length == 1 && id[0] in spec
+    private fun isLetter(id: String): Boolean {
+        val sp = spec ?: return false
+        return id.length == 1 && id[0] in sp
+    }
 
     private fun resolveLetter(x: Float, y: Float, raw: PlacedKey): PlacedKey {
         if (letterKeys.isEmpty()) return raw
@@ -1097,7 +1069,8 @@ class LightKeyboardView @JvmOverloads constructor(
         }
         if (sqrt(nd2) < coreFrac) return nearest          // confident tap — leave it alone
         val model = charModel() ?: return nearest
-        val (c1, c2) = contextSymbols()
+        val sp = spec ?: return nearest
+        val (c1, c2) = contextSymbols(sp)
         val sigma2 = 2f * sigmaFrac * sigmaFrac
         val radius2 = radiusFrac * radiusFrac
         var best = nearest
@@ -1105,7 +1078,7 @@ class LightKeyboardView @JvmOverloads constructor(
         for (k in letterKeys) {
             val d2 = norm2(k, cx, cy, kw)
             if (d2 > radius2) continue
-            val score = -d2 / sigma2 + lambda * model.lp(c1, c2, spec.symIndex(k.id[0]))
+            val score = -d2 / sigma2 + lambda * model.lp(c1, c2, sp.symIndex(k.id[0]))
             if (score > bestScore) { bestScore = score; best = k }
         }
         return best
@@ -1118,10 +1091,10 @@ class LightKeyboardView @JvmOverloads constructor(
     }
 
     /** The two symbols before the cursor (letter → 0..size-1, anything else / absent → boundary). */
-    private fun contextSymbols(): Pair<Int, Int> {
+    private fun contextSymbols(sp: LangSpec): Pair<Int, Int> {
         val s = listener?.textBeforeCursor(2)?.toString().orEmpty()
-        val c1 = if (s.length >= 2) spec.symIndex(s[s.length - 2]) else spec.boundary
-        val c2 = if (s.isNotEmpty()) spec.symIndex(s[s.length - 1]) else spec.boundary
+        val c1 = if (s.length >= 2) sp.symIndex(s[s.length - 2]) else sp.boundary
+        val c2 = if (s.isNotEmpty()) sp.symIndex(s[s.length - 1]) else sp.boundary
         return c1 to c2
     }
 
@@ -1187,14 +1160,29 @@ class LightKeyboardView @JvmOverloads constructor(
         return false
     }
 
-    /** Globe key: switch the letters between English and Hebrew (and snap back to the letters view if
-     *  we were in emoji/symbols). The host is told so it can swap autocorrect engine + dictation. */
+    /** Globe key: cycle to the next enabled language (and snap back to the letters view if we were in
+     *  emoji/symbols). The host is told so it can swap autocorrect engine + dictation. */
     private fun toggleLang() {
-        lang = if (lang == Lang.HE) Lang.EN else Lang.HE
-        if (lang == Lang.HE) { shifted = false; capsLock = false }
-        layer = Layer.LETTERS
-        listener?.onLanguageChange(lang == Lang.HE)
+        val enabled = enabledLangs()
+        val idx = enabled.indexOfFirst { it.code == lang.code }
+        applyLang(enabled[(idx + 1) % enabled.size])
+        listener?.onLanguageChange(lang.code)
         rebuild()
+    }
+
+    /** The enabled languages in registry order; always at least one (English). */
+    private fun enabledLangs(): List<LangDef> {
+        val codes = Prefs.enabledLanguages(context)
+        val list = Languages.ALL.filter { it.code in codes }
+        return list.ifEmpty { listOf(Languages.EN) }
+    }
+
+    /** Switch to [def], remembering it and resetting case state for caseless scripts. */
+    private fun applyLang(def: LangDef) {
+        lang = def
+        Prefs.setActiveLanguage(context, def.code)
+        if (!lang.hasCase) { shifted = false; capsLock = false }
+        layer = Layer.LETTERS
     }
 
     /** Shift tap: toggles one-shot uppercase; a quick double-tap latches caps lock; tapping while
@@ -1211,12 +1199,9 @@ class LightKeyboardView @JvmOverloads constructor(
 
     /** Set the letters language from outside (e.g. an OS input-subtype switch). Unlike the globe key,
      *  this does NOT re-notify the host — the host is the one driving the change. */
-    fun setLanguage(hebrew: Boolean) {
-        val want = if (hebrew) Lang.HE else Lang.EN
-        if (lang == want) return
-        lang = want
-        if (lang == Lang.HE) { shifted = false; capsLock = false }
-        layer = Layer.LETTERS
+    fun setLanguageCode(code: String) {
+        if (lang.code == code) return
+        applyLang(Languages.byCode(code))
         rebuild()
     }
 
@@ -1225,7 +1210,7 @@ class LightKeyboardView @JvmOverloads constructor(
         stopBackspaceRepeat()
         endAltLongPress()
         spacePointerId = -1; spaceSwiping = false; pendingReleasePointer = -1
-        layer = Layer.LETTERS; shifted = true; capsLock = false; listening = false; rebuild()
+        layer = Layer.LETTERS; shifted = lang.hasCase; capsLock = false; listening = false; rebuild()
     }
 
     override fun onDetachedFromWindow() {
@@ -1257,7 +1242,7 @@ class LightKeyboardView @JvmOverloads constructor(
      * until the next letter, after which the IME recomputes this.
      */
     fun setShifted(value: Boolean) {
-        if (lang == Lang.HE) return     // Hebrew is caseless — no auto-shift
+        if (!lang.hasCase) return       // caseless scripts (Hebrew) — no auto-shift
         if (capsLock) return            // caps lock overrides sentence-case auto-shift
         if (shifted != value) {
             shifted = value

@@ -52,6 +52,10 @@ The settings below it:
 - **Auto-capitalize** (on by default): capitalize the first letter of each sentence.
 - **Double-space for period** (on by default): tap space twice to insert `. `.
 - **Haptic feedback**: cycle Off / Light / Medium / Strong; tapping previews the strength.
+- **Key-press sound** (off by default): the system click on each key, at your device's sound-effect volume.
+- **Long-press delay**: Slow / Normal / Fast — how long to hold a key before its symbol/accents appear.
+- **Cursor swipe**: Low / Normal / High — how far you slide on the space bar to move the caret one step.
+- **Keyboard height**: Compact / Normal / Tall.
 - **Number row** (off by default): a persistent row of digits above the letters.
 - **Voice dictation** (off by default): turning it on downloads the ~40 MB offline English model once,
   then a mic key lets you speak instead of type. English runs entirely on-device; Hebrew dictation uses
@@ -66,7 +70,8 @@ That is the whole setup.
   panel** right on the keyboard (haptic strength, autocorrect, auto-capitalize, double-space, number row,
   plus a shortcut to the full settings) — no need to leave the app you're typing in. **Comma key** —
   tap types a comma; **long-press opens the emoji panel** (recently-used float to the front).
-- **Long-press a letter** — types its corner number/symbol directly.
+- **Long-press a letter** — pops up its corner number/symbol (selected by default); release to type it,
+  or slide off the key to cancel and keep the letter.
 - **Long-press the `123`/`ABC` key** (marked with `◌ָ` in Hebrew, `á` in English) — a picker of vowel
   points (Hebrew) / accented letters (English).
 - **Long-press the period** — starts voice dictation (English only; Hebrew dictation needs a system

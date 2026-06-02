@@ -18,6 +18,11 @@
     <string name="setup_double_space">Double-space for period</string>
     <string name="setup_double_space_sub">Tap the space bar twice to insert “. ”.</string>
     <string name="setup_haptic_sub">Vibration strength on each key press. Tap to cycle.</string>
+    <string name="setup_sound">Key-press sound</string>
+    <string name="setup_sound_sub">Play the system click on each key press (follows your device\'s sound-effect volume).</string>
+    <string name="setup_lp_delay_sub">How long to hold a key before its symbol or accents pop up. Tap to cycle.</string>
+    <string name="setup_swipe_sub">How far you slide on the space bar to move the cursor one step. Tap to cycle.</string>
+    <string name="setup_kb_height_sub">Overall keyboard height. Tap to cycle.</string>
     <string name="setup_tip">Tip: hold the globe key (⚙) on the keyboard for a quick-settings panel — haptics, autocorrect, auto-capitalize, double-space and number row, without leaving the app you\'re in.</string>
     <string name="setup_prediction">Word completion</string>
     <string name="setup_prediction_sub">Suggest the rest of the word as you type (English and Hebrew), shown underlined after the cursor. Press space to complete it; keep typing to ignore.</string>

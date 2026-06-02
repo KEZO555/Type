@@ -91,6 +91,7 @@ object EnglishWords {
         val w = word.lowercase()
         if (memo.containsKey(w)) return memo[w]
         val fix = WordPredict.bestCorrection(w, ALPHABET, adj, ::isWord) { effectiveFreq(it) }
+        if (memo.size > 4000) memo.clear()   // bound the cache over a long session
         memo[w] = fix
         return fix
     }

@@ -117,6 +117,30 @@ class SetupActivity : AppCompatActivity() {
             previewHaptic(next)
         }
         val hapticSub = label(getString(R.string.setup_haptic_sub), 14f, R.color.gray)
+        // Key-press sound.
+        val soundToggle = toggle(R.string.setup_sound, Prefs.soundEnabled(this)) {
+            Prefs.setSoundEnabled(this, it)
+        }
+        val soundSub = label(getString(R.string.setup_sound_sub), 14f, R.color.gray)
+        // A row that cycles a three-step level (Low/Normal/High style) and persists it.
+        fun stepper(prefix: String, names: List<String>, get: () -> Int, set: (Int) -> Unit): Button {
+            val btn = action("") { }
+            btn.setPadding(0, pad, 0, 0)
+            fun render() { btn.text = "$prefix: ${names[get().coerceIn(0, names.size - 1)]}" }
+            btn.setOnClickListener { set((get() + 1) % names.size); render() }
+            render()
+            return btn
+        }
+        // Names are indexed by the stored level value (0 = LEVEL_LOW, 1 = NORMAL, 2 = HIGH).
+        val lpDelayBtn = stepper("Long-press delay", listOf("Slow", "Normal", "Fast"),
+            { Prefs.longPressDelay(this) }, { Prefs.setLongPressDelay(this, it) })
+        val lpDelaySub = label(getString(R.string.setup_lp_delay_sub), 14f, R.color.gray)
+        val swipeBtn = stepper("Cursor swipe", listOf("Low", "Normal", "High"),
+            { Prefs.swipeSensitivity(this) }, { Prefs.setSwipeSensitivity(this, it) })
+        val swipeSub = label(getString(R.string.setup_swipe_sub), 14f, R.color.gray)
+        val kbHeightBtn = stepper("Keyboard height", listOf("Compact", "Normal", "Tall"),
+            { Prefs.keyboardHeight(this) }, { Prefs.setKeyboardHeight(this, it) })
+        val kbHeightSub = label(getString(R.string.setup_kb_height_sub), 14f, R.color.gray)
         val numberRowToggle = toggle(R.string.setup_number_row, Prefs.numberRow(this)) {
             Prefs.setNumberRow(this, it)
         }
@@ -138,6 +162,10 @@ class SetupActivity : AppCompatActivity() {
             autoCapToggle, autoCapSub,
             doubleSpaceToggle, doubleSpaceSub,
             hapticBtn, hapticSub,
+            soundToggle, soundSub,
+            lpDelayBtn, lpDelaySub,
+            swipeBtn, swipeSub,
+            kbHeightBtn, kbHeightSub,
             numberRowToggle, numberRowSub,
             voiceToggle!!, voiceSub, voiceStatus!!, clearVoiceBtn!!,
             tipView,

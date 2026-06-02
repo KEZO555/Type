@@ -154,6 +154,7 @@ object HebrewDictionary {
         if (!ready || word.length < 3) return null
         if (memo.containsKey(word)) return memo[word]
         val fix = WordPredict.bestCorrection(word, ALPHABET, adj, ::isWord) { effectiveFreq(it) ?: 0L }
+        if (memo.size > 4000) memo.clear()   // bound the cache over a long session
         memo[word] = fix
         return fix
     }

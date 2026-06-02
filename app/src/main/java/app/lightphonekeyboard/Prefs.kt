@@ -14,12 +14,21 @@ object Prefs {
     private const val KEY_DOUBLE_SPACE = "double_space_period"
     private const val KEY_RECENT_EMOJI = "recent_emoji"
     private const val RECENT_EMOJI_MAX = 12
+    private const val KEY_SOUND = "key_sound"
+    private const val KEY_LP_DELAY = "longpress_delay"
+    private const val KEY_SWIPE_SENS = "swipe_sensitivity"
+    private const val KEY_KB_HEIGHT = "keyboard_height"
 
     /** Haptic strength levels. */
     const val HAPTIC_OFF = 0
     const val HAPTIC_LIGHT = 1
     const val HAPTIC_MEDIUM = 2
     const val HAPTIC_STRONG = 3
+
+    /** Three-step levels shared by long-press delay, swipe sensitivity, and keyboard height. */
+    const val LEVEL_LOW = 0
+    const val LEVEL_NORMAL = 1
+    const val LEVEL_HIGH = 2
 
     private fun prefs(c: Context) = c.getSharedPreferences(FILE, Context.MODE_PRIVATE)
 
@@ -64,6 +73,30 @@ object Prefs {
 
     fun setDoubleSpacePeriod(c: Context, value: Boolean) =
         prefs(c).edit().putBoolean(KEY_DOUBLE_SPACE, value).apply()
+
+    /** Play a click on each key press (uses the system key-press sound). Off by default. */
+    fun soundEnabled(c: Context): Boolean = prefs(c).getBoolean(KEY_SOUND, false)
+
+    fun setSoundEnabled(c: Context, value: Boolean) =
+        prefs(c).edit().putBoolean(KEY_SOUND, value).apply()
+
+    /** How long to hold a key before its long-press fires (LEVEL_LOW = slow … LEVEL_HIGH = fast). */
+    fun longPressDelay(c: Context): Int = prefs(c).getInt(KEY_LP_DELAY, LEVEL_NORMAL)
+
+    fun setLongPressDelay(c: Context, value: Int) =
+        prefs(c).edit().putInt(KEY_LP_DELAY, value).apply()
+
+    /** Space-bar cursor swipe sensitivity (LEVEL_HIGH = the caret moves with less finger travel). */
+    fun swipeSensitivity(c: Context): Int = prefs(c).getInt(KEY_SWIPE_SENS, LEVEL_NORMAL)
+
+    fun setSwipeSensitivity(c: Context, value: Int) =
+        prefs(c).edit().putInt(KEY_SWIPE_SENS, value).apply()
+
+    /** Keyboard height (LEVEL_LOW = compact … LEVEL_HIGH = tall). */
+    fun keyboardHeight(c: Context): Int = prefs(c).getInt(KEY_KB_HEIGHT, LEVEL_NORMAL)
+
+    fun setKeyboardHeight(c: Context, value: Int) =
+        prefs(c).edit().putInt(KEY_KB_HEIGHT, value).apply()
 
     /** Most-recently-used emoji, newest first (newline-separated). Drives the emoji grid order. */
     fun recentEmoji(c: Context): List<String> =

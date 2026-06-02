@@ -87,7 +87,7 @@ class LightKeyboardView @JvmOverloads constructor(
         const val SET_AUTOCORRECT = "__SET_AC__"
         const val SET_AUTOCAP = "__SET_CAP__"
         const val SET_DBLSPACE = "__SET_DSP__"
-        const val SET_NUMROW = "__SET_NUM__"
+        const val SET_KBHEIGHT = "__SET_KBH__"
         const val SET_VOICE = "__SET_VOICE__"
         const val SET_DONE = "__SET_DONE__"
         const val SET_ALL = "__SET_ALL__"
@@ -102,7 +102,7 @@ class LightKeyboardView @JvmOverloads constructor(
         rows.add(listOf(Key.SET_AUTOCORRECT))
         rows.add(listOf(Key.SET_AUTOCAP))
         rows.add(listOf(Key.SET_DBLSPACE))
-        rows.add(listOf(Key.SET_NUMROW))
+        rows.add(listOf(Key.SET_KBHEIGHT))
         if (VoiceModel.isInstalled(context)) rows.add(listOf(Key.SET_VOICE))
         rows.add(listOf(Key.SET_DONE, Key.SET_ALL))
         return rows
@@ -688,7 +688,8 @@ class LightKeyboardView @JvmOverloads constructor(
             Key.SET_AUTOCORRECT -> "Autocorrect" to onOff(Prefs.autocorrect(context))
             Key.SET_AUTOCAP -> "Auto-capitalize" to onOff(Prefs.autoCap(context))
             Key.SET_DBLSPACE -> "Double-space  ." to onOff(Prefs.doubleSpacePeriod(context))
-            Key.SET_NUMROW -> "Number row" to onOff(Prefs.numberRow(context))
+            Key.SET_KBHEIGHT ->
+                "Keyboard size" to listOf("Compact", "Normal", "Tall")[Prefs.keyboardHeight(context).coerceIn(0, 2)]
             Key.SET_VOICE -> "Voice" to onOff(Prefs.voiceEnabled(context))
             Key.SET_DONE -> "Done" to null
             Key.SET_ALL -> "All settings  ›" to null
@@ -1153,7 +1154,9 @@ class LightKeyboardView @JvmOverloads constructor(
             Key.SET_AUTOCORRECT -> { Prefs.setAutocorrect(context, !Prefs.autocorrect(context)); invalidate() }
             Key.SET_AUTOCAP -> { Prefs.setAutoCap(context, !Prefs.autoCap(context)); invalidate() }
             Key.SET_DBLSPACE -> { Prefs.setDoubleSpacePeriod(context, !Prefs.doubleSpacePeriod(context)); invalidate() }
-            Key.SET_NUMROW -> { Prefs.setNumberRow(context, !Prefs.numberRow(context)); rebuild() }
+            Key.SET_KBHEIGHT -> {
+                Prefs.setKeyboardHeight(context, (Prefs.keyboardHeight(context) + 1) % 3); rebuild()
+            }
             Key.SET_VOICE -> { Prefs.setVoiceEnabled(context, !Prefs.voiceEnabled(context)); invalidate() }
             Key.SET_DONE -> { layer = Layer.LETTERS; rebuild() }
             Key.SET_ALL -> listener?.onOpenSettings()

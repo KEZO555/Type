@@ -1094,16 +1094,16 @@ class LightKeyboardView @JvmOverloads constructor(
     }
 
     private fun tap() = when (Prefs.hapticLevel(context)) {       // key-press strength (Setup)
-        Prefs.HAPTIC_LIGHT -> buzz(10, 90)
-        Prefs.HAPTIC_MEDIUM -> buzz(16, 160)
-        Prefs.HAPTIC_STRONG -> buzz(22, 255)
+        Prefs.HAPTIC_LIGHT -> buzz(18, 130)
+        Prefs.HAPTIC_MEDIUM -> buzz(30, 200)
+        Prefs.HAPTIC_STRONG -> buzz(45, 255)
         else -> Unit                                              // off
     }
 
     private fun cursorTick() = when (Prefs.hapticLevel(context)) { // lighter tick for caret movement
-        Prefs.HAPTIC_LIGHT -> buzz(7, 60)
-        Prefs.HAPTIC_MEDIUM -> buzz(10, 100)
-        Prefs.HAPTIC_STRONG -> buzz(12, 150)
+        Prefs.HAPTIC_LIGHT -> buzz(10, 80)
+        Prefs.HAPTIC_MEDIUM -> buzz(16, 140)
+        Prefs.HAPTIC_STRONG -> buzz(24, 200)
         else -> Unit
     }
 

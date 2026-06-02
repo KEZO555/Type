@@ -561,11 +561,12 @@ class LightKeyboardView @JvmOverloads constructor(
             }
             // Tiny gear badge in the globe's corner: hold the globe to open keyboard settings.
             if (id == Key.GLOBE) {
-                val s = dpf(11)
+                val s = dpf(8)
                 val d = iconCache.getOrPut(R.drawable.ic_kb_gear) { context.getDrawable(R.drawable.ic_kb_gear)!! }
                 val right = pk.vis.right - dpf(2)
                 val top = pk.vis.top + dpf(2)
                 d.setBounds((right - s).toInt(), top.toInt(), right.toInt(), (top + s).toInt())
+                d.alpha = 120
                 d.draw(canvas)
             }
             return

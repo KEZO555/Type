@@ -2,7 +2,6 @@ package app.lightphonekeyboard
 
 import android.content.Context
 import android.content.Intent
-import android.graphics.drawable.GradientDrawable
 import android.os.Build
 import android.os.Bundle
 import android.os.VibrationEffect
@@ -14,7 +13,6 @@ import android.view.Gravity
 import android.view.View
 import android.view.inputmethod.InputMethodManager
 import android.widget.Button
-import android.widget.GridLayout
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ScrollView
@@ -147,10 +145,11 @@ class SetupActivity : AppCompatActivity() {
             Prefs.setNumberRow(this, it)
         }
         val numberRowSub = label(getString(R.string.setup_number_row_sub), 14f, R.color.gray)
-        // Emoji set — a toggle grid of candidate emoji; tap to add/remove from the keyboard's panel.
-        val emojiHeader = label(getString(R.string.setup_emoji), 20f, R.color.white)
+        // Emoji set — opens its own picker screen.
+        val emojiRow = stepRow(getString(R.string.setup_emoji)) {
+            startActivity(Intent(this, EmojiSettingsActivity::class.java))
+        }
         val emojiSub = label(getString(R.string.setup_emoji_sub), 14f, R.color.gray)
-        val emojiGrid = buildEmojiGrid()
         val tipView = label(getString(R.string.setup_tip), 14f, R.color.gray)
         // Languages: informational — the globe key on the keyboard cycles English → Hebrew → emoji.
         val languagesView = label(getString(R.string.setup_languages), 20f, R.color.white)
@@ -173,7 +172,7 @@ class SetupActivity : AppCompatActivity() {
             swipeBtn, swipeSub,
             kbHeightBtn, kbHeightSub,
             numberRowToggle, numberRowSub,
-            emojiHeader, emojiSub, emojiGrid,
+            emojiRow, emojiSub,
             voiceToggle!!, voiceSub, voiceStatus!!, clearVoiceBtn!!,
             tipView,
         ).forEach { root.addView(it) }
@@ -184,49 +183,6 @@ class SetupActivity : AppCompatActivity() {
             setBackgroundColor(getColor(R.color.black))
             addView(root)
         })
-    }
-
-    /** A grid of candidate emoji; tapping toggles whether each shows in the keyboard's emoji panel.
-     *  Selected = full opacity on a subtle rounded fill; unselected = dimmed. Saved live to prefs. */
-    private fun buildEmojiGrid(): GridLayout {
-        val density = resources.displayMetrics.density
-        val cols = 8
-        val selected = LinkedHashSet(Prefs.emojiSet(this).ifEmpty { LightKeyboardView.EMOJI_DEFAULT })
-        val grid = GridLayout(this).apply {
-            columnCount = cols
-            setPadding(0, (8 * density).toInt(), 0, (8 * density).toInt())
-        }
-        for (glyph in LightKeyboardView.EMOJI_CANDIDATES) {
-            val cell = TextView(this).apply {
-                text = glyph
-                textSize = 22f
-                gravity = Gravity.CENTER
-                val p = (8 * density).toInt()
-                setPadding(p, p, p, p)
-                isClickable = true
-            }
-            fun render() {
-                val on = glyph in selected
-                cell.alpha = if (on) 1f else 0.3f
-                cell.background = if (on) GradientDrawable().apply {
-                    cornerRadius = 8 * density
-                    setColor(0xFF2C2C2C.toInt())
-                } else null
-            }
-            cell.setOnClickListener {
-                if (!selected.remove(glyph)) selected.add(glyph)
-                Prefs.setEmojiSet(this, selected.toList())
-                render()
-            }
-            render()
-            grid.addView(cell, GridLayout.LayoutParams().apply {
-                width = 0
-                height = GridLayout.LayoutParams.WRAP_CONTENT
-                columnSpec = GridLayout.spec(GridLayout.UNDEFINED, 1f)
-                setGravity(Gravity.CENTER)
-            })
-        }
-        return grid
     }
 
     /** Buzz once at the chosen strength so the user feels what they picked (matches the keyboard). */

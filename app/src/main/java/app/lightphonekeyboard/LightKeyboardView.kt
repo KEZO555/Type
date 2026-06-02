@@ -156,15 +156,17 @@ class LightKeyboardView @JvmOverloads constructor(
             "👍", "🙏", "🙌", "👀", "🔥", "💙", "✨", "🎉", "💯", "🤔",
         )
         // The full pool the user can pick from in Settings (defaults first, then more common emoji).
+        // Kept to colour-emoji code points (U+1F300–1F9FF) so they always render as emoji — the older
+        // symbol/dingbat block (⭐ ☀ ⚡ ✅ ❌ ❤ …) shows up as plain monochrome glyphs on some phones.
         val EMOJI_CANDIDATES = EMOJI_DEFAULT + listOf(
-            "😅", "😊", "🙂", "😉", "😇", "🤩", "😋", "😜", "🤪", "🤗",
-            "🤭", "🤫", "🤐", "😐", "😶", "😬", "🙄", "😏", "😴", "😪",
-            "😌", "🥱", "😤", "😠", "😡", "🤬", "😱", "😨", "😰", "😥",
-            "🥲", "😢", "🥺", "😞", "😟", "😔", "🤯", "😳", "🤥", "😈",
-            "💀", "👻", "🤡", "🤖", "💩", "👋", "🤝", "💪", "👏", "🙈",
-            "❤️", "🧡", "💛", "💚", "💜", "🖤", "🤍", "💔", "⭐", "🌟",
-            "☀️", "🌙", "⚡", "🌈", "🍀", "🎈", "🎁", "☕", "🍕", "🍺",
-            "⚽", "🎵", "📞", "💬", "✅", "❌", "❓", "❗", "💤", "🥳",
+            "😅", "😊", "🙂", "😌", "😋", "😜", "🤗", "🤭", "🤫", "😐",
+            "😶", "😏", "🙄", "😬", "😴", "😪", "😔", "😢", "😩", "😤",
+            "😠", "😡", "😱", "😨", "😰", "😳", "🤩", "🤪", "🥴", "🤢",
+            "😷", "🥳", "🤠", "🥶", "🤧", "😇", "👋", "👏", "👎", "🤝",
+            "💪", "🙈", "🙊", "🧡", "💛", "💚", "💜", "🖤", "🤎", "💔",
+            "💕", "💖", "🎈", "🎁", "🎂", "🌙", "🌈", "🍀", "🌹", "🌻",
+            "🍕", "🍔", "🍺", "🍷", "🎵", "🎶", "📞", "💬", "💤", "💀",
+            "👻", "🤖", "🤡", "👑", "🏆", "🚀", "🎬", "📷", "💡", "📌",
         ).distinct()
     }
 
@@ -281,6 +283,13 @@ class LightKeyboardView @JvmOverloads constructor(
     private val rowKeyH: Float get() = dpf(43) * heightScale
     private val rowPitch: Float get() = rowKeyH + keyGap * 2   // ~49dp per row at normal height
 
+    // The optional number row (row 0 of the letters layer when enabled) is laid out much shorter than a
+    // normal letter row, so it's a slim strip of digits rather than a full extra row.
+    private val NUM_ROW_SCALE = 0.6f
+    private fun isNumberRowAt0(): Boolean = layer == Layer.LETTERS && Prefs.numberRow(context)
+    private fun rowKeyHAt(i: Int): Float = if (i == 0 && isNumberRowAt0()) rowKeyH * NUM_ROW_SCALE else rowKeyH
+    private fun rowPitchAt(i: Int): Float = rowKeyHAt(i) + keyGap * 2
+
     private val emojiCols = 10
     // Rows depend on how many emoji are in the active set (default 28 → 3 rows), recomputed live.
     private val emojiGridRows: Int get() = maxOf(1, (activeEmojiBase().size + emojiCols - 1) / emojiCols)
@@ -346,7 +355,8 @@ class LightKeyboardView @JvmOverloads constructor(
             layer == Layer.SETTINGS -> lettersRowCount()  // match the letters height → no jump on open/close
             else -> currentRows.size
         }
-        val h = padTop + rowCount * rowPitch + padBottom
+        var h = padTop + padBottom
+        for (i in 0 until rowCount) h += rowPitchAt(i)
         setMeasuredDimension(w, h.toInt())
     }
 
@@ -372,13 +382,17 @@ class LightKeyboardView @JvmOverloads constructor(
         val h = height.toFloat()
         val rows = currentRows
         val n = rows.size
+        // Rows can have different heights (the number row is shorter), so accumulate the top offset.
+        var rowTop = padTop
         for (i in rows.indices) {
+            val pitch = rowPitchAt(i)
             // Bands tile [0, h]: the top row absorbs the top pad, the bottom row absorbs the bottom pad.
-            val bandTop = if (i == 0) 0f else padTop + i * rowPitch
-            val bandBottom = if (i == n - 1) h else padTop + (i + 1) * rowPitch
-            val visTop = padTop + i * rowPitch + keyGap
-            val visBottom = visTop + rowKeyH
+            val bandTop = if (i == 0) 0f else rowTop
+            val bandBottom = if (i == n - 1) h else rowTop + pitch
+            val visTop = rowTop + keyGap
+            val visBottom = visTop + rowKeyHAt(i)
             layoutRow(rows[i], bandTop, bandBottom, visTop, visBottom, w)
+            rowTop += pitch
         }
         for (k in placed) if (isLetter(k.id)) letterKeys.add(k)
     }
@@ -596,9 +610,11 @@ class LightKeyboardView @JvmOverloads constructor(
             return
         }
         // Emoji glyphs are large; everything else (letters, the layer toggle, the period) is normal.
+        // Keys in the slim number row are shorter, so their digits get a smaller size to fit.
+        val short = pk.vis.height() < rowKeyH * 0.8f
         val size = when {
             layer == Layer.EMOJI && id in EMOJI_CANDIDATES -> spf(24)
-            id.length == 1 -> spf(23)
+            id.length == 1 -> if (short) spf(16) else spf(23)
             else -> spf(18)
         }
         textPaint.textSize = size

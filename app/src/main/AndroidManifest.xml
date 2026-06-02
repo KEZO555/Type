@@ -52,5 +52,12 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- Emoji picker: choose which emoji appear in the keyboard's emoji panel. -->
+        <activity
+            android:name=".EmojiSettingsActivity"
+            android:exported="false"
+            android:label="@string/setup_emoji"
+            android:screenOrientation="portrait" />
     </application>
 </manifest>

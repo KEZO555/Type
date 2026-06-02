@@ -87,13 +87,13 @@ class LightKeyboardView @JvmOverloads constructor(
         const val COMMA = ","
     }
 
-    // One bottom row in every mode, space centred: [toggle] · emoji · globe · space · [. | ⌫] · enter.
-    // Comma is the long-press of the emoji key (like voice is the long-press of the period). Only the
-    // toggle (123/ABC) and the key right of space (period, but backspace in the emoji panel) change.
+    // One bottom row in every mode, space centred: [toggle] · comma · globe · space · [. | ⌫] · enter.
+    // The comma key types "," on tap and opens the emoji panel on long-press (emoji shown small in its
+    // corner). Only the toggle (123/ABC) and the key right of space (period, ⌫ in emoji) change.
     private fun bottomRow(): List<String> {
         val toggle = if (layer == Layer.LETTERS) Key.SYMBOLS else Key.LETTERS
         val rightOfSpace = if (layer == Layer.EMOJI) Key.BACKSPACE else Key.PERIOD
-        return listOf(toggle, Key.EMOJI, Key.GLOBE, Key.SPACE, rightOfSpace, Key.ENTER)
+        return listOf(toggle, Key.COMMA, Key.GLOBE, Key.SPACE, rightOfSpace, Key.ENTER)
     }
 
     private object Layout {
@@ -507,15 +507,6 @@ class LightKeyboardView @JvmOverloads constructor(
                 val y = pk.vis.centerY() + dpf(11)
                 canvas.drawRect(cx - dpf(7), y - dpf(1), cx + dpf(7), y + dpf(1), spacePaint)
             }
-            // The emoji key types a comma on long-press — show a small "," so it's discoverable.
-            if (id == Key.EMOJI) {
-                textPaint.textSize = spf(12)
-                textPaint.textAlign = Paint.Align.RIGHT
-                textPaint.color = Color.argb(150, 255, 255, 255)
-                canvas.drawText(",", pk.vis.right - dpf(5), pk.vis.top + dpf(14), textPaint)
-                textPaint.color = Color.WHITE
-                textPaint.textAlign = Paint.Align.CENTER
-            }
             return
         }
         // Emoji glyphs are large; everything else (letters, the layer toggle, the period) is normal.
@@ -541,6 +532,15 @@ class LightKeyboardView @JvmOverloads constructor(
         if (id == Key.PERIOD && Prefs.voiceEnabled(context)) {
             val s = dpf(15)
             val d = iconCache.getOrPut(R.drawable.ic_kb_mic) { context.getDrawable(R.drawable.ic_kb_mic)!! }
+            val cx = pk.vis.centerX()
+            val top = pk.vis.top + dpf(2)
+            d.setBounds((cx - s / 2f).toInt(), top.toInt(), (cx + s / 2f).toInt(), (top + s).toInt())
+            d.draw(canvas)
+        }
+        // The comma key opens emoji on long-press — show a small emoji so it's discoverable.
+        if (id == Key.COMMA) {
+            val s = dpf(14)
+            val d = iconCache.getOrPut(R.drawable.ic_kb_emoji) { context.getDrawable(R.drawable.ic_kb_emoji)!! }
             val cx = pk.vis.centerX()
             val top = pk.vis.top + dpf(2)
             d.setBounds((cx - s / 2f).toInt(), top.toInt(), (cx + s / 2f).toInt(), (top + s).toInt())
@@ -704,8 +704,8 @@ class LightKeyboardView @JvmOverloads constructor(
         val key = if (layer == Layer.LETTERS && isLetter(raw.id)) resolveLetter(x, y, raw) else raw
         pressed[pointerId] = key
         invalidate()
-        if (key.id == Key.EMOJI || key.id == Key.SYMBOLS || key.id == Key.LETTERS) {
-            // Resolve on release: tap = the key's action, long-press = emoji→comma / toggle→edit menu.
+        if (key.id == Key.SYMBOLS || key.id == Key.LETTERS) {
+            // The layer toggle resolves on release: tap = switch layer, long-press = edit menu.
             pendingReleasePointer = pointerId
             pendingReleaseId = key.id
             longPressPointerId = pointerId
@@ -727,8 +727,11 @@ class LightKeyboardView @JvmOverloads constructor(
             spaceDownY = y
             spaceSwiping = false
         }
-        // Long-press: a letter → accents/niqqud popup; the period → voice dictation.
-        if (alternatesFor(key.id) != null || (key.id == Key.PERIOD && Prefs.voiceEnabled(context))) {
+        // Long-press: a letter → accents/niqqud popup; the period → voice; the comma → emoji panel.
+        if (alternatesFor(key.id) != null ||
+            (key.id == Key.PERIOD && Prefs.voiceEnabled(context)) ||
+            key.id == Key.COMMA
+        ) {
             longPressPointerId = pointerId
             longPressCandidate = key
             removeCallbacks(altLongPress)
@@ -773,11 +776,14 @@ class LightKeyboardView @JvmOverloads constructor(
             if (Prefs.voiceEnabled(context)) { tap(); listener?.onBackspace(); listener?.onMic() }
             return
         }
-        // Long-press the emoji key → a comma (the tap-to-open-panel happens on release instead).
-        if (k.id == Key.EMOJI) {
-            pendingReleasePointer = -1   // consumed as a comma, so release won't open the panel
+        // Long-press the comma key → open the emoji panel (retract the ',' typed on down).
+        if (k.id == Key.COMMA) {
             endAltLongPress()
-            tap(); listener?.onText(",")
+            if (firstPointerId == longPressPointerId) firstKeyRetractable = false  // we retract it here
+            tap()
+            listener?.onBackspace()      // remove the comma committed on the press
+            layer = Layer.EMOJI
+            rebuild()
             return
         }
         // Long-press the 123/ABC toggle → the edit menu (select all · copy · cut · paste).

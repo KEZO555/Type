@@ -59,8 +59,8 @@ That is the whole setup.
 
 ## Gestures
 
-- **Globe** — switches English ⇄ Hebrew. **Emoji key** — tap opens the emoji panel (recently-used
-  float to the front); **long-press types a comma**.
+- **Globe** — switches English ⇄ Hebrew. **Comma key** — tap types a comma; **long-press opens the
+  emoji panel** (recently-used float to the front).
 - **Long-press a letter** — its corner number/symbol, plus accents in English (`a → à á â ä …`) or
   vowel points (niqqud) in Hebrew. Slide to a choice and release.
 - **Long-press the period** — starts voice dictation.

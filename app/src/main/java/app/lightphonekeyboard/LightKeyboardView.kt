@@ -564,12 +564,13 @@ class LightKeyboardView @JvmOverloads constructor(
                 val y = pk.vis.centerY() + dpf(11)
                 canvas.drawRect(cx - dpf(7), y - dpf(1), cx + dpf(7), y + dpf(1), spacePaint)
             }
-            // Tiny gear badge in the globe's corner: hold the globe to open keyboard settings.
+            // Tiny gear badge tucked into the globe's top-right corner (the globe is drawn a touch
+            // smaller — see padFor — so the gear sits in the freed corner, not over the globe).
             if (id == Key.GLOBE) {
                 val s = dpf(8)
                 val d = iconCache.getOrPut(R.drawable.ic_kb_gear) { context.getDrawable(R.drawable.ic_kb_gear)!! }
-                val right = pk.vis.right - dpf(2)
-                val top = pk.vis.top + dpf(2)
+                val right = pk.vis.right - dpf(1)
+                val top = pk.vis.top + dpf(1)
                 d.setBounds((right - s).toInt(), top.toInt(), right.toInt(), (top + s).toInt())
                 d.alpha = 120
                 d.draw(canvas)
@@ -579,13 +580,18 @@ class LightKeyboardView @JvmOverloads constructor(
         // Emoji glyphs are large; everything else (letters, the layer toggle, the period) is normal.
         // Keys in the slim number row are shorter, so their digits get a smaller size to fit.
         val short = pk.vis.height() < rowKeyH * 0.8f
+        // The 123 toggle carries an accent hint in its top-right corner, so draw "123" smaller and a
+        // little lower to leave that corner clear.
+        val cornerAccent = id == Key.SYMBOLS && layer == Layer.LETTERS && lang.accents.isNotEmpty()
         val size = when {
             layer == Layer.EMOJI && id in EMOJI_CANDIDATES -> spf(24)
             id.length == 1 -> if (short) spf(16) else spf(23)
+            cornerAccent -> spf(15)
             else -> spf(18)
         }
         textPaint.textSize = size
-        val baseline = pk.vis.centerY() - (textPaint.descent() + textPaint.ascent()) / 2f
+        val baseShift = if (cornerAccent) dpf(3) else 0f
+        val baseline = pk.vis.centerY() + baseShift - (textPaint.descent() + textPaint.ascent()) / 2f
         canvas.drawText(labelFor(id), pk.vis.centerX(), baseline, textPaint)
         // Tiny dim corner hint (long-press types it) — minimal, top-right.
         val hint = hintFor(id)
@@ -597,14 +603,15 @@ class LightKeyboardView @JvmOverloads constructor(
             textPaint.color = Color.WHITE
             textPaint.textAlign = Paint.Align.CENTER
         }
-        // The 123 key holds for the language's accents / vowel points — hint it with the first one.
-        if (id == Key.SYMBOLS && layer == Layer.LETTERS && lang.accents.isNotEmpty()) {
+        // The 123 key holds for the language's accents / vowel points — hint it with the first one,
+        // tucked into the top-right corner (the "123" label is drawn smaller + lower to leave room).
+        if (cornerAccent) {
             val a = lang.accents[0]
             val glyph = if (a.length == 1 && a[0] in 'ְ'..'ּ') "◌$a" else a   // dotted circle for a bare niqqud
-            textPaint.textSize = spf(10)
+            textPaint.textSize = spf(9)
             textPaint.textAlign = Paint.Align.RIGHT
             textPaint.color = Color.argb(140, 255, 255, 255)
-            canvas.drawText(glyph, pk.vis.right - dpf(4), pk.vis.top + dpf(13), textPaint)
+            canvas.drawText(glyph, pk.vis.right - dpf(3), pk.vis.top + dpf(11), textPaint)
             textPaint.color = Color.WHITE
             textPaint.textAlign = Paint.Align.CENTER
         }
@@ -697,7 +704,8 @@ class LightKeyboardView @JvmOverloads constructor(
     // read clearly; shift keeps a touch more breathing room for its caps-lock underline.
     private fun padFor(id: String): Float = when (id) {
         Key.SHIFT -> dpf(7)
-        Key.GLOBE, Key.EMOJI, Key.ENTER -> dpf(2)
+        Key.GLOBE -> dpf(5)              // a touch smaller so the gear badge has a clear corner
+        Key.EMOJI, Key.ENTER -> dpf(2)
         Key.BACKSPACE -> dpf(4)
         else -> dpf(6)
     }

@@ -150,48 +150,9 @@ object HebrewDictionary {
      */
     fun correct(word: String): String? {
         if (!ready || word.length < 3) return null
-        memo[word]?.let { return it }
-        if (memo.containsKey(word)) return null
-        if (isWord(word)) { memo[word] = null; return null }   // known (dictionary or learned) → leave it
-
-        val e1 = edits1(word)
-        var best = bestKnown(e1)
-        if (best == null) {
-            // edit distance 2, bounded: only the known words reachable from e1's edits.
-            val e2known = HashSet<String>()
-            for (w in e1) for (c in edits1(w)) if (isWord(c)) e2known.add(c)
-            best = bestKnown(e2known)
-        }
-        val fix = best?.takeIf { !it.equals(word, ignoreCase = false) }
+        if (memo.containsKey(word)) return memo[word]
+        val fix = WordPredict.bestCorrection(word, ALPHABET, ::isWord) { effectiveFreq(it) ?: 0L }
         memo[word] = fix
         return fix
-    }
-
-    /** The most frequent known word (dictionary or learned) in [candidates], or null if none. */
-    private fun bestKnown(candidates: Collection<String>): String? {
-        var best: String? = null
-        var bestFreq = -1L
-        for (c in candidates) {
-            val f = effectiveFreq(c) ?: continue
-            if (f > bestFreq) { bestFreq = f; best = c }
-        }
-        return best
-    }
-
-    /** All strings one edit (delete / transpose / replace / insert) away from [w]. */
-    private fun edits1(w: String): Set<String> {
-        val out = HashSet<String>()
-        val n = w.length
-        for (i in 0..n) {
-            val l = w.substring(0, i)
-            val r = w.substring(i)
-            if (r.isNotEmpty()) {
-                out.add(l + r.substring(1))                                   // delete
-                if (r.length > 1) out.add(l + r[1] + r[0] + r.substring(2))   // transpose
-                for (c in ALPHABET) out.add(l + c + r.substring(1))           // replace
-            }
-            for (c in ALPHABET) out.add(l + c + r)                            // insert
-        }
-        return out
     }
 }

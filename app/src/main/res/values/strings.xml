@@ -8,7 +8,7 @@
     <string name="setup_enabled">✓ Enabled</string>
     <string name="setup_done">Setup complete. It will appear in every text field. Swipe down on the keyboard to close it.</string>
     <string name="setup_autocorrect">Autocorrect</string>
-    <string name="setup_autocorrect_sub">Fix misspellings as you type. English uses the phone\'s built-in dictionary; Hebrew uses a dictionary built into the app.</string>
+    <string name="setup_autocorrect_sub">Fix misspellings as you type, using built-in English and Hebrew dictionaries that also learn the words you use. Works fully offline.</string>
     <string name="setup_languages">Languages</string>
     <string name="setup_languages_sub">English and Hebrew. The globe key switches between them; the emoji key opens emoji. Each language has its own dictionary, autocorrect, and voice input. Long-press a letter for its number/symbol or accents (English) / vowel points (Hebrew); long-press the period to dictate; double-tap space for “. ”; slide on the space bar to move the cursor.</string>
     <string name="setup_number_row">Number row</string>

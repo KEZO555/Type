@@ -48,4 +48,54 @@ object WordPredict {
         }
         return best
     }
+
+    /**
+     * Norvig-style autocorrection: the highest-frequency *known* word within edit distance 1 (then 2)
+     * of [word], or null if [word] is already known or nothing confident is found. [isKnown] tells
+     * whether a candidate is a real word (dictionary or learned); [freqOf] ranks the known candidates.
+     * Used for both English and Hebrew so the two behave the same way.
+     */
+    fun bestCorrection(
+        word: String,
+        alphabet: String,
+        isKnown: (String) -> Boolean,
+        freqOf: (String) -> Long,
+    ): String? {
+        if (isKnown(word)) return null
+        val e1 = edits1(word, alphabet)
+        var best = pickBest(e1, isKnown, freqOf)
+        if (best == null) {
+            val e2 = HashSet<String>()
+            for (w in e1) for (c in edits1(w, alphabet)) if (isKnown(c)) e2.add(c)
+            best = pickBest(e2, isKnown, freqOf)
+        }
+        return best?.takeIf { it != word }
+    }
+
+    private fun pickBest(cands: Collection<String>, isKnown: (String) -> Boolean, freqOf: (String) -> Long): String? {
+        var best: String? = null
+        var bestFreq = -1L
+        for (c in cands) {
+            if (!isKnown(c)) continue
+            val f = freqOf(c)
+            if (f > bestFreq) { bestFreq = f; best = c }
+        }
+        return best
+    }
+
+    /** All strings one edit (delete / transpose / replace / insert over [alphabet]) away from [w]. */
+    private fun edits1(w: String, alphabet: String): Set<String> {
+        val out = HashSet<String>()
+        for (i in 0..w.length) {
+            val l = w.substring(0, i)
+            val r = w.substring(i)
+            if (r.isNotEmpty()) {
+                out.add(l + r.substring(1))                                   // delete
+                if (r.length > 1) out.add(l + r[1] + r[0] + r.substring(2))   // transpose
+                for (c in alphabet) out.add(l + c + r.substring(1))           // replace
+            }
+            for (c in alphabet) out.add(l + c + r)                            // insert
+        }
+        return out
+    }
 }

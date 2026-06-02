@@ -14,7 +14,7 @@ has its own dictionary, autocorrect, and voice input:
 | | English | Hebrew |
 |---|---|---|
 | Layout | QWERTY | Standard Israeli (SI-1452), finals included |
-| Autocorrect | Phone's built-in dictionary (system spell checker) | Bundled offline dictionary + edit-distance corrector |
+| Autocorrect | Bundled offline dictionary + edit-distance corrector (learns your words) | Bundled offline dictionary + edit-distance corrector (learns your words) |
 | Voice | Offline, on-device (Vosk) — fully private | Phone's own voice service (`he-IL`) — may need a connection |
 
 (Vosk has no Hebrew model, so Hebrew dictation uses Android's speech recognizer instead of the offline

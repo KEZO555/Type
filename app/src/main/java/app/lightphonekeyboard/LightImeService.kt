@@ -8,38 +8,26 @@ import android.view.KeyEvent
 import android.view.View
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodSubtype
-import android.view.textservice.SentenceSuggestionsInfo
-import android.view.textservice.SpellCheckerSession
-import android.view.textservice.SpellCheckerSession.SpellCheckerSessionListener
-import android.view.textservice.SuggestionsInfo
-import android.view.textservice.TextInfo
-import android.view.textservice.TextServicesManager
-import java.util.Locale
 import kotlin.math.abs
 
 /**
  * The system keyboard. Once enabled + selected as default, it appears in every text field on the
  * phone. Keystrokes from [LightKeyboardView] are applied to the focused field via InputConnection.
  *
- * Optional word-level autocorrect (toggle in [SetupActivity]) runs on top: as you type a word we ask
- * the device's own spell checker ([SpellCheckerSession] → the phone's built-in dictionary) about it,
- * and when the word is finished (space / punctuation / enter) we swap in the recommended fix. Case is
- * preserved, and the first backspace after a correction reverts it.
+ * Optional word-level autocorrect (toggle in [SetupActivity]) runs on top: when a word is finished
+ * (space / punctuation / enter) we look it up in the bundled frequency dictionary for the active
+ * language ([EnglishWords] / [HebrewDictionary], plus your learned words) and swap in the most likely
+ * fix. Case is preserved, and the first backspace after a correction reverts it.
  */
-class LightImeService : InputMethodService(), LightKeyboardView.Listener, SpellCheckerSessionListener {
+class LightImeService : InputMethodService(), LightKeyboardView.Listener {
 
     private var keyboard: LightKeyboardView? = null
 
     private val dictation by lazy { VoiceDictation(this) }          // English: offline Vosk
     private val sysDictation by lazy { SystemDictation(this) }      // Hebrew: platform recognizer
 
-    private var spell: SpellCheckerSession? = null
-    private val corrections = HashMap<String, String?>()   // word -> fix (null = checked, no fix)
-    private val pending = HashMap<Int, String>()           // request sequence -> word
-    private var seq = 0
-
-    // Current letters language, mirrored from the keyboard (space-bar long-press). English autocorrect runs
-    // through the device spell checker; Hebrew through the bundled [HebrewDictionary].
+    // Current letters language, mirrored from the keyboard (globe key). Autocorrect uses the bundled
+    // English or Hebrew dictionary accordingly.
     private var hebrew = false
 
     // Revert-on-backspace: after a correction the text before the cursor ends with [undoFrom];
@@ -53,7 +41,6 @@ class LightImeService : InputMethodService(), LightKeyboardView.Listener, SpellC
 
     override fun onCreate() {
         super.onCreate()
-        initSpell()
         if (Prefs.voiceEnabled(this)) dictation.prepare()   // warm the model if voice is on (and downloaded)
     }
 
@@ -70,23 +57,20 @@ class LightImeService : InputMethodService(), LightKeyboardView.Listener, SpellC
         micActive = false
         dictation.destroy()
         sysDictation.destroy()
-        corrections.clear()
-        pending.clear()
         clearUndo()
-        // The keyboard keeps its language across fields; sync ours and warm the Hebrew dictionary.
+        // The keyboard keeps its language across fields; sync ours and warm the dictionaries.
         hebrew = keyboard?.isHebrew ?: false
-        if (hebrew) HebrewDictionary.prepare(this)
-        if (Prefs.prediction(this)) { EnglishWords.prepare(this); HebrewDictionary.prepare(this) }
+        if (Prefs.autocorrect(this) || Prefs.prediction(this)) {
+            EnglishWords.prepare(this)
+            HebrewDictionary.prepare(this)
+        }
         ghost = ""
-        if (spell == null) initSpell()
         updateShift()
     }
 
     override fun onDestroy() {
         dictation.destroy()
         sysDictation.destroy()
-        spell?.close()
-        spell = null
         super.onDestroy()
     }
 
@@ -180,7 +164,6 @@ class LightImeService : InputMethodService(), LightKeyboardView.Listener, SpellC
             // A letter continues the word, so a preceding Hebrew *final* form is no longer word-final.
             fixMedialBeforeTyping()
             ic.commitText(s, 1)
-            requestCheck(trailingWord())   // keep the spell checker warm on the growing word
             showGhost()                    // preview the completion of the growing word
             return
         }
@@ -453,65 +436,24 @@ class LightImeService : InputMethodService(), LightKeyboardView.Listener, SpellC
         runCatching { sendBroadcast(Intent(ACTION_IME_VISIBILITY).putExtra(EXTRA_VISIBLE, visible)) }
     }
 
-    // ------------------------------------------------------------------ spell checking
-
-    private fun initSpell() {
-        val tsm = getSystemService(TextServicesManager::class.java) ?: return
-        // referToSpellCheckerLanguageSettings = false: use the locale directly so we don't depend on
-        // the global spell-check toggle being explicitly enabled.
-        spell = tsm.newSpellCheckerSession(null, Locale.getDefault(), this, false)
-    }
+    // ------------------------------------------------------------------ autocorrect
 
     private fun autocorrectOn(): Boolean = Prefs.autocorrect(this)
 
     /**
-     * The autocorrection for a finished [word], or null. English consults the device spell checker
-     * (answers cached in [corrections]); Hebrew consults the bundled [HebrewDictionary] synchronously.
+     * The autocorrection for a finished [word], or null. Both languages use their bundled
+     * frequency dictionary (+ your learned words): the highest-frequency real word within a small
+     * edit distance of what you typed. Consistent, offline, and the same for English and Hebrew.
      */
     private fun autocorrectFix(word: String): String? {
-        if (!autocorrectOn() || word.length < 2) return null
-        return if (hebrew) HebrewDictionary.correct(word) else corrections[word]
+        if (!autocorrectOn() || word.length < 3) return null
+        return if (hebrew) HebrewDictionary.correct(word) else EnglishWords.correct(word)
     }
 
     /** Remember a word the user typed, in the active language's prediction dictionary. */
     private fun learnTyped(word: String) {
         if (word.length < 2) return
         if (hebrew) HebrewDictionary.learn(this, word) else EnglishWords.learn(this, word)
-    }
-
-    /** Ask the device spell checker about [word] (once); the answer lands in [corrections]. */
-    private fun requestCheck(word: String) {
-        if (!autocorrectOn() || hebrew) return    // Hebrew is corrected synchronously, no warming needed
-        val s = spell ?: return
-        if (word.length < 2 || word.length > 32) return
-        if (corrections.containsKey(word)) return
-        if (word.any { it.isDigit() } || word.drop(1).any { it.isUpperCase() }) return // acronyms/odd
-        val id = seq++
-        pending[id] = word
-        @Suppress("DEPRECATION")
-        s.getSuggestions(arrayOf(TextInfo(word, 0, id)), 3, true)
-    }
-
-    override fun onGetSuggestions(results: Array<out SuggestionsInfo>?) {
-        results ?: return
-        for (si in results) {
-            val word = pending.remove(si.sequence) ?: continue
-            corrections[word] = pickFix(si)
-        }
-    }
-
-    override fun onGetSentenceSuggestions(results: Array<out SentenceSuggestionsInfo>?) {
-        // Unused — we drive everything through the per-word getSuggestions path above.
-    }
-
-    /** The top suggestion, but only when the checker is confident the word is a typo. */
-    private fun pickFix(si: SuggestionsInfo): String? {
-        val attr = si.suggestionsAttributes
-        if (attr and SuggestionsInfo.RESULT_ATTR_IN_THE_DICTIONARY != 0) return null
-        val typo = attr and SuggestionsInfo.RESULT_ATTR_LOOKS_LIKE_TYPO != 0
-        val recommended = attr and SuggestionsInfo.RESULT_ATTR_HAS_RECOMMENDED_SUGGESTIONS != 0
-        if (!typo || !recommended || si.suggestionsCount <= 0) return null
-        return si.getSuggestionAt(0)
     }
 
     // ------------------------------------------------------------------ helpers

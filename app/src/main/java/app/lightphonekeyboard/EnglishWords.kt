@@ -18,10 +18,12 @@ object EnglishWords {
     private const val LEARNED_FILE = "en_learned.txt"
     private const val LEARN_WEIGHT = 50_000L
     private const val MAX_LEARNED = 2000
+    private const val ALPHABET = "abcdefghijklmnopqrstuvwxyz"
 
     private val main = Handler(Looper.getMainLooper())
     private val freq = HashMap<String, Long>(34_000)
     private val learned = HashMap<String, Long>()
+    private val memo = HashMap<String, String?>()
     private var appContext: Context? = null
     private var sortedWords: Array<String> = emptyArray()
     private var sortedFreq: LongArray = LongArray(0)
@@ -77,12 +79,28 @@ object EnglishWords {
         return WordPredict.bestCompletion(prefix.lowercase(), sortedWords, sortedFreq, learned, LEARN_WEIGHT)
     }
 
+    fun isWord(w: String): Boolean = freq.containsKey(w) || learned.containsKey(w)
+
+    private fun effectiveFreq(w: String): Long = freq[w] ?: learned[w]?.let { it * LEARN_WEIGHT } ?: 0L
+
+    /** Autocorrection for [word] (length ≥ 3), lowercased; case is reapplied by the caller. */
+    fun correct(word: String): String? {
+        if (!ready || word.length < 3) return null
+        val w = word.lowercase()
+        if (memo.containsKey(w)) return memo[w]
+        val fix = WordPredict.bestCorrection(w, ALPHABET, ::isWord) { effectiveFreq(it) }
+        memo[w] = fix
+        return fix
+    }
+
     /** Remember a word the user typed. ASCII letters only, length 2..20. */
     fun learn(context: Context, word: String) {
         val w = word.lowercase()
         if (w.length !in 2..20 || w.any { it < 'a' || it > 'z' }) return
         appContext = context.applicationContext
+        val isNew = !isWord(w)
         learned[w] = (learned[w] ?: 0L) + 1L
+        if (isNew) memo.clear() else memo.remove(w)
         scheduleSave()
     }
 

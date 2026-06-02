@@ -240,12 +240,14 @@ class LightKeyboardView @JvmOverloads constructor(
     // from prefs once per measure/layout pass (refreshMetrics) and cached here, so rowPitch — accessed
     // several times per pass — doesn't hit SharedPreferences each time.
     private var heightScale = 1f
+    private var numberRowOn = false   // both cached once per measure/layout pass (refreshMetrics)
     private fun refreshMetrics() {
         heightScale = when (Prefs.keyboardHeight(context)) {
             Prefs.LEVEL_LOW -> 0.84f
             Prefs.LEVEL_HIGH -> 1.20f
             else -> 1f
         }
+        numberRowOn = Prefs.numberRow(context)
     }
     private val rowKeyH: Float get() = dpf(43) * heightScale
     private val rowPitch: Float get() = rowKeyH + keyGap * 2   // ~49dp per row at normal height
@@ -253,7 +255,7 @@ class LightKeyboardView @JvmOverloads constructor(
     // The optional number row (row 0 of the letters layer when enabled) is laid out much shorter than a
     // normal letter row, so it's a slim strip of digits rather than a full extra row.
     private val NUM_ROW_SCALE = 0.6f
-    private fun isNumberRowAt0(): Boolean = layer == Layer.LETTERS && Prefs.numberRow(context)
+    private fun isNumberRowAt0(): Boolean = layer == Layer.LETTERS && numberRowOn
     private fun rowKeyHAt(i: Int): Float = if (i == 0 && isNumberRowAt0()) rowKeyH * NUM_ROW_SCALE else rowKeyH
     private fun rowPitchAt(i: Int): Float = rowKeyHAt(i) + keyGap * 2
 
@@ -303,7 +305,7 @@ class LightKeyboardView @JvmOverloads constructor(
                 Layer.EMOJI, Layer.SETTINGS -> emptyList()
             }
             // Optional persistent number row sits above the letters (the symbols layer has its own).
-            if (layer == Layer.LETTERS && Prefs.numberRow(context)) {
+            if (isNumberRowAt0()) {
                 rows = listOf(Layout.numberRow) + rows
             }
             return rows + listOf(bottomRow())   // shared [toggle] · emoji · globe · space · . · enter
@@ -431,7 +433,7 @@ class LightKeyboardView @JvmOverloads constructor(
     /** How many rows the letters layer occupies right now (letters + bottom, plus the number row if on).
      *  The settings panel matches this so opening/closing it never changes the keyboard's height. */
     private fun lettersRowCount(): Int =
-        (if (Prefs.numberRow(context)) 1 else 0) + lang.rows.size + 1
+        (if (numberRowOn) 1 else 0) + lang.rows.size + 1
 
     /** Lay the quick-settings rows out to fill the same total height as the letters layer (even bands). */
     private fun layoutSettings() {
@@ -481,8 +483,8 @@ class LightKeyboardView @JvmOverloads constructor(
         val cellH = dpf(POPUP_CELL_H_DP)
         val totalW = cellW * opts.size
         val left = popupLeft(totalW)
-        var top = k.vis.top - dpf(8) - cellH
-        if (top < 0f) top = k.vis.bottom + dpf(8)     // top row → drop the card below the key
+        var top = k.vis.top - dpf(5) - cellH
+        if (top < 0f) top = k.vis.bottom + dpf(5)     // genuinely no room above (top row) → drop below
         val r = dpf(8)
         val card = popupCardRect.apply { set(left, top, left + totalW, top + cellH) }
         canvas.drawRoundRect(card, r, r, popupBgPaint)
@@ -723,7 +725,7 @@ class LightKeyboardView @JvmOverloads constructor(
         Key.SPACE -> 5f
         // Only the bottom-row layer toggle is wide. =\< stays normal width so the symbols row-3
         // backspace lines up with the letters row-3 backspace.
-        Key.SYMBOLS, Key.LETTERS -> 1.4f
+        Key.SYMBOLS, Key.LETTERS -> 1.7f
         else -> 1f
     }
 
@@ -1326,8 +1328,9 @@ class LightKeyboardView @JvmOverloads constructor(
     private val BACKSPACE_CHAR_INTERVAL_MS = 95L    // per-character repeat rate
     private val BACKSPACE_WORD_AFTER_MS = 1500L     // after this long holding, delete whole words
     private val BACKSPACE_WORD_INTERVAL_MS = 190L   // per-word repeat rate
-    private val POPUP_CELL_DP = 38                  // alternates popup: cell width / height
-    private val POPUP_CELL_H_DP = 46
+    private val POPUP_CELL_DP = 38                  // alternates popup: cell width
+    private val POPUP_CELL_H_DP = 38                // …and height — kept short so it fits above the key
+                                                    //   even at the compact keyboard size
     private val SPACE_SWIPE_START = dpf(16)         // travel before space-swipe engages
     private val SPACE_SWIPE_STEP = dpf(11)          // travel per one-character caret move
     private val SPACE_SWIPE_VSTEP = dpf(22)         // vertical travel per line move

@@ -63,7 +63,8 @@ That is the whole setup.
   emoji panel** (recently-used float to the front).
 - **Long-press a letter** — types its corner number/symbol directly.
 - **Long-press the `123`/`ABC` key** — a picker of accented letters (English) / vowel points (Hebrew).
-- **Long-press the period** — starts voice dictation.
+- **Long-press the period** — starts voice dictation (English only; Hebrew dictation needs a system
+  recognizer most Light Phones don't have).
 - **Double-tap space** — inserts `. ` (sentence end).
 - **Drag the space bar** — moves the cursor like an iPhone trackpad: left/right by character, up/down
   by line.

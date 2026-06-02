@@ -526,8 +526,9 @@ class LightKeyboardView @JvmOverloads constructor(
             textPaint.color = Color.WHITE
             textPaint.textAlign = Paint.Align.CENTER
         }
-        // The period doubles as the voice key (long-press) — show a small mic so it's discoverable.
-        if (id == Key.PERIOD && Prefs.voiceEnabled(context)) {
+        // The period doubles as the voice key (long-press) in English — show a small mic so it's
+        // discoverable. Hidden in Hebrew, where dictation isn't available.
+        if (id == Key.PERIOD && Prefs.voiceEnabled(context) && lang == Lang.EN) {
             val s = dpf(15)
             val d = iconCache.getOrPut(R.drawable.ic_kb_mic) { context.getDrawable(R.drawable.ic_kb_mic)!! }
             val cx = pk.vis.centerX()
@@ -725,9 +726,10 @@ class LightKeyboardView @JvmOverloads constructor(
             spaceDownY = y
             spaceSwiping = false
         }
-        // Long-press: a letter → its symbol; the period → voice; the comma → emoji panel.
+        // Long-press: a letter → its symbol; the period → voice (English only — Hebrew dictation isn't
+        // supported on this kind of device); the comma → emoji panel.
         if (hintFor(key.id) != null ||
-            (key.id == Key.PERIOD && Prefs.voiceEnabled(context)) ||
+            (key.id == Key.PERIOD && Prefs.voiceEnabled(context) && lang == Lang.EN) ||
             key.id == Key.COMMA
         ) {
             longPressPointerId = pointerId

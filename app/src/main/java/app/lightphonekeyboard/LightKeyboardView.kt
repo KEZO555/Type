@@ -252,13 +252,18 @@ class LightKeyboardView @JvmOverloads constructor(
     private val padBottom = dpf(10)
     private val padSide = dpf(6)
     private val keyGap = dpf(3)        // half the visible gutter; applied as an inset on each side
-    // Row height scales with the keyboard-height setting (compact / normal / tall), recomputed live.
-    private fun kbHeightScale(): Float = when (Prefs.keyboardHeight(context)) {
-        Prefs.LEVEL_LOW -> 0.84f
-        Prefs.LEVEL_HIGH -> 1.20f
-        else -> 1f
+    // Row height scales with the keyboard-height setting (compact / normal / tall). The scale is read
+    // from prefs once per measure/layout pass (refreshMetrics) and cached here, so rowPitch — accessed
+    // several times per pass — doesn't hit SharedPreferences each time.
+    private var heightScale = 1f
+    private fun refreshMetrics() {
+        heightScale = when (Prefs.keyboardHeight(context)) {
+            Prefs.LEVEL_LOW -> 0.84f
+            Prefs.LEVEL_HIGH -> 1.20f
+            else -> 1f
+        }
     }
-    private val rowKeyH: Float get() = dpf(43) * kbHeightScale()
+    private val rowKeyH: Float get() = dpf(43) * heightScale
     private val rowPitch: Float get() = rowKeyH + keyGap * 2   // ~49dp per row at normal height
 
     private val emojiCols = 10
@@ -278,6 +283,8 @@ class LightKeyboardView @JvmOverloads constructor(
     }
     private val popupSelPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.WHITE }
     private val iconCache = HashMap<Int, Drawable>()
+    private val popupCardRect = RectF()                 // reused each frame, no per-draw allocation
+    private val upperCache = HashMap<String, String>()  // cached uppercase letter labels (shifted draw)
 
     // --- touch tracking ---
     private val pressed = HashMap<Int, PlacedKey>()   // pointerId -> key, for the pressed highlight
@@ -313,6 +320,7 @@ class LightKeyboardView @JvmOverloads constructor(
     // ------------------------------------------------------------------ layout
 
     override fun onMeasure(widthSpec: Int, heightSpec: Int) {
+        refreshMetrics()
         val w = MeasureSpec.getSize(widthSpec)
         // The emoji panel is laid out to the same row count as the letters layer, so the keyboard
         // keeps a constant height and doesn't jump when you switch to emoji.
@@ -337,6 +345,7 @@ class LightKeyboardView @JvmOverloads constructor(
     }
 
     private fun relayout() {
+        refreshMetrics()
         placed.clear()
         letterKeys.clear()
         if (width == 0 || height == 0 || listening) return
@@ -474,7 +483,7 @@ class LightKeyboardView @JvmOverloads constructor(
         var top = k.vis.top - dpf(8) - cellH
         if (top < 0f) top = k.vis.bottom + dpf(8)     // top row → drop the card below the key
         val r = dpf(8)
-        val card = RectF(left, top, left + totalW, top + cellH)
+        val card = popupCardRect.apply { set(left, top, left + totalW, top + cellH) }
         canvas.drawRoundRect(card, r, r, popupBgPaint)
         canvas.drawRoundRect(card, r, r, popupBorderPaint)
         textPaint.textSize = spf(22)
@@ -693,7 +702,7 @@ class LightKeyboardView @JvmOverloads constructor(
     private fun labelFor(id: String): String = when {
         id == Key.LETTERS && lang == Lang.HE -> "אבג"
         lang == Lang.EN && shifted && layer == Layer.LETTERS && id.length == 1 && id[0].isLetter() ->
-            id.uppercase()
+            upperCache[id] ?: id.uppercase().also { upperCache[id] = it }
         else -> id
     }
 

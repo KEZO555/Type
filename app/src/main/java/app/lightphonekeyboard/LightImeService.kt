@@ -295,12 +295,23 @@ class LightImeService : InputMethodService(), LightKeyboardView.Listener {
     private val medialToFinal = mapOf('כ' to 'ך', 'מ' to 'ם', 'נ' to 'ן', 'פ' to 'ף', 'צ' to 'ץ')
     private val finalToMedial = mapOf('ך' to 'כ', 'ם' to 'מ', 'ן' to 'נ', 'ף' to 'פ', 'ץ' to 'צ')
 
-    /** At a word end: if the last letter is a medial form with a final variant, snap it to final. */
+    // A geresh / apostrophe marks a transliterated foreign word (ג׳ = j, צ׳ = ch, ז׳ = zh, ת׳, ד׳ …).
+    // Those keep their medial letter at the end — e.g. ג׳יפ, צ׳יפ, ג׳ירף — because the final form would
+    // change the sound (final ף is "f", but "jeep" ends in a "p"). So we don't auto-finalize them.
+    private fun isForeignWordEnd(before: String): Boolean {
+        var i = before.length
+        while (i > 0 && (before[i - 1] in 'א'..'ת' || before[i - 1] in "׳'״’")) i--
+        return before.substring(i).any { it == '׳' || it == '\'' || it == '״' || it == '’' }
+    }
+
+    /** At a word end: if the last letter is a medial form with a final variant, snap it to final
+     *  (unless the word is a geresh-marked foreign transliteration, which keeps its medial form). */
     private fun fixFinalForWordEnd() {
         if (!hebrew) return
         val ic = currentInputConnection ?: return
-        val before = ic.getTextBeforeCursor(1, 0)?.toString().orEmpty()
-        val fin = before.firstOrNull()?.let { medialToFinal[it] } ?: return
+        val before = ic.getTextBeforeCursor(24, 0)?.toString().orEmpty()
+        val fin = before.lastOrNull()?.let { medialToFinal[it] } ?: return
+        if (isForeignWordEnd(before)) return
         ic.beginBatchEdit(); ic.deleteSurroundingText(1, 0); ic.commitText(fin.toString(), 1); ic.endBatchEdit()
     }
 

@@ -65,6 +65,8 @@ class LightKeyboardView @JvmOverloads constructor(
         fun onCursorVertical(down: Boolean)
         /** Long-press the globe — open the keyboard's settings screen. */
         fun onOpenSettings()
+        /** A word in the suggestion bar was tapped — replace the word being typed with it. */
+        fun onSuggestionPicked(word: String)
     }
 
     var listener: Listener? = null
@@ -240,7 +242,8 @@ class LightKeyboardView @JvmOverloads constructor(
     // from prefs once per measure/layout pass (refreshMetrics) and cached here, so rowPitch — accessed
     // several times per pass — doesn't hit SharedPreferences each time.
     private var heightScale = 1f
-    private var numberRowOn = false   // both cached once per measure/layout pass (refreshMetrics)
+    private var numberRowOn = false   // all three cached once per measure/layout pass (refreshMetrics)
+    private var suggestionsOn = false
     private fun refreshMetrics() {
         heightScale = when (Prefs.keyboardHeight(context)) {
             Prefs.LEVEL_LOW -> 0.84f
@@ -248,9 +251,25 @@ class LightKeyboardView @JvmOverloads constructor(
             else -> 1f
         }
         numberRowOn = Prefs.numberRow(context)
+        suggestionsOn = Prefs.suggestions(context)
     }
     private val rowKeyH: Float get() = dpf(43) * heightScale
     private val rowPitch: Float get() = rowKeyH + keyGap * 2   // ~49dp per row at normal height
+
+    // Suggestion bar: a strip of tap-able word completions above the keys, reserved as a top band when
+    // enabled so the keyboard's height stays constant across every layer (letters / symbols / emoji /
+    // settings). [topInset] is that reserved height; layouts offset their rows by it.
+    private val stripH: Float get() = dpf(SUGGESTION_STRIP_DP)
+    private fun stripShown(): Boolean = suggestionsOn && !listening
+    private fun topInset(): Float = if (stripShown()) stripH else 0f
+    private var suggestions: List<String> = emptyList()
+
+    /** Host pushes the current word completions here (empty to clear). Redraws; height is unchanged. */
+    fun setSuggestions(words: List<String>) {
+        if (words == suggestions) return
+        suggestions = words
+        if (stripShown()) invalidate()
+    }
 
     // The optional number row (row 0 of the letters layer when enabled) is laid out much shorter than a
     // normal letter row, so it's a slim strip of digits rather than a full extra row.
@@ -270,6 +289,8 @@ class LightKeyboardView @JvmOverloads constructor(
     }
     private val spacePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.WHITE }
     private val pressPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.argb(70, 255, 255, 255) }
+    // Suggestion-bar dividers / baseline: faint white, matching the keyboard's restrained look.
+    private val stripDivPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.argb(38, 255, 255, 255) }
     // Alternates popup: a dark rounded card with a white border; the selected cell is filled white.
     private val popupBgPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.rgb(28, 28, 28) }
     private val popupBorderPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -324,7 +345,7 @@ class LightKeyboardView @JvmOverloads constructor(
             layer == Layer.SETTINGS -> lettersRowCount()  // match the letters height → no jump on open/close
             else -> currentRows.size
         }
-        var h = padTop + padBottom
+        var h = padTop + padBottom + topInset()   // the suggestion bar (if on) sits above the rows
         for (i in 0 until rowCount) h += rowPitchAt(i)
         setMeasuredDimension(w, h.toInt())
     }
@@ -351,12 +372,13 @@ class LightKeyboardView @JvmOverloads constructor(
         val h = height.toFloat()
         val rows = currentRows
         val n = rows.size
+        val top = topInset()
         // Rows can have different heights (the number row is shorter), so accumulate the top offset.
-        var rowTop = padTop
+        var rowTop = top + padTop
         for (i in rows.indices) {
             val pitch = rowPitchAt(i)
-            // Bands tile [0, h]: the top row absorbs the top pad, the bottom row absorbs the bottom pad.
-            val bandTop = if (i == 0) 0f else rowTop
+            // Bands tile [top, h]: the top row absorbs the top pad, the bottom row absorbs the bottom pad.
+            val bandTop = if (i == 0) top else rowTop
             val bandBottom = if (i == n - 1) h else rowTop + pitch
             val visTop = rowTop + keyGap
             val visBottom = visTop + rowKeyHAt(i)
@@ -399,12 +421,13 @@ class LightKeyboardView @JvmOverloads constructor(
         // it just swaps enter for backspace (deleting an emoji is what you want here).
         val w = width.toFloat()
         val h = height.toFloat()
+        val top = topInset()
         val drawW = w - padSide * 2
         val glyphs = displayedEmoji()
         for (r in 0 until emojiGridRows) {
-            val bandTop = if (r == 0) 0f else padTop + r * rowPitch
-            val bandBottom = padTop + (r + 1) * rowPitch
-            val visTop = padTop + r * rowPitch + keyGap
+            val bandTop = if (r == 0) top else top + padTop + r * rowPitch
+            val bandBottom = top + padTop + (r + 1) * rowPitch
+            val visTop = top + padTop + r * rowPitch + keyGap
             val visBottom = visTop + rowKeyH
             for (c in 0 until emojiCols) {
                 val idx = r * emojiCols + c
@@ -425,7 +448,7 @@ class LightKeyboardView @JvmOverloads constructor(
 
         // Same bottom row as every other mode (here the fifth key is backspace, so you can delete).
         val i = emojiGridRows
-        val bandTop = padTop + i * rowPitch
+        val bandTop = top + padTop + i * rowPitch
         val visTop = bandTop + keyGap
         layoutRow(bottomRow(), bandTop, h, visTop, visTop + rowKeyH, w)
     }
@@ -440,9 +463,10 @@ class LightKeyboardView @JvmOverloads constructor(
         val w = width.toFloat()
         val h = height.toFloat()
         val rows = settingsRows()
-        val band = h / rows.size
+        val inset = topInset()
+        val band = (h - inset) / rows.size
         for (i in rows.indices) {
-            val top = i * band
+            val top = inset + i * band
             layoutRow(rows[i], top, top + band, top + keyGap, top + band - keyGap, w)
         }
     }
@@ -463,6 +487,7 @@ class LightKeyboardView @JvmOverloads constructor(
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
         if (listening) { drawListening(canvas); return }
+        if (stripShown()) drawSuggestionStrip(canvas)
         for (pk in placed) {
             if (pressed.containsValue(pk)) {
                 val r = dpf(8)
@@ -507,6 +532,40 @@ class LightKeyboardView @JvmOverloads constructor(
             canvas.drawText(label, cl + cellW / 2f, baseline, textPaint)
         }
         textPaint.color = Color.WHITE     // restore for subsequent draws
+    }
+
+    /** The suggestion bar: up to three tap-able word completions, evenly split, with hairline dividers
+     *  and a baseline. Drawn only in the letters layer; on other layers it's a reserved empty band so
+     *  the keyboard height stays constant. */
+    private fun drawSuggestionStrip(canvas: Canvas) {
+        val sh = stripH
+        canvas.drawRect(0f, sh - dpf(1), width.toFloat(), sh, stripDivPaint)   // baseline under the bar
+        if (layer != Layer.LETTERS) return
+        val sugg = suggestions
+        if (sugg.isEmpty()) return
+        val n = sugg.size
+        val drawW = width - padSide * 2f
+        val cellW = drawW / n
+        textPaint.textSize = spf(16)
+        textPaint.color = Color.WHITE
+        val baseline = sh / 2f - (textPaint.descent() + textPaint.ascent()) / 2f
+        for (j in 0 until n) {
+            val cl = padSide + cellW * j
+            if (j > 0) {                                       // divider between cells (short, centred)
+                val dh = sh * 0.4f
+                canvas.drawRect(cl, sh / 2f - dh / 2f, cl + dpf(1), sh / 2f + dh / 2f, stripDivPaint)
+            }
+            val label = ellipsize(sugg[j], cellW - dpf(14), textPaint)
+            canvas.drawText(label, cl + cellW / 2f, baseline, textPaint)
+        }
+    }
+
+    /** Truncate [s] with an ellipsis so it fits [maxW] in [paint] (suggestion words are usually short). */
+    private fun ellipsize(s: String, maxW: Float, paint: Paint): String {
+        if (paint.measureText(s) <= maxW) return s
+        var end = s.length
+        while (end > 1 && paint.measureText(s.substring(0, end) + "…") > maxW) end--
+        return s.substring(0, end) + "…"
     }
 
     /** The voice-dictation surface: a big centered mic, the live status/partial text, and a hint. */
@@ -836,6 +895,17 @@ class LightKeyboardView @JvmOverloads constructor(
     /** Resolve the key under a pointer, commit it immediately, and light it up. */
     private fun pressDown(pointerId: Int, x: Float, y: Float): Boolean {
         if (dismissedThisGesture) return false
+        // The suggestion bar sits above all key rects. A tap in it picks that completion (letters layer
+        // only; elsewhere the band is empty). Either way the strip never falls through to a key — without
+        // this guard, findKey's nearest-key fallback would type a top-row letter from the empty band.
+        if (stripShown() && y <= stripH) {
+            if (layer == Layer.LETTERS && suggestions.isNotEmpty()) {
+                val cellW = (width - padSide * 2f) / suggestions.size
+                val j = (((x - padSide) / cellW).toInt()).coerceIn(0, suggestions.size - 1)
+                tap(); listener?.onSuggestionPicked(suggestions[j])
+            }
+            return false
+        }
         val raw = findKey(x, y) ?: return false
         // Only letters get the accuracy treatment; control keys & other layers stay exact hit-testing.
         val key = if (layer == Layer.LETTERS && isLetter(raw.id)) resolveLetter(x, y, raw) else raw
@@ -1328,6 +1398,7 @@ class LightKeyboardView @JvmOverloads constructor(
     private val BACKSPACE_CHAR_INTERVAL_MS = 95L    // per-character repeat rate
     private val BACKSPACE_WORD_AFTER_MS = 1500L     // after this long holding, delete whole words
     private val BACKSPACE_WORD_INTERVAL_MS = 190L   // per-word repeat rate
+    private val SUGGESTION_STRIP_DP = 40            // height of the suggestion bar when enabled
     private val POPUP_CELL_DP = 38                  // alternates popup: cell width
     private val POPUP_CELL_H_DP = 38                // …and height — kept short so it fits above the key
                                                     //   even at the compact keyboard size

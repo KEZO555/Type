@@ -64,8 +64,9 @@ class LightImeService : InputMethodService(), LightKeyboardView.Listener {
         clearUndo()
         // The keyboard keeps its language across fields; sync ours and warm the dictionaries.
         langCode = keyboard?.langCode ?: "en"
-        if (Prefs.autocorrect(this)) prepareDict(langCode)
+        if (dictNeeded()) prepareDict(langCode)
         updateShift()
+        updateSuggestions()
     }
 
     /** Warm the autocorrect dictionary for [code] (bundled languages always; downloadable ones only
@@ -84,7 +85,8 @@ class LightImeService : InputMethodService(), LightKeyboardView.Listener {
     override fun onLanguageChange(code: String) {
         langCode = code
         clearUndo()
-        if (Prefs.autocorrect(this)) prepareDict(code)
+        if (dictNeeded()) prepareDict(code)
+        updateSuggestions()
     }
 
     /** Keep the keyboard's language in sync when the user switches our subtype via the system globe. */
@@ -96,7 +98,7 @@ class LightImeService : InputMethodService(), LightKeyboardView.Listener {
         langCode = if (he) "he" else "en"
         keyboard?.setLanguageCode(langCode)
         clearUndo()
-        if (Prefs.autocorrect(this)) prepareDict(langCode)
+        if (dictNeeded()) prepareDict(langCode)
     }
 
     override fun onUpdateSelection(
@@ -108,6 +110,7 @@ class LightImeService : InputMethodService(), LightKeyboardView.Listener {
             oldSelStart, oldSelEnd, newSelStart, newSelEnd, candidatesStart, candidatesEnd,
         )
         updateShift() // after each keystroke/cursor move, recompute uppercase-vs-lowercase
+        updateSuggestions()
     }
 
     /** Sentence-case: uppercase at a sentence start, lowercase after — from the field's caps mode. */
@@ -445,6 +448,7 @@ class LightImeService : InputMethodService(), LightKeyboardView.Listener {
         super.onFinishInputView(finishingInput)
         currentInputConnection?.finishComposingText()
         if (micActive) { micActive = false; dictation.destroy(); sysDictation.destroy(); keyboard?.stopListeningUi() }
+        keyboard?.setSuggestions(emptyList())
         broadcastImeVisible(false)
     }
 
@@ -455,6 +459,32 @@ class LightImeService : InputMethodService(), LightKeyboardView.Listener {
     // ------------------------------------------------------------------ autocorrect
 
     private fun autocorrectOn(): Boolean = Prefs.autocorrect(this)
+
+    /** A dictionary is needed if either autocorrect or the suggestion bar is on. */
+    private fun dictNeeded(): Boolean = Prefs.autocorrect(this) || Prefs.suggestions(this)
+
+    /** Recompute the word completions for what's being typed and push them to the suggestion bar. */
+    private fun updateSuggestions() {
+        val kb = keyboard ?: return
+        if (!Prefs.suggestions(this)) { kb.setSuggestions(emptyList()); return }
+        val word = trailingWord()
+        val sugg = if (word.length >= 2) Dictionaries.get(langCode)?.completions(word, 3).orEmpty() else emptyList()
+        kb.setSuggestions(sugg)
+    }
+
+    /** A suggestion-bar word was tapped: replace the word being typed with it (case-matched) + a space. */
+    override fun onSuggestionPicked(word: String) {
+        val ic = currentInputConnection ?: return
+        clearUndo()
+        val original = trailingWord()
+        val cased = applyCase(original, word)
+        ic.beginBatchEdit()
+        if (original.isNotEmpty()) ic.deleteSurroundingText(original.length, 0)
+        ic.commitText("$cased ", 1)
+        ic.endBatchEdit()
+        learnTyped(word)            // tapping a word counts as using it
+        // onUpdateSelection fires from the commit and refreshes the bar (now empty — the word is done).
+    }
 
     /**
      * The autocorrection for a finished [word], or null: the highest-frequency real word within a small

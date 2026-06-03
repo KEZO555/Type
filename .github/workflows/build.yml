@@ -1,0 +1,33 @@
+name: Build
+
+# Compiles the app and runs Android lint on every push and pull request, so changes are verified
+# before they're merged. (Signed release APKs are built separately by release.yml on version tags.)
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Build debug APK
+        run: ./gradlew :app:assembleDebug
+
+      - name: Android lint
+        run: ./gradlew :app:lintDebug

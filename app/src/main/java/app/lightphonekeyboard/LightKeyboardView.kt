@@ -541,18 +541,17 @@ class LightKeyboardView @JvmOverloads constructor(
     }
 
     /** The suggestion bar: up to three tap-able word completions, evenly split, with hairline dividers
-     *  and a baseline. Drawn only in the letters layer; on other layers it's a reserved empty band so
-     *  the keyboard height stays constant. */
+     *  (and a highlighted pill on the auto-applied slot). Drawn only in the letters layer; on other
+     *  layers it's a reserved empty band so the keyboard height stays constant. */
     private fun drawSuggestionStrip(canvas: Canvas) {
         val sh = stripH
-        canvas.drawRect(0f, sh - dpf(1), width.toFloat(), sh, stripDivPaint)   // baseline under the bar
         if (layer != Layer.LETTERS) return
         val sugg = suggestions
         if (sugg.isEmpty()) return
         val n = sugg.size
         val drawW = width - padSide * 2f
         val cellW = drawW / n
-        textPaint.textSize = spf(16)
+        textPaint.textSize = spf(15)
         val baseline = sh / 2f - (textPaint.descent() + textPaint.ascent()) / 2f
         for (j in 0 until n) {
             val cl = padSide + cellW * j
@@ -1416,7 +1415,7 @@ class LightKeyboardView @JvmOverloads constructor(
     private val BACKSPACE_CHAR_INTERVAL_MS = 95L    // per-character repeat rate
     private val BACKSPACE_WORD_AFTER_MS = 1500L     // after this long holding, delete whole words
     private val BACKSPACE_WORD_INTERVAL_MS = 190L   // per-word repeat rate
-    private val SUGGESTION_STRIP_DP = 40            // height of the suggestion bar when enabled
+    private val SUGGESTION_STRIP_DP = 32            // height of the suggestion bar when enabled
     private val POPUP_CELL_DP = 38                  // alternates popup: cell width
     private val POPUP_CELL_H_DP = 38                // …and height — kept short so it fits above the key
                                                     //   even at the compact keyboard size

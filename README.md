@@ -1,4 +1,4 @@
-<img src="assets/images/example.png" alt="Light Keyboard">
+<img src="assets/images/example.png" alt="Type">
 
 A clone of the Light Phone 3's built-in keyboard, for any app.
 
@@ -34,9 +34,9 @@ Download the latest APK from [Releases](../../releases) and open it.
 
 ## Turn it on
 
-Open Light Keyboard. The setup screen holds everything:
+Open Type. The setup screen holds everything:
 
-1. **Enable Light Keyboard**: opens Android's keyboard settings, where you switch it on.
+1. **Enable Type**: opens Android's keyboard settings, where you switch it on.
 2. **Choose it as your keyboard**: makes it the active one.
 
 The settings below it:

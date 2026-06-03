@@ -4,23 +4,30 @@ import android.content.Context
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
+import java.io.BufferedReader
 import java.io.File
 
 /**
- * Offline autocorrect dictionary for a language whose word list is downloaded on demand (Spanish,
- * French, German, Italian, Portuguese). English and Hebrew are bundled in the APK and keep their own
- * objects ([EnglishWords] / [HebrewDictionary]); this is the same engine for the rest.
+ * The keyboard's offline autocorrect dictionary — one instance per language, configured by
+ * [Dictionaries]. The word list comes from one of two places:
  *
- * The downloaded "word<space>count" file ([DictModel]) is loaded into a frequency map and fed to the
- * shared keyboard-aware, edit-distance-1 corrector ([WordPredict]). Like the bundled languages it also
- * learns the words you type — kept in a per-language file and weighted so your own vocabulary wins.
+ *   • **bundled** in the APK as an asset ([assetName]) — English and Hebrew, always available; or
+ *   • **downloaded** on demand into internal storage ([DictModel]) — Spanish, French, German,
+ *     Italian, Portuguese.
  *
- * One instance per language code, created lazily by [Dictionaries].
+ * Either way it's a `word<space>count` list, loaded into a frequency map and fed to the shared
+ * keyboard-aware, edit-distance-1 corrector ([WordPredict]): [correct] returns the most likely real
+ * word within one edit of what was typed (preferring transpositions and adjacent-key slips), or null.
+ * The keyboard also [learn]s the words you type — weighted so your own vocabulary competes with common
+ * words and persisted per language — so they stop being "corrected" and can win as suggestions.
  */
 class WordDictionary(
     private val code: String,
-    private val alphabet: String,           // letters used to generate edit candidates
-    adjacencyRows: List<String>,            // the layout's letter rows, for keyboard-aware costs
+    private val alphabet: String,            // letters used to generate edit candidates
+    adjacencyRows: List<String>,             // layout letter rows, for keyboard-aware edit costs
+    private val assetName: String? = null,   // bundled source; null → downloaded file in filesDir
+    private val maxLearnLen: Int = 20,       // longest word we'll learn (Hebrew caps lower)
+    freqSizeHint: Int = 32_000,
 ) {
     private val tag = "Dict-$code"
     private val learnedFile = "${code}_learned.txt"
@@ -28,9 +35,9 @@ class WordDictionary(
     private val letterSet = alphabet.toHashSet()
 
     private val main = Handler(Looper.getMainLooper())
-    private val freq = HashMap<String, Long>(20_000)
+    private val freq = HashMap<String, Long>(freqSizeHint)
     private val learned = HashMap<String, Long>()
-    private val memo = HashMap<String, String?>()
+    private val memo = HashMap<String, String?>()   // word -> fix (null = checked, no correction)
     private var appContext: Context? = null
 
     @Volatile
@@ -38,19 +45,21 @@ class WordDictionary(
         private set
     private var loading = false
 
-    fun isInstalled(context: Context): Boolean = DictModel.isInstalled(context, code)
+    /** Whether the word list is present: always for a bundled language, file-dependent for a download. */
+    fun isInstalled(context: Context): Boolean =
+        assetName != null || DictModel.isInstalled(context, code)
 
-    /** Load the downloaded dictionary into memory (background). No-op if loaded, in flight, or absent. */
+    /** Load the word list into memory (background). No-op once loaded / in flight, or — for a
+     *  downloadable language — if it hasn't been downloaded yet. */
     fun prepare(context: Context) {
         if (ready || loading) return
         val app = context.applicationContext
-        val file = DictModel.dictFile(app, code)
-        if (!file.exists()) return          // not downloaded yet — nothing to load
+        if (assetName == null && !DictModel.dictFile(app, code).exists()) return
         loading = true
         appContext = app
         Thread {
             try {
-                file.bufferedReader(Charsets.UTF_8).use { r ->
+                openReader(app).use { r ->
                     r.forEachLine { line ->
                         val sp = line.indexOf(' ')
                         if (sp <= 0) return@forEachLine
@@ -67,6 +76,10 @@ class WordDictionary(
         }.start()
     }
 
+    private fun openReader(context: Context): BufferedReader =
+        if (assetName != null) context.assets.open(assetName).bufferedReader(Charsets.UTF_8)
+        else DictModel.dictFile(context, code).bufferedReader(Charsets.UTF_8)
+
     private fun loadLearned(context: Context) {
         val f = File(context.filesDir, learnedFile)
         if (!f.exists()) return
@@ -82,27 +95,33 @@ class WordDictionary(
 
     fun isWord(w: String): Boolean = freq.containsKey(w) || learned.containsKey(w)
 
+    /** Ranking frequency: dictionary count, else a learned word's count × LEARN_WEIGHT, else 0. */
     private fun effectiveFreq(w: String): Long = freq[w] ?: learned[w]?.let { it * LEARN_WEIGHT } ?: 0L
 
-    /** Autocorrection for [word] (length ≥ 3), lowercased; case is reapplied by the caller. */
+    /**
+     * Best correction for [word], or null if it's already known / too short (< 3) / nothing confident.
+     * Lowercased for lookup; the caller reapplies the original case. (Hebrew is caseless, so lowercasing
+     * is a no-op there.)
+     */
     fun correct(word: String): String? {
         if (!ready || word.length < 3) return null
         val w = word.lowercase()
         if (memo.containsKey(w)) return memo[w]
         val fix = WordPredict.bestCorrection(w, alphabet, adj, ::isWord) { effectiveFreq(it) }
-        if (memo.size > 4000) memo.clear()
+        if (memo.size > 4000) memo.clear()   // bound the cache over a long session
         memo[w] = fix
         return fix
     }
 
-    /** Remember a word the user typed (and kept). Becomes known and rankable; persisted (debounced). */
+    /** Remember a word the user typed (and kept). Becomes known and rankable; persisted (debounced).
+     *  Only this language's own letters, length 2..[maxLearnLen]. */
     fun learn(context: Context, word: String) {
         val w = word.lowercase()
-        if (w.length !in 2..20 || w.any { it !in letterSet }) return
+        if (w.length < 2 || w.length > maxLearnLen || w.any { it !in letterSet }) return
         appContext = context.applicationContext
         val isNew = !isWord(w)
         learned[w] = (learned[w] ?: 0L) + 1L
-        if (isNew) memo.clear() else memo.remove(w)
+        if (isNew) memo.clear() else memo.remove(w)   // a newly-known word changes corrections
         scheduleSave()
     }
 
@@ -129,7 +148,7 @@ class WordDictionary(
     private val saveRunnable = Runnable { writeLearned() }
     private fun scheduleSave() {
         main.removeCallbacks(saveRunnable)
-        main.postDelayed(saveRunnable, 4000)
+        main.postDelayed(saveRunnable, 4000)   // coalesce bursts of typing into one write
     }
 
     private fun writeLearned() {
@@ -154,17 +173,45 @@ class WordDictionary(
 }
 
 /**
- * Lazily-built registry of the downloadable-dictionary languages, keyed by code. Returns null for
- * English/Hebrew (which have their own bundled objects) and for any language without a [LangDef.dictUrl].
+ * The dictionary for each language, built lazily and cached. Every supported language has one (English
+ * and Hebrew bundled in the APK; the rest downloaded on demand), so callers don't special-case codes.
+ * Returns null only for an unknown code or a language with no dictionary configured.
  */
 object Dictionaries {
     private val instances = HashMap<String, WordDictionary>()
 
     fun get(code: String): WordDictionary? {
         val def = Languages.byCode(code)
-        if (def.code != code || def.dictUrl == null) return null
-        return instances.getOrPut(code) {
-            WordDictionary(code, def.autocorrectAlphabet, def.letterRows)
-        }
+        if (def.code != code) return null                       // byCode falls back to EN for unknowns
+        if (def.dictAsset == null && def.dictUrl == null) return null
+        return instances.getOrPut(code) { build(def) }
+    }
+
+    private fun build(def: LangDef): WordDictionary = when (def.code) {
+        // Hebrew is caseless, and its layout has two symbol keys (geresh, maqaf) before the letters,
+        // which shift the column alignment the key-adjacency model depends on — so it keeps the exact
+        // alphabet and rows the keyboard-aware corrector was tuned against, plus a shorter learn cap.
+        "he" -> WordDictionary(
+            code = "he",
+            alphabet = "אבגדהוזחטיךכלםמןנסעףפץצקרשת",
+            adjacencyRows = listOf("׳־קראטוןםפ", "שדגכעיחלךף", "זסבהנמצתץ"),
+            assetName = def.dictAsset,
+            maxLearnLen = 15,
+            freqSizeHint = 48_000,
+        )
+        // English corrects over plain a–z — its bundled dictionary has no accents, unlike the other
+        // Latin languages whose alphabets include their accented letters (derived from the layout).
+        "en" -> WordDictionary(
+            code = "en",
+            alphabet = "abcdefghijklmnopqrstuvwxyz",
+            adjacencyRows = def.letterRows,
+            assetName = def.dictAsset,
+            freqSizeHint = 34_000,
+        )
+        else -> WordDictionary(
+            code = def.code,
+            alphabet = def.autocorrectAlphabet,
+            adjacencyRows = def.letterRows,
+        )
     }
 }

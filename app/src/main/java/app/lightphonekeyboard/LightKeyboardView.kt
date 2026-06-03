@@ -65,8 +65,9 @@ class LightKeyboardView @JvmOverloads constructor(
         fun onCursorVertical(down: Boolean)
         /** Long-press the globe — open the keyboard's settings screen. */
         fun onOpenSettings()
-        /** A word in the suggestion bar was tapped — replace the word being typed with it. */
-        fun onSuggestionPicked(word: String)
+        /** The suggestion-bar slot at [index] was tapped — the host decides what it means (insert a
+         *  completion/correction, or keep the literal word). */
+        fun onSuggestionPicked(index: Int)
     }
 
     var listener: Listener? = null
@@ -261,11 +262,18 @@ class LightKeyboardView @JvmOverloads constructor(
     private fun stripShown(): Boolean = suggestionsOn && !listening
     private fun topInset(): Float = if (stripShown()) stripH else 0f
     private var suggestions: List<String> = emptyList()
+    // [primary] = the slot pressing space will auto-apply (highlighted); -1 = none. [literal] = the slot
+    // showing the user's word verbatim (drawn in quotes; tapping it keeps the word as typed); -1 = none.
+    private var suggestionPrimary = -1
+    private var suggestionLiteral = -1
 
-    /** Host pushes the current word completions here (empty to clear). Redraws; height is unchanged. */
-    fun setSuggestions(words: List<String>) {
-        if (words == suggestions) return
+    /** Host pushes the current suggestions here ([words] empty to clear). [primary] is the slot space
+     *  will commit (highlighted); [literal] is the user's own word (shown quoted). Redraws only. */
+    fun setSuggestions(words: List<String>, primary: Int = -1, literal: Int = -1) {
+        if (words == suggestions && primary == suggestionPrimary && literal == suggestionLiteral) return
         suggestions = words
+        suggestionPrimary = primary
+        suggestionLiteral = literal
         if (stripShown()) invalidate()
     }
 
@@ -545,17 +553,28 @@ class LightKeyboardView @JvmOverloads constructor(
         val drawW = width - padSide * 2f
         val cellW = drawW / n
         textPaint.textSize = spf(16)
-        textPaint.color = Color.WHITE
         val baseline = sh / 2f - (textPaint.descent() + textPaint.ascent()) / 2f
         for (j in 0 until n) {
             val cl = padSide + cellW * j
-            if (j > 0) {                                       // divider between cells (short, centred)
-                val dh = sh * 0.4f
-                canvas.drawRect(cl, sh / 2f - dh / 2f, cl + dpf(1), sh / 2f + dh / 2f, stripDivPaint)
+            // The auto-applied slot gets a filled rounded pill (with black text); a divider sits between
+            // the others. Quotes mark the user's literal word so "keep what I typed" is unmistakable.
+            if (j == suggestionPrimary) {
+                val r = dpf(8)
+                val inset = dpf(4)
+                canvas.drawRoundRect(cl + inset, inset, cl + cellW - inset, sh - inset, r, r, popupSelPaint)
+                textPaint.color = Color.BLACK
+            } else {
+                if (j > 0 && j - 1 != suggestionPrimary) {     // divider between two plain cells
+                    val dh = sh * 0.4f
+                    canvas.drawRect(cl, sh / 2f - dh / 2f, cl + dpf(1), sh / 2f + dh / 2f, stripDivPaint)
+                }
+                textPaint.color = Color.WHITE
             }
-            val label = ellipsize(sugg[j], cellW - dpf(14), textPaint)
+            val shown = if (j == suggestionLiteral) "“${sugg[j]}”" else sugg[j]
+            val label = ellipsize(shown, cellW - dpf(14), textPaint)
             canvas.drawText(label, cl + cellW / 2f, baseline, textPaint)
         }
+        textPaint.color = Color.WHITE   // restore for subsequent draws
     }
 
     /** Truncate [s] with an ellipsis so it fits [maxW] in [paint] (suggestion words are usually short). */
@@ -900,7 +919,7 @@ class LightKeyboardView @JvmOverloads constructor(
             if (layer == Layer.LETTERS && suggestions.isNotEmpty()) {
                 val cellW = (width - padSide * 2f) / suggestions.size
                 val j = (((x - padSide) / cellW).toInt()).coerceIn(0, suggestions.size - 1)
-                tap(); listener?.onSuggestionPicked(suggestions[j])
+                tap(); listener?.onSuggestionPicked(j)
             }
             return false
         }

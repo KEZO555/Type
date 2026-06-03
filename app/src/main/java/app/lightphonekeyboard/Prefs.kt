@@ -14,6 +14,7 @@ object Prefs {
     private const val KEY_RECENT_EMOJI = "recent_emoji"
     private const val RECENT_EMOJI_MAX = 12
     private const val KEY_EMOJI_SET = "emoji_set"
+    private const val KEY_KEEP_MEDIAL = "he_keep_medial"
     private const val KEY_ENABLED_LANGS = "enabled_languages"
     private const val KEY_ACTIVE_LANG = "active_language"
     private const val KEY_SOUND = "key_sound"
@@ -107,6 +108,18 @@ object Prefs {
 
     fun setActiveLanguage(c: Context, code: String) =
         prefs(c).edit().putString(KEY_ACTIVE_LANG, code).apply()
+
+    /** Hebrew words the user has chosen to keep in their medial form at the end (e.g. קליפ) — never
+     *  auto-finalized. Newline-separated, capped. */
+    fun keepMedial(c: Context): Set<String> =
+        prefs(c).getString(KEY_KEEP_MEDIAL, "")!!.split('\n').filter { it.isNotEmpty() }.toSet()
+
+    fun addKeepMedial(c: Context, word: String) {
+        val set = LinkedHashSet(keepMedial(c))
+        if (!set.add(word)) return
+        while (set.size > 500) set.remove(set.first())   // bound it
+        prefs(c).edit().putString(KEY_KEEP_MEDIAL, set.joinToString("\n")).apply()
+    }
 
     /** The user's chosen emoji set (newline-separated), or empty if they haven't customized it — in
      *  which case the keyboard falls back to its default set. */

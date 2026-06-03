@@ -37,6 +37,9 @@ class LightImeService : InputMethodService(), LightKeyboardView.Listener {
     private var undoFrom: String? = null
     private var undoTo: String? = null
     private var undoWord: String? = null
+    // If the pending revert is undoing an auto-finalized Hebrew ending, this is the medial-form word to
+    // remember as "keep medial" so it's never auto-finalized again (e.g. קליפ).
+    private var undoKeepMedial: String? = null
 
     private var micActive = false
 
@@ -145,7 +148,7 @@ class LightImeService : InputMethodService(), LightKeyboardView.Listener {
             return
         }
         // A word terminator: snap a trailing medial Hebrew letter to its final form, then autocorrect.
-        fixFinalForWordEnd()
+        val finalizedMedial = fixFinalForWordEnd()
         val original = trailingWord()
         val fix = if (autocorrectOn()) autocorrectFix(original) else null
         // A non-null fix means `original` is unfamiliar (sits one edit from a real word). The first time
@@ -162,10 +165,20 @@ class LightImeService : InputMethodService(), LightKeyboardView.Listener {
             undoFrom = cased + s     // arm revert: text now ends with the fix + terminator
             undoTo = original + s
             undoWord = original      // if the user reverts, learn what they actually typed
+            undoKeepMedial = null
         } else {
-            clearUndo()
             ic.commitText(s, 1)
             learnTyped(original)    // user typed this word and kept it — remember it
+            if (finalizedMedial != null) {
+                // Arm a revert: backspace restores the medial ending AND remembers to keep it medial.
+                val finWord = finalizedMedial.dropLast(1) + medialToFinal[finalizedMedial.last()]
+                undoFrom = finWord + s
+                undoTo = finalizedMedial + s
+                undoWord = null
+                undoKeepMedial = finalizedMedial
+            } else {
+                clearUndo()
+            }
         }
     }
 
@@ -176,13 +189,15 @@ class LightImeService : InputMethodService(), LightKeyboardView.Listener {
         if (from != null && to != null) {
             val before = ic.getTextBeforeCursor(from.length, 0)?.toString()
             val word = undoWord
+            val keepMedial = undoKeepMedial
             clearUndo()
             if (before == from) {   // only revert if the corrected text is still sitting there
                 ic.beginBatchEdit()
                 ic.deleteSurroundingText(from.length, 0)
                 ic.commitText(to, 1)
                 ic.endBatchEdit()
-                if (word != null) learnTyped(word)   // user rejected the fix — learn their word
+                if (word != null) learnTyped(word)              // user rejected the fix — learn their word
+                if (keepMedial != null) Prefs.addKeepMedial(this, keepMedial)  // …or the medial ending
                 return
             }
         }
@@ -304,15 +319,26 @@ class LightImeService : InputMethodService(), LightKeyboardView.Listener {
         return before.substring(i).any { it == '׳' || it == '\'' || it == '״' || it == '’' }
     }
 
-    /** At a word end: if the last letter is a medial form with a final variant, snap it to final
-     *  (unless the word is a geresh-marked foreign transliteration, which keeps its medial form). */
-    private fun fixFinalForWordEnd() {
-        if (!hebrew) return
-        val ic = currentInputConnection ?: return
+    /** The trailing Hebrew word (letters + geresh/apostrophe) of [before], in whatever form it's in. */
+    private fun trailingHebrewWord(before: String): String {
+        var i = before.length
+        while (i > 0 && (before[i - 1] in 'א'..'ת' || before[i - 1] in "׳'״’")) i--
+        return before.substring(i)
+    }
+
+    /** At a word end: if the last letter is a medial form with a final variant, snap it to final, and
+     *  return the medial-form word that was snapped (for revert/learning). Skips geresh-marked foreign
+     *  words and any word the user has chosen to keep medial; returns null when nothing was changed. */
+    private fun fixFinalForWordEnd(): String? {
+        if (!hebrew) return null
+        val ic = currentInputConnection ?: return null
         val before = ic.getTextBeforeCursor(24, 0)?.toString().orEmpty()
-        val fin = before.lastOrNull()?.let { medialToFinal[it] } ?: return
-        if (isForeignWordEnd(before)) return
+        val fin = before.lastOrNull()?.let { medialToFinal[it] } ?: return null
+        if (isForeignWordEnd(before)) return null
+        val word = trailingHebrewWord(before)                 // medial form, e.g. "קליפ"
+        if (word in Prefs.keepMedial(this)) return null        // user corrected this one before
         ic.beginBatchEdit(); ic.deleteSurroundingText(1, 0); ic.commitText(fin.toString(), 1); ic.endBatchEdit()
+        return word
     }
 
     /** Before appending [next]: if a final form sits before the cursor, the word continues, so convert
@@ -502,6 +528,7 @@ class LightImeService : InputMethodService(), LightKeyboardView.Listener {
         undoFrom = null
         undoTo = null
         undoWord = null
+        undoKeepMedial = null
     }
 
     companion object {

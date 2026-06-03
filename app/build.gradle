@@ -58,4 +58,8 @@ dependencies {
     // Offline on-device speech recognition. The native libs ship in the APK (~10MB); the language
     // model is NOT bundled — it's downloaded on demand when the user turns on voice dictation.
     implementation 'com.alphacephei:vosk-android:0.3.47'
+
+    // JVM unit tests for the pure prediction logic (autocorrect + completions). Run on the host with
+    // `./gradlew :app:testDebugUnitTest` — no device or emulator needed.
+    testImplementation 'junit:junit:4.13.2'
 }

@@ -1,7 +1,8 @@
 name: Build
 
-# Compiles the app and runs Android lint on every push and pull request, so changes are verified
-# before they're merged. (Signed release APKs are built separately by release.yml on version tags.)
+# Builds, unit-tests and lints the app on every push and pull request, and uploads the debug APK as a
+# downloadable artifact so it can be sideloaded for real-device testing. (Signed release APKs are built
+# separately by release.yml on version tags.)
 on:
   push:
     branches:
@@ -26,8 +27,18 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
 
+      - name: Unit tests
+        run: ./gradlew :app:testDebugUnitTest
+
       - name: Build debug APK
         run: ./gradlew :app:assembleDebug
 
       - name: Android lint
         run: ./gradlew :app:lintDebug
+
+      - name: Upload debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: light-keyboard-debug
+          path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error

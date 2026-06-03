@@ -36,5 +36,8 @@ config.local.env
 release-keystore.jks
 light-keyboard-*.apk
 
-# Local Claude session/memory data — never commit
-.claude/
+# Claude: keep shared project config (settings.json + hooks) but never commit local/personal data
+.claude/*
+!.claude/settings.json
+!.claude/hooks/
+.claude/settings.local.json

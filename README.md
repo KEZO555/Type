@@ -16,8 +16,8 @@ accents). The emoji key opens emoji.
 - **Hebrew** — Standard Israeli layout (finals included), offline autocorrect, learns your words; voice
   via the phone's own service (`he-IL`).
 - **Spanish / French / German / Italian / Portuguese** — full typing with their layouts (QWERTY, AZERTY,
-  QWERTZ) and accents on the 123-key long-press. Offline autocorrect dictionaries for these download on
-  demand (coming next).
+  QWERTZ) and accents on the 123-key long-press. Offline autocorrect for these is an optional download
+  (~0.6 MB each) from **Settings → Languages**, after which it learns your words like English and Hebrew.
 
 ## Install
 
@@ -41,9 +41,10 @@ Open Light Keyboard. The setup screen holds everything:
 
 The settings below it:
 
-- **Languages**: English and Hebrew. The globe key (bottom row) switches between them; the emoji key
-  opens emoji. Hebrew is caseless, so there's no shift key — just the 27 letter forms in the standard
-  Israeli arrangement.
+- **Languages**: choose which languages the globe key (bottom row) cycles through; the emoji key opens
+  emoji. English and Hebrew ship with offline autocorrect built in; Spanish, French, German, Italian and
+  Portuguese each offer an optional dictionary download right on this screen. Hebrew is caseless, so it
+  has no shift key — just the 27 letter forms in the standard Israeli arrangement.
 - **Autocorrect** (on by default): fixes misspellings as you type, using bundled English and Hebrew
   frequency dictionaries that also learn the words you use. Keyboard-aware (it prefers fixes that are a
   neighbouring-key slip or a swapped pair) and conservative, so it doesn't replace words you meant.

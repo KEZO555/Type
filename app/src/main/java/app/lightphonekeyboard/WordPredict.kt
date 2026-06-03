@@ -77,4 +77,45 @@ object WordPredict {
         }
         return out
     }
+
+    /**
+     * Up to [limit] completions of [prefix], most-frequent first. [sortedWords] must be lexically sorted
+     * (so the matches form a contiguous range found by binary search); [freqOf] ranks them. [extra] adds
+     * out-of-dictionary candidates (e.g. learned words) that aren't in [sortedWords]. The prefix itself
+     * is never returned — only genuine continuations. Returns empty for a prefix shorter than 2.
+     */
+    fun completions(
+        sortedWords: Array<String>,
+        prefix: String,
+        limit: Int,
+        freqOf: (String) -> Long,
+        extra: Map<String, Long> = emptyMap(),
+    ): List<String> {
+        val p = prefix.lowercase()
+        if (limit <= 0 || p.length < 2) return emptyList()
+        val topW = arrayOfNulls<String>(limit)
+        val topF = LongArray(limit) { -1L }
+        // Binary search to the first word >= the prefix, then scan the matching run.
+        var lo = 0; var hi = sortedWords.size
+        while (lo < hi) { val mid = (lo + hi) ushr 1; if (sortedWords[mid] < p) lo = mid + 1 else hi = mid }
+        var i = lo
+        while (i < sortedWords.size && sortedWords[i].startsWith(p)) {
+            val w = sortedWords[i]
+            if (w != p) insertTop(topW, topF, w, freqOf(w))
+            i++
+        }
+        for ((w, f) in extra) {
+            if (w.length > p.length && w.startsWith(p)) insertTop(topW, topF, w, f)
+        }
+        return topW.filterNotNull()
+    }
+
+    /** Keep [topW]/[topF] as a descending top-N list: insert ([w],[f]) if it beats the smallest kept. */
+    private fun insertTop(topW: Array<String?>, topF: LongArray, w: String, f: Long) {
+        var pos = topF.size
+        while (pos > 0 && f > topF[pos - 1]) pos--
+        if (pos >= topF.size) return
+        for (k in topF.size - 1 downTo pos + 1) { topF[k] = topF[k - 1]; topW[k] = topW[k - 1] }
+        topF[pos] = f; topW[pos] = w
+    }
 }

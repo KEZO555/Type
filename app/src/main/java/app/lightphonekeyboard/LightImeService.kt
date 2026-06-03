@@ -463,13 +463,14 @@ class LightImeService : InputMethodService(), LightKeyboardView.Listener {
     /** A dictionary is needed if either autocorrect or the suggestion bar is on. */
     private fun dictNeeded(): Boolean = Prefs.autocorrect(this) || Prefs.suggestions(this)
 
-    /** Recompute the word completions for what's being typed and push them to the suggestion bar. */
+    /** Recompute the word completions for what's being typed and push them to the suggestion bar. They're
+     *  shown in the case they'll be inserted in (so a capitalized word's completions read capitalized). */
     private fun updateSuggestions() {
         val kb = keyboard ?: return
         if (!Prefs.suggestions(this)) { kb.setSuggestions(emptyList()); return }
         val word = trailingWord()
-        val sugg = if (word.length >= 2) Dictionaries.get(langCode)?.completions(word, 3).orEmpty() else emptyList()
-        kb.setSuggestions(sugg)
+        val raw = if (word.length >= 2) Dictionaries.get(langCode)?.completions(word, 3).orEmpty() else emptyList()
+        kb.setSuggestions(raw.map { applyCase(word, it) })
     }
 
     /** A suggestion-bar word was tapped: replace the word being typed with it (case-matched) + a space. */

@@ -73,7 +73,8 @@ class LightImeService : InputMethodService(), LightKeyboardView.Listener {
         when (code) {
             "en" -> EnglishWords.prepare(this)
             "he" -> HebrewDictionary.prepare(this)
-            // Other languages: downloadable dictionaries arrive in a later phase.
+            // Other languages: load the on-demand dictionary if the user has downloaded it.
+            else -> Dictionaries.get(code)?.prepare(this)
         }
     }
 
@@ -461,24 +462,28 @@ class LightImeService : InputMethodService(), LightKeyboardView.Listener {
 
     /**
      * The autocorrection for a finished [word], or null. English & Hebrew use their bundled frequency
-     * dictionary (+ your learned words): the highest-frequency real word within a small edit distance
-     * of what you typed. Languages without a dictionary yet return null (no correction).
+     * dictionary (+ your learned words); the other languages use one downloaded on demand. Either way:
+     * the highest-frequency real word within a small edit distance of what you typed. A language with no
+     * dictionary downloaded returns null (no correction).
      */
     private fun autocorrectFix(word: String): String? {
         if (!autocorrectOn() || word.length < 3) return null
         return when (langCode) {
             "en" -> EnglishWords.correct(word)
             "he" -> HebrewDictionary.correct(word)
-            else -> null
+            else -> Dictionaries.get(langCode)?.correct(word)
         }
     }
 
-    /** Remember a word the user typed, in the active language's dictionary (if it has one). */
+    /** Remember a word the user typed, in the active language's dictionary (if it has one loaded). */
     private fun learnTyped(word: String) {
         if (word.length < 2) return
         when (langCode) {
             "en" -> EnglishWords.learn(this, word)
             "he" -> HebrewDictionary.learn(this, word)
+            // Only once the downloadable dictionary is loaded, so we don't hoard words for a language
+            // the user hasn't set up autocorrect for.
+            else -> Dictionaries.get(langCode)?.takeIf { it.ready }?.learn(this, word)
         }
     }
 

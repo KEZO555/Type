@@ -17,16 +17,37 @@ class LangDef(
     val accents: List<String>,              // 123-key long-press picker (accents, or Hebrew vowel points)
     val lettersLabel: String = "ABC",       // label on the "back to letters" toggle key
     val dictAsset: String? = null,          // bundled autocorrect dictionary (en/he); null otherwise
+    val dictUrl: String? = null,            // downloadable autocorrect dictionary (es/fr/de/it/pt)
     private val hintsOverride: Map<Char, String>? = null,
 ) {
     /** Long-press a letter → its corner number/symbol. Positional by default; Hebrew overrides. */
     val hints: Map<Char, String> = hintsOverride ?: positionalHints(rows)
+
+    /** The letter rows of this layout as lowercase strings (control keys and symbols dropped), used to
+     *  build the key-adjacency model for keyboard-aware autocorrect. */
+    val letterRows: List<String> = rows
+        .map { row -> row.filter { it.length == 1 && it[0].isLetter() }.joinToString("") { it.lowercase() } }
+        .filter { it.isNotEmpty() }
+
+    /** The alphabet used to generate autocorrect edit candidates: every distinct lowercase letter on the
+     *  layout, plus the lowercase of each accented form offered on the 123-key long-press (é, ñ, ü …). */
+    val autocorrectAlphabet: String = buildString {
+        val seen = HashSet<Char>()
+        for (row in letterRows) for (ch in row) if (seen.add(ch)) append(ch)
+        for (a in accents) for (ch in a.lowercase()) if (ch.isLetter() && seen.add(ch)) append(ch)
+    }
 }
 
 object Languages {
     // Control-key markers — must match LightKeyboardView.Key.SHIFT / .BACKSPACE.
     private const val SH = "__SHIFT__"
     private const val BK = "__BKSP__"
+
+    // On-demand autocorrect dictionaries are pulled from hermitdave/FrequencyWords — the same
+    // OpenSubtitles "word<space>count" lists the bundled tools build from — and filtered to the
+    // language's own letters on the way down (see DictModel). Kept off the APK so it stays small.
+    private fun freqWordsUrl(code: String) =
+        "https://raw.githubusercontent.com/hermitdave/FrequencyWords/master/content/2018/$code/${code}_50k.txt"
 
     private val QWERTY = listOf(
         listOf("q", "w", "e", "r", "t", "y", "u", "i", "o", "p"),
@@ -70,6 +91,7 @@ object Languages {
             listOf(SH, "z", "x", "c", "v", "b", "n", "m", BK),
         ),
         accents = listOf("á", "é", "í", "ó", "ú", "ü", "ñ", "¿", "¡"),
+        dictUrl = freqWordsUrl("es"),
     )
 
     val FR = LangDef(
@@ -80,6 +102,7 @@ object Languages {
             listOf(SH, "w", "x", "c", "v", "b", "n", BK),
         ),
         accents = listOf("à", "â", "ç", "é", "è", "ê", "ë", "î", "ï", "ô", "û", "ù", "œ"),
+        dictUrl = freqWordsUrl("fr"),
     )
 
     val DE = LangDef(
@@ -90,18 +113,21 @@ object Languages {
             listOf(SH, "y", "x", "c", "v", "b", "n", "m", BK),
         ),
         accents = listOf("ä", "ö", "ü", "ß"),
+        dictUrl = freqWordsUrl("de"),
     )
 
     val IT = LangDef(
         code = "it", name = "Italiano", rtl = false, hasCase = true,
         rows = QWERTY,
         accents = listOf("à", "è", "é", "ì", "ò", "ù"),
+        dictUrl = freqWordsUrl("it"),
     )
 
     val PT = LangDef(
         code = "pt", name = "Português", rtl = false, hasCase = true,
         rows = QWERTY,
         accents = listOf("ã", "õ", "á", "à", "â", "ç", "é", "ê", "í", "ó", "ô", "ú", "ü"),
+        dictUrl = freqWordsUrl("pt"),
     )
 
     /** All supported languages, in the order the globe cycles them. */

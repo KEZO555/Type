@@ -38,9 +38,13 @@ class VocabularyActivity : AppCompatActivity() {
         root.addView(label(getString(R.string.setup_vocab_sub), 14f, R.color.gray))
 
         var total = 0
-        // English then Hebrew (the languages with learning today).
+        // English then Hebrew (bundled), then any downloadable language you've taught words to.
         total += addSection(root, Languages.EN.name, EnglishWords.learnedWords(this)) { EnglishWords.forget(this, it) }
         total += addSection(root, Languages.HE.name, HebrewDictionary.learnedWords(this)) { HebrewDictionary.forget(this, it) }
+        for (l in Languages.ALL) {
+            val dict = if (l.dictUrl != null) Dictionaries.get(l.code) else null
+            if (dict != null) total += addSection(root, l.name, dict.learnedWords(this)) { dict.forget(this, it) }
+        }
 
         if (total == 0) {
             root.addView(label(getString(R.string.vocab_empty), 16f, R.color.gray))
@@ -56,6 +60,7 @@ class VocabularyActivity : AppCompatActivity() {
                 setOnClickListener {
                     EnglishWords.clearLearned(this@VocabularyActivity)
                     HebrewDictionary.clearLearned(this@VocabularyActivity)
+                    for (l in Languages.ALL) if (l.dictUrl != null) Dictionaries.get(l.code)?.clearLearned(this@VocabularyActivity)
                     recreate()
                 }
             }

@@ -201,8 +201,8 @@ class SetupActivity : AppCompatActivity() {
     /** Buzz once at the chosen strength so the user feels what they picked (matches the keyboard). */
     private fun previewHaptic(level: Int) {
         val (ms, amp) = when (level) {
-            Prefs.HAPTIC_LIGHT -> 18L to 130
-            Prefs.HAPTIC_MEDIUM -> 30L to 200
+            Prefs.HAPTIC_LIGHT -> 30L to 200
+            Prefs.HAPTIC_MEDIUM -> 38L to 228
             Prefs.HAPTIC_STRONG -> 45L to 255
             else -> return
         }

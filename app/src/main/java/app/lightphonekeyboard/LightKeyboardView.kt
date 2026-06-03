@@ -551,29 +551,23 @@ class LightKeyboardView @JvmOverloads constructor(
         val n = sugg.size
         val drawW = width - padSide * 2f
         val cellW = drawW / n
-        textPaint.textSize = spf(15)
+        textPaint.textSize = spf(17)   // match the quick-settings menu text size
+        textPaint.color = Color.WHITE
         val baseline = sh / 2f - (textPaint.descent() + textPaint.ascent()) / 2f
         for (j in 0 until n) {
             val cl = padSide + cellW * j
-            // The auto-applied slot gets a filled rounded pill (with black text); a divider sits between
-            // the others. Quotes mark the user's literal word so "keep what I typed" is unmistakable.
-            if (j == suggestionPrimary) {
-                val r = dpf(8)
-                val inset = dpf(4)
-                canvas.drawRoundRect(cl + inset, inset, cl + cellW - inset, sh - inset, r, r, popupSelPaint)
-                textPaint.color = Color.BLACK
-            } else {
-                if (j > 0 && j - 1 != suggestionPrimary) {     // divider between two plain cells
-                    val dh = sh * 0.4f
-                    canvas.drawRect(cl, sh / 2f - dh / 2f, cl + dpf(1), sh / 2f + dh / 2f, stripDivPaint)
-                }
-                textPaint.color = Color.WHITE
+            if (j > 0) {                                       // thin divider between cells
+                val dh = sh * 0.4f
+                canvas.drawRect(cl, sh / 2f - dh / 2f, cl + dpf(1), sh / 2f + dh / 2f, stripDivPaint)
             }
+            // The auto-applied slot is drawn bold so it pops (no fill); quotes mark the user's literal
+            // word so "keep what I typed" is unmistakable.
+            textPaint.typeface = if (j == suggestionPrimary) android.graphics.Typeface.DEFAULT_BOLD else android.graphics.Typeface.DEFAULT
             val shown = if (j == suggestionLiteral) "“${sugg[j]}”" else sugg[j]
             val label = ellipsize(shown, cellW - dpf(14), textPaint)
             canvas.drawText(label, cl + cellW / 2f, baseline, textPaint)
         }
-        textPaint.color = Color.WHITE   // restore for subsequent draws
+        textPaint.typeface = android.graphics.Typeface.DEFAULT   // restore for other text
     }
 
     /** Truncate [s] with an ellipsis so it fits [maxW] in [paint] (suggestion words are usually short). */
@@ -752,8 +746,8 @@ class LightKeyboardView @JvmOverloads constructor(
 
     /** Buzz once at [level]'s key-press strength (used when the haptics row is cycled). */
     private fun previewHaptic(level: Int) = when (level) {
-        Prefs.HAPTIC_LIGHT -> buzz(18, 130)
-        Prefs.HAPTIC_MEDIUM -> buzz(30, 200)
+        Prefs.HAPTIC_LIGHT -> buzz(30, 200)
+        Prefs.HAPTIC_MEDIUM -> buzz(38, 228)
         Prefs.HAPTIC_STRONG -> buzz(45, 255)
         else -> Unit
     }
@@ -1313,6 +1307,7 @@ class LightKeyboardView @JvmOverloads constructor(
     override fun onDetachedFromWindow() {
         stopBackspaceRepeat()
         endAltLongPress()
+        releaseSound()
         super.onDetachedFromWindow()
     }
 
@@ -1370,13 +1365,34 @@ class LightKeyboardView @JvmOverloads constructor(
         runCatching { v.vibrate(android.os.VibrationEffect.createOneShot(ms, amplitude)) }
     }
 
-    // Optional key-press click (uses the system sound, so it respects the device's sound-effect volume).
-    private val audio: android.media.AudioManager? by lazy {
-        context.getSystemService(Context.AUDIO_SERVICE) as? android.media.AudioManager
-    }
+    // Optional key-press click: a soft, short bundled "tock" (res/raw/key_click) in the spirit of the
+    // iOS keyboard, played quietly through SoundPool — quieter and more consistent than the loud system
+    // FX_KEYPRESS effect, which varies by device. Created lazily on first use, released on detach.
+    private var soundPool: android.media.SoundPool? = null
+    private var keyClickId = 0
     private fun playKeySound() {
         if (!Prefs.soundEnabled(context)) return
-        runCatching { audio?.playSoundEffect(android.media.AudioManager.FX_KEYPRESS_STANDARD) }
+        var pool = soundPool
+        if (pool == null) {
+            pool = android.media.SoundPool.Builder()
+                .setMaxStreams(4)
+                .setAudioAttributes(
+                    android.media.AudioAttributes.Builder()
+                        .setUsage(android.media.AudioAttributes.USAGE_ASSISTANCE_SONIFICATION)
+                        .setContentType(android.media.AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                        .build(),
+                )
+                .build()
+            soundPool = pool
+            keyClickId = runCatching { pool.load(context, R.raw.key_click, 1) }.getOrDefault(0)
+        }
+        if (keyClickId != 0) runCatching { pool.play(keyClickId, KEY_SOUND_VOLUME, KEY_SOUND_VOLUME, 0, 0, 1f) }
+    }
+
+    private fun releaseSound() {
+        soundPool?.release()
+        soundPool = null
+        keyClickId = 0
     }
 
     /** Hold time before a long-press fires — shorter when the user picks a more sensitive setting. */
@@ -1396,8 +1412,8 @@ class LightKeyboardView @JvmOverloads constructor(
     private fun tap() {                                           // key-press feedback (haptic + sound)
         playKeySound()
         when (Prefs.hapticLevel(context)) {                      // strength from Setup
-            Prefs.HAPTIC_LIGHT -> buzz(18, 130)
-            Prefs.HAPTIC_MEDIUM -> buzz(30, 200)
+            Prefs.HAPTIC_LIGHT -> buzz(30, 200)
+            Prefs.HAPTIC_MEDIUM -> buzz(38, 228)
             Prefs.HAPTIC_STRONG -> buzz(45, 255)
             else -> Unit                                          // off
         }
@@ -1415,7 +1431,8 @@ class LightKeyboardView @JvmOverloads constructor(
     private val BACKSPACE_CHAR_INTERVAL_MS = 95L    // per-character repeat rate
     private val BACKSPACE_WORD_AFTER_MS = 1500L     // after this long holding, delete whole words
     private val BACKSPACE_WORD_INTERVAL_MS = 190L   // per-word repeat rate
-    private val SUGGESTION_STRIP_DP = 32            // height of the suggestion bar when enabled
+    private val SUGGESTION_STRIP_DP = 26            // height of the suggestion bar when enabled
+    private val KEY_SOUND_VOLUME = 0.5f             // soft key-click playback level (0..1)
     private val POPUP_CELL_DP = 38                  // alternates popup: cell width
     private val POPUP_CELL_H_DP = 38                // …and height — kept short so it fits above the key
                                                     //   even at the compact keyboard size

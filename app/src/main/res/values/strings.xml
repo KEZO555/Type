@@ -9,6 +9,7 @@
     <string name="setup_done">Setup complete. It will appear in every text field. Swipe down on the keyboard to close it.</string>
     <string name="setup_autocorrect">Autocorrect</string>
     <string name="setup_autocorrect_sub">Fix misspellings as you type, using built-in English and Hebrew dictionaries that also learn the words you use. Works fully offline. Other languages can download a dictionary in Languages.</string>
+    <string name="back">‹ Back</string>
     <string name="setup_suggestions">Suggestion bar</string>
     <string name="setup_suggestions_sub">Show a strip of tap-able word completions above the keys as you type. Off by default to keep the keyboard minimal.</string>
     <string name="setup_languages">Languages</string>

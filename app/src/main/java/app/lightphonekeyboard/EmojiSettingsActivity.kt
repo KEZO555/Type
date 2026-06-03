@@ -39,10 +39,10 @@ class EmojiSettingsActivity : AppCompatActivity() {
             LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT,
         ).apply { topMargin = (16 * density).toInt() })
 
-        setContentView(ScrollView(this).apply {
+        setContentView(withBackBar(ScrollView(this).apply {
             setBackgroundColor(getColor(R.color.black))
             addView(root)
-        })
+        }))
     }
 
     private fun buildGrid(): LinearLayout {

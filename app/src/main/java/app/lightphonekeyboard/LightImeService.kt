@@ -468,8 +468,10 @@ class LightImeService : InputMethodService(), LightKeyboardView.Listener {
     private fun updateSuggestions() {
         val kb = keyboard ?: return
         if (!Prefs.suggestions(this)) { kb.setSuggestions(emptyList()); return }
+        val dict = Dictionaries.get(langCode)
+        dict?.prepare(this)   // warm on demand (idempotent) so enabling the bar mid-session works too
         val word = trailingWord()
-        val raw = if (word.length >= 2) Dictionaries.get(langCode)?.completions(word, 3).orEmpty() else emptyList()
+        val raw = if (word.length >= 2) dict?.completions(word, 3).orEmpty() else emptyList()
         kb.setSuggestions(raw.map { applyCase(word, it) })
     }
 

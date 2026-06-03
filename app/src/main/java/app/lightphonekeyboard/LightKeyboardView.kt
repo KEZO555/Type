@@ -90,14 +90,12 @@ class LightKeyboardView @JvmOverloads constructor(
         const val SET_AUTOCAP = "__SET_CAP__"
         const val SET_DBLSPACE = "__SET_DSP__"
         const val SET_KBHEIGHT = "__SET_KBH__"
-        const val SET_VOICE = "__SET_VOICE__"
+        const val SET_SUGGEST = "__SET_SUGGEST__"
         const val SET_DONE = "__SET_DONE__"
         const val SET_ALL = "__SET_ALL__"
     }
 
     // The quick-settings panel: one full-width tappable row per setting, then a Done / All-settings row.
-    // Voice appears only when the model is already downloaded (toggling a download here would have no
-    // progress UI — use the full settings for that).
     private fun settingsRows(): List<List<String>> {
         val rows = ArrayList<List<String>>(7)
         rows.add(listOf(Key.SET_HAPTIC))
@@ -105,7 +103,7 @@ class LightKeyboardView @JvmOverloads constructor(
         rows.add(listOf(Key.SET_AUTOCAP))
         rows.add(listOf(Key.SET_DBLSPACE))
         rows.add(listOf(Key.SET_KBHEIGHT))
-        if (VoiceModel.isInstalled(context)) rows.add(listOf(Key.SET_VOICE))
+        rows.add(listOf(Key.SET_SUGGEST))
         rows.add(listOf(Key.SET_DONE, Key.SET_ALL))
         return rows
     }
@@ -727,7 +725,7 @@ class LightKeyboardView @JvmOverloads constructor(
             Key.SET_DBLSPACE -> "Double-space  ." to onOff(Prefs.doubleSpacePeriod(context))
             Key.SET_KBHEIGHT ->
                 "Keyboard size" to listOf("Compact", "Normal", "Tall")[Prefs.keyboardHeight(context).coerceIn(0, 2)]
-            Key.SET_VOICE -> "Voice" to onOff(Prefs.voiceEnabled(context))
+            Key.SET_SUGGEST -> "Suggestion bar" to onOff(Prefs.suggestions(context))
             Key.SET_DONE -> "Done" to null
             Key.SET_ALL -> "All settings  ›" to null
             else -> "" to null
@@ -1210,7 +1208,8 @@ class LightKeyboardView @JvmOverloads constructor(
             Key.SET_KBHEIGHT -> {
                 Prefs.setKeyboardHeight(context, (Prefs.keyboardHeight(context) + 1) % 3); rebuild()
             }
-            Key.SET_VOICE -> { Prefs.setVoiceEnabled(context, !Prefs.voiceEnabled(context)); invalidate() }
+            // Toggling the suggestion bar changes the keyboard's height (the strip), so re-measure.
+            Key.SET_SUGGEST -> { Prefs.setSuggestions(context, !Prefs.suggestions(context)); rebuild() }
             Key.SET_DONE -> { layer = Layer.LETTERS; rebuild() }
             Key.SET_ALL -> listener?.onOpenSettings()
             Key.MIC -> listener?.onMic()

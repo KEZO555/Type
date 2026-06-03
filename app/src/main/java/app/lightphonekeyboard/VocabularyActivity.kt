@@ -18,7 +18,7 @@ class VocabularyActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(buildContent())
+        setContentView(withBackBar(buildContent()))
     }
 
     private fun buildContent(): ScrollView {

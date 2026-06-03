@@ -15,9 +15,9 @@ import kotlin.math.abs
  * phone. Keystrokes from [LightKeyboardView] are applied to the focused field via InputConnection.
  *
  * Optional word-level autocorrect (toggle in [SetupActivity]) runs on top: when a word is finished
- * (space / punctuation / enter) we look it up in the bundled frequency dictionary for the active
- * language ([EnglishWords] / [HebrewDictionary], plus your learned words) and swap in the most likely
- * fix. Case is preserved, and the first backspace after a correction reverts it.
+ * (space / punctuation / enter) we look it up in the active language's frequency dictionary (via
+ * [Dictionaries], plus your learned words) and swap in the most likely fix. Case is preserved, and the
+ * first backspace after a correction reverts it.
  */
 class LightImeService : InputMethodService(), LightKeyboardView.Listener {
 
@@ -68,14 +68,10 @@ class LightImeService : InputMethodService(), LightKeyboardView.Listener {
         updateShift()
     }
 
-    /** Warm the autocorrect dictionary for [code], if one exists for that language. */
+    /** Warm the autocorrect dictionary for [code] (bundled languages always; downloadable ones only
+     *  once the user has downloaded them — [WordDictionary.prepare] no-ops otherwise). */
     private fun prepareDict(code: String) {
-        when (code) {
-            "en" -> EnglishWords.prepare(this)
-            "he" -> HebrewDictionary.prepare(this)
-            // Other languages: load the on-demand dictionary if the user has downloaded it.
-            else -> Dictionaries.get(code)?.prepare(this)
-        }
+        Dictionaries.get(code)?.prepare(this)
     }
 
     override fun onDestroy() {
@@ -461,30 +457,21 @@ class LightImeService : InputMethodService(), LightKeyboardView.Listener {
     private fun autocorrectOn(): Boolean = Prefs.autocorrect(this)
 
     /**
-     * The autocorrection for a finished [word], or null. English & Hebrew use their bundled frequency
-     * dictionary (+ your learned words); the other languages use one downloaded on demand. Either way:
-     * the highest-frequency real word within a small edit distance of what you typed. A language with no
-     * dictionary downloaded returns null (no correction).
+     * The autocorrection for a finished [word], or null: the highest-frequency real word within a small
+     * edit distance of what you typed (+ your learned words). A language whose dictionary isn't loaded
+     * — e.g. a downloadable one you haven't downloaded — returns null (no correction).
      */
     private fun autocorrectFix(word: String): String? {
         if (!autocorrectOn() || word.length < 3) return null
-        return when (langCode) {
-            "en" -> EnglishWords.correct(word)
-            "he" -> HebrewDictionary.correct(word)
-            else -> Dictionaries.get(langCode)?.correct(word)
-        }
+        return Dictionaries.get(langCode)?.correct(word)
     }
 
-    /** Remember a word the user typed, in the active language's dictionary (if it has one loaded). */
+    /** Remember a word the user typed, in the active language's dictionary. Gated on the dictionary
+     *  being loaded so we don't clobber the saved learned-words file before it's read, nor hoard words
+     *  for a downloadable language the user hasn't set up. */
     private fun learnTyped(word: String) {
         if (word.length < 2) return
-        when (langCode) {
-            "en" -> EnglishWords.learn(this, word)
-            "he" -> HebrewDictionary.learn(this, word)
-            // Only once the downloadable dictionary is loaded, so we don't hoard words for a language
-            // the user hasn't set up autocorrect for.
-            else -> Dictionaries.get(langCode)?.takeIf { it.ready }?.learn(this, word)
-        }
+        Dictionaries.get(langCode)?.takeIf { it.ready }?.learn(this, word)
     }
 
     // How many times an unfamiliar word has been typed this session (cleared if it grows large). Lets us

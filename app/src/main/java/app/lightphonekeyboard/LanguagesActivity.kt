@@ -46,10 +46,10 @@ class LanguagesActivity : AppCompatActivity() {
             if (l.dictUrl != null) root.addView(dictButton(l))
         }
 
-        setContentView(ScrollView(this).apply {
+        setContentView(withBackBar(ScrollView(this).apply {
             setBackgroundColor(getColor(R.color.black))
             addView(root)
-        })
+        }))
     }
 
     /** The download / delete control for one downloadable-dictionary language. Reflects its state and

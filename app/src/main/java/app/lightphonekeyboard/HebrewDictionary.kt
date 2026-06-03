@@ -107,6 +107,26 @@ object HebrewDictionary {
         scheduleSave()
     }
 
+    /** Words you've taught the keyboard, most-used first (loaded from disk if not already in memory). */
+    fun learnedWords(context: Context): List<String> {
+        if (learned.isEmpty()) { appContext = context.applicationContext; loadLearned(context.applicationContext) }
+        return learned.entries.sortedByDescending { it.value }.map { it.key }
+    }
+
+    /** Forget one learned word. */
+    fun forget(context: Context, word: String) {
+        if (learned.remove(word) != null) {
+            memo.clear(); appContext = context.applicationContext; scheduleSave()
+        }
+    }
+
+    /** Forget every learned word. */
+    fun clearLearned(context: Context) {
+        learned.clear(); memo.clear()
+        main.removeCallbacks(saveRunnable)
+        runCatching { File(context.applicationContext.filesDir, LEARNED_FILE).delete() }
+    }
+
     private val saveRunnable = Runnable { writeLearned() }
     private fun scheduleSave() {
         main.removeCallbacks(saveRunnable)

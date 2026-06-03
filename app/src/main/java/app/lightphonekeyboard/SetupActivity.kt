@@ -97,6 +97,11 @@ class SetupActivity : AppCompatActivity() {
             Prefs.setAutocorrect(this, it)
         }
         val autocorrectSub = label(getString(R.string.setup_autocorrect_sub), 14f, R.color.gray)
+        // My words — opens the learned-vocabulary screen.
+        val vocabRow = stepRow(getString(R.string.setup_vocab)) {
+            startActivity(Intent(this, VocabularyActivity::class.java))
+        }
+        val vocabSub = label(getString(R.string.setup_vocab_sub), 14f, R.color.gray)
         val autoCapToggle = toggle(R.string.setup_auto_cap, Prefs.autoCap(this)) {
             Prefs.setAutoCap(this, it)
         }
@@ -166,6 +171,7 @@ class SetupActivity : AppCompatActivity() {
             titleView, blurbView, step1, step2, doneView,
             languagesRow, languagesSub,
             autocorrectToggle, autocorrectSub,
+            vocabRow, vocabSub,
             autoCapToggle, autoCapSub,
             doubleSpaceToggle, doubleSpaceSub,
             hapticBtn, hapticSub,

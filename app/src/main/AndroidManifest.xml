@@ -66,5 +66,12 @@
             android:exported="false"
             android:label="@string/setup_languages"
             android:screenOrientation="portrait" />
+
+        <!-- My words: view / clear the vocabulary the keyboard has learned. -->
+        <activity
+            android:name=".VocabularyActivity"
+            android:exported="false"
+            android:label="@string/setup_vocab"
+            android:screenOrientation="portrait" />
     </application>
 </manifest>

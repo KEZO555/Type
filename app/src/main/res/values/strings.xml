@@ -26,6 +26,11 @@
     <string name="setup_tip">Tip: hold the globe key (⚙) on the keyboard for a quick-settings panel — haptics, autocorrect, auto-capitalize, double-space and keyboard size, without leaving the app you\'re in.</string>
     <string name="setup_emoji">Emoji</string>
     <string name="setup_emoji_sub">Tap to choose which emoji appear in the keyboard\'s emoji panel. Dim = hidden.</string>
+    <string name="setup_vocab">My words</string>
+    <string name="setup_vocab_sub">Words the keyboard learned as you typed. Tap a word to forget it.</string>
+    <string name="vocab_empty">No saved words yet. As you type new words, they\'ll be added here.</string>
+    <string name="vocab_clear">Clear all words</string>
+    <string name="vocab_truncated">+ %1$d more</string>
     <string name="setup_voice">Voice dictation</string>
     <string name="setup_voice_sub">English is private and on-device (downloads 40 MB once). Hebrew uses the phone\'s own voice service, which may need a connection.</string>
     <string name="setup_voice_clear">Delete voice model (frees ~40 MB)</string>

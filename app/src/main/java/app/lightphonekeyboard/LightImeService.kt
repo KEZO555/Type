@@ -448,6 +448,7 @@ class LightImeService : InputMethodService(), LightKeyboardView.Listener {
         super.onFinishInputView(finishingInput)
         currentInputConnection?.finishComposingText()
         if (micActive) { micActive = false; dictation.destroy(); sysDictation.destroy(); keyboard?.stopListeningUi() }
+        barWords = emptyList(); barLiteralIndex = -1
         keyboard?.setSuggestions(emptyList())
         broadcastImeVisible(false)
     }
@@ -463,29 +464,64 @@ class LightImeService : InputMethodService(), LightKeyboardView.Listener {
     /** A dictionary is needed if either autocorrect or the suggestion bar is on. */
     private fun dictNeeded(): Boolean = Prefs.autocorrect(this) || Prefs.suggestions(this)
 
-    /** Recompute the word completions for what's being typed and push them to the suggestion bar. They're
-     *  shown in the case they'll be inserted in (so a capitalized word's completions read capitalized). */
+    // The word each suggestion-bar slot inserts, and which slot is the user's literal word (tap = keep
+    // it as typed). Rebuilt by [updateSuggestions]; read by [onSuggestionPicked].
+    private var barWords: List<String> = emptyList()
+    private var barLiteralIndex = -1
+
+    /**
+     * Recompute the suggestion bar for the word being typed and push it. When autocorrect would change
+     * the word, the bar leads with the **correction** (highlighted — what space will apply) next to the
+     * user's **literal word** (quoted — tap to keep it), then a completion if room. Otherwise it's just
+     * the prefix completions. All shown in the case they'll be inserted in.
+     */
     private fun updateSuggestions() {
         val kb = keyboard ?: return
-        if (!Prefs.suggestions(this)) { kb.setSuggestions(emptyList()); return }
+        if (!Prefs.suggestions(this)) { barWords = emptyList(); barLiteralIndex = -1; kb.setSuggestions(emptyList()); return }
         val dict = Dictionaries.get(langCode)
         dict?.prepare(this)   // warm on demand (idempotent) so enabling the bar mid-session works too
         val word = trailingWord()
-        val raw = if (word.length >= 2) dict?.completions(word, 3).orEmpty() else emptyList()
-        kb.setSuggestions(raw.map { applyCase(word, it) })
+        if (word.length < 2 || dict == null) { barWords = emptyList(); barLiteralIndex = -1; kb.setSuggestions(emptyList()); return }
+
+        // The correction space would auto-apply (only when autocorrect is on and it actually differs).
+        val correction = if (autocorrectOn()) dict.correct(word)?.takeIf { !it.equals(word, ignoreCase = true) } else null
+        val completions = dict.completions(word, 3)
+        val words = ArrayList<String>(3)
+        var primary = -1
+        var literal = -1
+        if (correction != null) {
+            words.add(applyCase(word, correction)); primary = 0   // highlighted: what space applies
+            words.add(word); literal = 1                          // the user's own word, kept on tap
+            for (c in completions) {                              // fill the third slot if there's room
+                if (words.size >= 3) break
+                val cased = applyCase(word, c)
+                if (words.none { it.equals(cased, ignoreCase = true) }) words.add(cased)
+            }
+        } else {
+            for (c in completions) words.add(applyCase(word, c))
+        }
+        barWords = words
+        barLiteralIndex = literal
+        kb.setSuggestions(words, primary, literal)
     }
 
-    /** A suggestion-bar word was tapped: replace the word being typed with it (case-matched) + a space. */
-    override fun onSuggestionPicked(word: String) {
+    /** A suggestion-bar slot was tapped. The literal slot keeps the typed word (and learns it so it's no
+     *  longer corrected); any other slot replaces the word with that completion/correction + a space. */
+    override fun onSuggestionPicked(index: Int) {
+        if (index !in barWords.indices) return
+        if (index == barLiteralIndex) {
+            learnTyped(trailingWord())   // "this is a real word" — stop correcting it, no text change
+            updateSuggestions()          // refresh: the correction is gone now
+            return
+        }
         val ic = currentInputConnection ?: return
         clearUndo()
         val original = trailingWord()
-        val cased = applyCase(original, word)
         ic.beginBatchEdit()
         if (original.isNotEmpty()) ic.deleteSurroundingText(original.length, 0)
-        ic.commitText("$cased ", 1)
+        ic.commitText("${barWords[index]} ", 1)
         ic.endBatchEdit()
-        learnTyped(word)            // tapping a word counts as using it
+        learnTyped(barWords[index])      // tapping a word counts as using it
         // onUpdateSelection fires from the commit and refreshes the bar (now empty — the word is done).
     }
 

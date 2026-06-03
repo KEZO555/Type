@@ -113,6 +113,52 @@ class WordDictionary(
         return fix
     }
 
+    // Lexically-sorted view of the dictionary keys, built once on first use, for prefix completion: a
+    // binary search to the prefix range then a short scan of just that range. freq is never mutated
+    // after loading, so this stays valid; learned words (added later) are scanned separately below.
+    @Volatile
+    private var sorted: Array<String>? = null
+
+    private fun sortedWords(): Array<String> =
+        sorted ?: freq.keys.toTypedArray().also { it.sort(); sorted = it }
+
+    /**
+     * Up to [limit] word completions of [prefix], most-frequent first (your learned words weighted in).
+     * Empty until the dictionary is loaded, or for a prefix shorter than 2 (too many, unhelpful matches).
+     * The prefix itself is excluded — only genuine continuations are offered.
+     */
+    fun completions(prefix: String, limit: Int = 3): List<String> {
+        if (!ready) return emptyList()
+        val p = prefix.lowercase()
+        if (p.length < 2) return emptyList()
+        val arr = sortedWords()
+        // Lower bound: first index whose word is >= the prefix.
+        var lo = 0; var hi = arr.size
+        while (lo < hi) { val mid = (lo + hi) ushr 1; if (arr[mid] < p) lo = mid + 1 else hi = mid }
+        val topW = arrayOfNulls<String>(limit)
+        val topF = LongArray(limit) { -1L }
+        var i = lo
+        while (i < arr.size && arr[i].startsWith(p)) {
+            val w = arr[i]
+            if (w != p) insertTop(topW, topF, w, freq[w] ?: 0L)
+            i++
+        }
+        // Learned words live outside the sorted dictionary array, so scan them too (the set is small).
+        for ((w, c) in learned) {
+            if (w.length > p.length && w.startsWith(p) && w !in freq) insertTop(topW, topF, w, c * LEARN_WEIGHT)
+        }
+        return topW.filterNotNull()
+    }
+
+    /** Keep [topW]/[topF] as a descending top-N list: insert ([w],[f]) if it beats the smallest kept. */
+    private fun insertTop(topW: Array<String?>, topF: LongArray, w: String, f: Long) {
+        var pos = topF.size
+        while (pos > 0 && f > topF[pos - 1]) pos--
+        if (pos >= topF.size) return
+        for (k in topF.size - 1 downTo pos + 1) { topF[k] = topF[k - 1]; topW[k] = topW[k - 1] }
+        topF[pos] = f; topW[pos] = w
+    }
+
     /** Remember a word the user typed (and kept). Becomes known and rankable; persisted (debounced).
      *  Only this language's own letters, length 2..[maxLearnLen]. */
     fun learn(context: Context, word: String) {

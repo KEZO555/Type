@@ -6,6 +6,7 @@ import android.content.Context
 object Prefs {
     private const val FILE = "light_keyboard_prefs"
     private const val KEY_AUTOCORRECT = "autocorrect"
+    private const val KEY_SUGGESTIONS = "suggestion_bar"
     private const val KEY_VOICE = "voice_enabled"
     private const val KEY_NUMBER_ROW = "number_row"
     private const val KEY_HAPTIC = "haptic_level"
@@ -40,6 +41,13 @@ object Prefs {
 
     fun setAutocorrect(c: Context, value: Boolean) =
         prefs(c).edit().putBoolean(KEY_AUTOCORRECT, value).apply()
+
+    /** Suggestion bar: a strip of tap-able word completions above the keys. Off by default (keeps the
+     *  default keyboard minimal). */
+    fun suggestions(c: Context): Boolean = prefs(c).getBoolean(KEY_SUGGESTIONS, false)
+
+    fun setSuggestions(c: Context, value: Boolean) =
+        prefs(c).edit().putBoolean(KEY_SUGGESTIONS, value).apply()
 
     /** Voice dictation (mic key + offline STT). Off by default; turning it on downloads the model. */
     fun voiceEnabled(c: Context): Boolean = prefs(c).getBoolean(KEY_VOICE, false)

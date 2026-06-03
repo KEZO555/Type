@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Light Keyboard</string>
-    <string name="setup_title">Light Keyboard</string>
+    <string name="app_name">Type</string>
+    <string name="setup_title">Type</string>
     <string name="setup_blurb">A minimal black-and-white keyboard for the Light Phone. Two quick steps:</string>
-    <string name="setup_step1">1. Enable Light Keyboard</string>
+    <string name="setup_step1">1. Enable Type</string>
     <string name="setup_step2">2. Choose it as your keyboard</string>
     <string name="setup_enabled">✓ Enabled</string>
     <string name="setup_done">Setup complete. It will appear in every text field. Swipe down on the keyboard to close it.</string>

@@ -43,11 +43,12 @@ object Languages {
     private const val SH = "__SHIFT__"
     private const val BK = "__BKSP__"
 
-    // On-demand autocorrect dictionaries are pulled from hermitdave/FrequencyWords — the same
-    // OpenSubtitles "word<space>count" lists the bundled tools build from — and filtered to the
-    // language's own letters on the way down (see DictModel). Kept off the APK so it stays small.
+    // On-demand autocorrect dictionaries are hosted on the project's own "dicts-v1" release: cleaned,
+    // filtered "word<space>count" lists (~0.5 MB each) built by tools/gen_lang.py from
+    // hermitdave/FrequencyWords. Self-hosting keeps downloads small and reliable (DictModel also
+    // re-filters to the language's letters as a safety net). Kept off the APK so it stays small.
     private fun freqWordsUrl(code: String) =
-        "https://raw.githubusercontent.com/hermitdave/FrequencyWords/master/content/2018/$code/${code}_50k.txt"
+        "https://github.com/KEZO555/light-keyboard/releases/download/dicts-v1/$code.txt"
 
     private val QWERTY = listOf(
         listOf("q", "w", "e", "r", "t", "y", "u", "i", "o", "p"),

@@ -6,11 +6,11 @@ A faithful recreation of the Light Phone 3 keyboard, as a system keyboard for an
 > Built on [**light-keyboard**](https://github.com/adam-weber/light-keyboard) by
 > [**Adam Weber**](https://github.com/adam-weber), extended with more languages, voice dictation, and more.
 
-**Languages (9):** English, Hebrew, Spanish, French, German, Italian, Portuguese, Arabic, and Mandarin (QWERTY pinyin) — each with its own layout and long-press accents. Only English is built in; every other language downloads its dictionary automatically when you enable it, then works fully offline.
+**Languages (13):** English, Hebrew, Spanish, French, German, Italian, Portuguese, Arabic, Mandarin (QWERTY pinyin), Dutch (QWERTY + Belgian AZERTY), Russian, and Polish — each with its own layout and long-press accents. Only English is built in; every other language downloads its dictionary automatically when you enable it, then works fully offline.
 
 **Typing:** offline autocorrect (keyboard-aware, with a distance-2 fallback) that learns your vocabulary in every language · a suggestion bar with next-word prediction · auto-capitalize · double-space for period · Hebrew final-letter forms.
 
-**Voice dictation (optional, on-device):** English, Spanish, French, German, Italian, Portuguese via downloadable Vosk models; Hebrew via the phone's recognizer.
+**Voice dictation (optional, on-device):** English, Spanish, French, German, Italian, Portuguese, Dutch, Russian, Polish via downloadable Vosk models; Hebrew via the phone's recognizer.
 
 **Make it yours:** emoji picker, haptics, key-press sound, long-press delay, cursor-swipe sensitivity, keyboard height, number row — plus a quick-settings panel on the globe long-press.
 
@@ -18,8 +18,9 @@ Optional autocorrect, word suggestions with next-word prediction, and optional v
 down on the keyboard to hide it.
 
 **Multiple languages.** Choose which languages the globe key cycles through in **Settings → Languages**:
-English, Hebrew, Spanish, French, German, Italian, Portuguese, Arabic and Mandarin pinyin (each with its
-own layout and long-press accents). The emoji key opens emoji.
+English, Hebrew, Spanish, French, German, Italian, Portuguese, Arabic, Mandarin pinyin, Dutch (QWERTY +
+Belgian AZERTY), Russian and Polish (each with its own layout and long-press accents). The emoji key
+opens emoji.
 
 **Modular — only English is built in.** To keep the base app small, only English ships its autocorrect
 dictionary inside the APK. Every other language **downloads** its dictionary (~0.4–0.6 MB) automatically
@@ -39,6 +40,12 @@ learned words and next-word prediction.
   QWERTZ) and accents on the 123-key long-press; download offline autocorrect, then learn your words.
   Each also has its own optional **offline voice model** (~30–48 MB) on that screen — fully on-device,
   the same as English.
+- **Dutch** — two layouts to choose from: **QWERTY** (Netherlands) and **AZERTY** (Belgium/Flanders),
+  both with Dutch accents on the 123-key long-press; downloads offline autocorrect and an offline voice model.
+- **Russian** — standard ЙЦУКЕН (Cyrillic) layout, with `ё` and `ъ` on the 123-key long-press; downloads
+  offline autocorrect and an offline voice model.
+- **Polish** — QWERTY with the Polish diacritics (ą ć ę ł ń ó ś ź ż) on the 123-key long-press; downloads
+  offline autocorrect and an offline voice model.
 
 ## Install
 
@@ -63,10 +70,10 @@ Open Type. The setup screen holds everything:
 The settings below it:
 
 - **Languages**: choose which languages the globe key (bottom row) cycles through; the emoji key opens
-  emoji. English, Hebrew, Spanish, French, German, Italian, Portuguese, Arabic and Mandarin pinyin. Only
-  English's autocorrect dictionary is built in — every other language **downloads** its dictionary
-  automatically when you turn it on here, then works fully offline. Hebrew and Arabic are caseless, so
-  they have no shift key.
+  emoji. English, Hebrew, Spanish, French, German, Italian, Portuguese, Arabic, Mandarin pinyin, Dutch
+  (QWERTY + Belgian AZERTY), Russian and Polish. Only English's autocorrect dictionary is built in —
+  every other language **downloads** its dictionary automatically when you turn it on here, then works
+  fully offline. Hebrew and Arabic are caseless, so they have no shift key.
 - **Autocorrect** (on by default): fixes misspellings as you type, using the active language's frequency
   dictionary (English built in, the rest downloaded) which also learns the words you use. Keyboard-aware
   (it prefers a neighbouring-key slip or a swapped pair), with a conservative distance-2 fallback for
@@ -92,10 +99,10 @@ The settings below it:
   (recently-used still float to the front).
 - **Voice dictation** (off by default): turn it on, then download a language's offline model from
   **Settings → Languages**. A mic appears on the period key — long-press it (or tap the mic) to speak
-  instead of type, fully on-device. **English, Spanish, French, German, Italian and Portuguese** have
-  offline voice models (~30–48 MB each). **Hebrew** has no offline model, so it falls back to the phone's
-  own voice service (which a de-Googled Light Phone may not have). **Arabic and Mandarin** have no voice.
-  Tap a downloaded model again to delete it and reclaim the space.
+  instead of type, fully on-device. **English, Spanish, French, German, Italian, Portuguese, Dutch,
+  Russian and Polish** have offline voice models (~30–50 MB each). **Hebrew** has no offline model, so it
+  falls back to the phone's own voice service (which a de-Googled Light Phone may not have). **Arabic and
+  Mandarin** have no voice. Tap a downloaded model again to delete it and reclaim the space.
 
 That is the whole setup.
 

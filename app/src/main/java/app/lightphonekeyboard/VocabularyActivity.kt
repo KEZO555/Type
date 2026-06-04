@@ -1,16 +1,13 @@
 package app.lightphonekeyboard
 
 import android.os.Bundle
-import android.view.Gravity
-import android.widget.Button
 import android.widget.LinearLayout
-import android.widget.ScrollView
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 
 /**
- * "My words" — the vocabulary you've taught the keyboard (words it learned as you typed), grouped by
- * language. Tap a word to forget it; or clear everything. Reads the per-language learned dictionaries.
+ * "My words" — the vocabulary you've taught the keyboard, grouped by language. Tap a word to forget it,
+ * or clear everything. LightOS template style (see [LightUi]).
  */
 class VocabularyActivity : AppCompatActivity() {
 
@@ -18,90 +15,64 @@ class VocabularyActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(withBackBar(buildContent()))
+        render()
     }
 
-    private fun buildContent(): ScrollView {
-        val pad = (24 * resources.displayMetrics.density).toInt()
-        val root = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(pad, pad, pad, pad)
-        }
-        fun label(text: String, size: Float, color: Int) = TextView(this).apply {
-            this.text = text
-            setTextColor(getColor(color))
-            textSize = size
-            setPadding(0, pad / 3, 0, pad / 3)
-        }
-
-        root.addView(label(getString(R.string.setup_vocab), 28f, R.color.white))
-        root.addView(label(getString(R.string.setup_vocab_sub), 14f, R.color.gray))
-
-        var total = 0
-        // Every language with a dictionary, in globe order (English, Hebrew, then the rest).
-        val dicts = Languages.ALL.mapNotNull { l -> Dictionaries.get(l.code)?.let { l to it } }
-        for ((l, dict) in dicts) {
-            total += addSection(root, l.name, dict.learnedWords(this)) { dict.forget(this, it) }
-        }
-
-        if (total == 0) {
-            root.addView(label(getString(R.string.vocab_empty), 16f, R.color.gray))
-        } else {
-            val clear = Button(this).apply {
-                text = getString(R.string.vocab_clear)
-                isAllCaps = false
-                textSize = 18f
-                setTextColor(getColor(R.color.white))
-                setBackgroundColor(getColor(R.color.black))
-                gravity = Gravity.START or Gravity.CENTER_VERTICAL
-                setPadding(0, pad, 0, pad)
-                setOnClickListener {
-                    for ((_, dict) in dicts) dict.clearLearned(this@VocabularyActivity)
-                    recreate()
+    private fun render() {
+        setContentView(LightUi.screen(this, getString(R.string.setup_vocab)) { content ->
+            LightUi.hint(content, getString(R.string.setup_vocab_sub))
+            val dicts = Languages.ALL.mapNotNull { l -> Dictionaries.get(l.code)?.let { l to it } }
+            var total = 0
+            for ((l, dict) in dicts) {
+                val words = dict.learnedWords(this)
+                if (words.isEmpty()) continue
+                total += words.size
+                sectionLabel(content, "${l.name}  ·  ${words.size}")
+                for (w in words.take(maxPerLang)) wordRow(content, w) { dict.forget(this, w) }
+                if (words.size > maxPerLang) {
+                    LightUi.hint(content, getString(R.string.vocab_truncated, words.size - maxPerLang))
                 }
             }
-            root.addView(clear)
-        }
-
-        return ScrollView(this).apply {
-            setBackgroundColor(getColor(R.color.black))
-            addView(root)
-        }
-    }
-
-    /** Add a language header + its words (tap to forget). Returns how many words were shown. */
-    private fun addSection(root: LinearLayout, name: String, words: List<String>, forget: (String) -> Unit): Int {
-        if (words.isEmpty()) return 0
-        val pad = (24 * resources.displayMetrics.density).toInt()
-        root.addView(TextView(this).apply {
-            text = "$name  ·  ${words.size}"
-            setTextColor(getColor(R.color.white))
-            textSize = 18f
-            setPadding(0, pad, 0, pad / 4)
+            if (total == 0) {
+                LightUi.hint(content, getString(R.string.vocab_empty))
+            } else {
+                LightUi.navItem(content, getString(R.string.vocab_clear)) {
+                    for ((_, dict) in dicts) dict.clearLearned(this)
+                    render()
+                }
+            }
         })
-        for (w in words.take(maxPerLang)) {
-            val row = TextView(this).apply {
-                text = w
-                setTextColor(getColor(R.color.white))
-                textSize = 18f
-                setPadding(0, (10 * resources.displayMetrics.density).toInt(), 0, (10 * resources.displayMetrics.density).toInt())
-                isClickable = true
-                setOnClickListener {
-                    forget(w)
-                    alpha = 0.25f
-                    isClickable = false
-                }
+    }
+
+    private fun sectionLabel(parent: LinearLayout, text: String) {
+        val d = resources.displayMetrics.density
+        parent.addView(TextView(this).apply {
+            this.text = text
+            textSize = 15f
+            setTextColor(getColor(R.color.gray))
+            val lp = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+            lp.topMargin = (26 * d).toInt()
+            layoutParams = lp
+        })
+    }
+
+    /** A learned word as big text; tap to forget it (the row dims to confirm). */
+    private fun wordRow(parent: LinearLayout, word: String, forget: () -> Unit) {
+        val d = resources.displayMetrics.density
+        val row = TextView(this).apply {
+            text = word
+            textSize = 24f
+            setTextColor(getColor(R.color.white))
+            isClickable = true
+            setOnClickListener {
+                forget()
+                alpha = 0.25f
+                isClickable = false
             }
-            root.addView(row)
+            val lp = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+            lp.topMargin = (12 * d).toInt()
+            layoutParams = lp
         }
-        if (words.size > maxPerLang) {
-            root.addView(TextView(this).apply {
-                text = getString(R.string.vocab_truncated, words.size - maxPerLang)
-                setTextColor(getColor(R.color.gray))
-                textSize = 13f
-                setPadding(0, pad / 4, 0, 0)
-            })
-        }
-        return words.size
+        parent.addView(row)
     }
 }

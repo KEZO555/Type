@@ -5,7 +5,6 @@ import android.os.Bundle
 import android.view.Gravity
 import android.view.View
 import android.widget.LinearLayout
-import android.widget.ScrollView
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 
@@ -13,6 +12,7 @@ import androidx.appcompat.app.AppCompatActivity
  * Standalone emoji picker. A grid of candidate emoji (built from weighted LinearLayout rows, which size
  * reliably — unlike GridLayout column weights); tapping toggles whether each appears in the keyboard's
  * emoji panel (selected = full opacity on a subtle fill, hidden = dimmed). Saved live to [Prefs].
+ * Chromed in the LightOS template style (see [LightUi]).
  */
 class EmojiSettingsActivity : AppCompatActivity() {
 
@@ -20,29 +20,15 @@ class EmojiSettingsActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val density = resources.displayMetrics.density
-        val pad = (24 * density).toInt()
-
-        val root = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(pad, pad, pad, pad)
-        }
-        fun label(text: String, size: Float, color: Int) = TextView(this).apply {
-            this.text = text
-            setTextColor(getColor(color))
-            textSize = size
-            setPadding(0, pad / 3, 0, pad / 3)
-        }
-        root.addView(label(getString(R.string.setup_emoji), 28f, R.color.white))
-        root.addView(label(getString(R.string.setup_emoji_sub), 14f, R.color.gray))
-        root.addView(buildGrid(), LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT,
-        ).apply { topMargin = (16 * density).toInt() })
-
-        setContentView(withBackBar(ScrollView(this).apply {
-            setBackgroundColor(getColor(R.color.black))
-            addView(root)
-        }))
+        setContentView(LightUi.screen(this, getString(R.string.setup_emoji)) { content ->
+            LightUi.hint(content, getString(R.string.setup_emoji_sub))
+            content.addView(
+                buildGrid(),
+                LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT,
+                ).apply { topMargin = (16 * resources.displayMetrics.density).toInt() },
+            )
+        })
     }
 
     private fun buildGrid(): LinearLayout {

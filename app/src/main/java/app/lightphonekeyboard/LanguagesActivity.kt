@@ -1,100 +1,69 @@
 package app.lightphonekeyboard
 
 import android.os.Bundle
-import android.view.Gravity
-import android.widget.Button
-import android.widget.LinearLayout
-import android.widget.ScrollView
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 
 /**
- * Languages screen: toggle which languages the globe key cycles through. Each enabled language has its
- * own layout and long-press accents. English and Hebrew include offline autocorrect in the APK; the
- * other languages offer an autocorrect dictionary that downloads on demand (a small row under each).
+ * Languages screen: toggle which languages the globe key cycles through (a per-language On/Off). English
+ * and Hebrew include offline autocorrect in the APK; the other languages show a small line beneath them
+ * to download (or delete) their autocorrect dictionary on demand. LightOS template style (see [LightUi]).
  */
 class LanguagesActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val pad = (24 * resources.displayMetrics.density).toInt()
-        val root = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(pad, pad, pad, pad)
-        }
-        fun label(text: String, size: Float, color: Int) = TextView(this).apply {
-            this.text = text
-            setTextColor(getColor(color))
-            textSize = size
-            setPadding(0, pad / 3, 0, pad / 3)
-        }
-        root.addView(label(getString(R.string.setup_languages), 28f, R.color.white))
-        root.addView(label(getString(R.string.setup_languages_sub), 14f, R.color.gray))
-
         val enabled = Prefs.enabledLanguages(this).toMutableSet()
-        for (l in Languages.ALL) {
-            val toggle = LightToggle(this).apply {
-                setText(l.name)
-                setPadding(0, pad, 0, 0)
-                isChecked = l.code in enabled
-                setOnCheckedChangeListener { on ->
-                    if (on) enabled.add(l.code) else enabled.remove(l.code)
-                    Prefs.setEnabledLanguages(this@LanguagesActivity, enabled)
-                }
+        setContentView(LightUi.screen(this, getString(R.string.setup_languages)) { content ->
+            LightUi.hint(content, getString(R.string.setup_languages_sub))
+            for (l in Languages.ALL) {
+                LightUi.valueItem(
+                    content,
+                    label = l.name,
+                    value = { if (l.code in enabled) "On" else "Off" },
+                    onClick = {
+                        if (!enabled.remove(l.code)) enabled.add(l.code)
+                        Prefs.setEnabledLanguages(this, enabled)
+                    },
+                )
+                if (l.dictUrl != null) content.addView(dictLine(l))
             }
-            root.addView(toggle)
-            if (l.dictUrl != null) root.addView(dictButton(l))
-        }
-
-        setContentView(withBackBar(ScrollView(this).apply {
-            setBackgroundColor(getColor(R.color.black))
-            addView(root)
-        }))
+        })
     }
 
-    /** The download / delete control for one downloadable-dictionary language. Reflects its state and
-     *  drives [DictModel] when tapped. */
-    private fun dictButton(l: LangDef): Button {
-        val pad = (24 * resources.displayMetrics.density).toInt()
-        val btn = Button(this).apply {
-            isAllCaps = false
-            textSize = 14f
+    /** Small tappable line under a downloadable language: download / progress / installed-tap-to-delete. */
+    private fun dictLine(l: LangDef): TextView {
+        val d = resources.displayMetrics.density
+        val view = TextView(this).apply {
+            textSize = 13f
             setTextColor(getColor(R.color.gray))
-            setBackgroundColor(getColor(R.color.black))
-            gravity = Gravity.START or Gravity.CENTER_VERTICAL
-            setPadding(0, pad / 4, 0, 0)
+            setPadding(0, (4 * d).toInt(), 0, 0)
+            isClickable = true
         }
-        renderDict(btn, l)
-        return btn
+        renderDict(view, l)
+        return view
     }
 
-    /** Idle state: installed → tap to delete; not installed → tap to download. */
-    private fun renderDict(btn: Button, l: LangDef) {
-        btn.isEnabled = true
+    private fun renderDict(view: TextView, l: LangDef) {
         if (DictModel.isInstalled(this, l.code)) {
-            btn.text = getString(R.string.dict_installed)
-            btn.setOnClickListener {
-                DictModel.remove(this, l.code)
-                renderDict(btn, l)
-            }
+            view.text = getString(R.string.dict_installed)
+            view.setOnClickListener { DictModel.remove(this, l.code); renderDict(view, l) }
         } else {
-            btn.text = getString(R.string.dict_download)
-            btn.setOnClickListener { downloadDict(btn, l) }
+            view.text = getString(R.string.dict_download)
+            view.setOnClickListener { downloadDict(view, l) }
         }
     }
 
-    private fun downloadDict(btn: Button, l: LangDef) {
-        btn.isEnabled = false
-        btn.setOnClickListener(null)
-        btn.text = getString(R.string.dict_downloading, 0)
+    private fun downloadDict(view: TextView, l: LangDef) {
+        view.setOnClickListener(null)
+        view.text = getString(R.string.dict_downloading, 0)
         DictModel.install(
             this, l,
-            onProgress = { p -> btn.text = getString(R.string.dict_downloading, p) },
-            onDone = { renderDict(btn, l) },
+            onProgress = { p -> view.text = getString(R.string.dict_downloading, p) },
+            onDone = { renderDict(view, l) },
             onError = { msg ->
-                btn.isEnabled = true
-                btn.text = getString(R.string.dict_failed, msg)
-                btn.setOnClickListener { downloadDict(btn, l) }
+                view.text = getString(R.string.dict_failed, msg)
+                view.setOnClickListener { downloadDict(view, l) }
             },
         )
     }

@@ -224,15 +224,7 @@ class LightImeService : InputMethodService(), LightKeyboardView.Listener {
     }
 
     /** Length (in chars) of the last grapheme cluster of [before]; 1 if empty/unknown. */
-    private fun lastGraphemeLength(before: CharSequence?): Int {
-        if (before.isNullOrEmpty()) return 1
-        val s = before.toString()
-        val it = java.text.BreakIterator.getCharacterInstance()
-        it.setText(s)
-        val end = it.last()
-        val start = it.previous()
-        return if (start == java.text.BreakIterator.DONE) s.length else (end - start)
-    }
+    private fun lastGraphemeLength(before: CharSequence?): Int = TextOps.lastGraphemeLength(before)
 
     override fun onEnter() {
         val ic = currentInputConnection ?: return
@@ -305,10 +297,10 @@ class LightImeService : InputMethodService(), LightKeyboardView.Listener {
         ic.sendKeyEvent(KeyEvent(KeyEvent.ACTION_UP, key))
     }
 
-    // Hebrew letters with distinct word-final forms. Typed text uses the medial form; we snap to the
-    // final form at a word end, and back to medial when the word turns out to continue.
-    private val medialToFinal = mapOf('כ' to 'ך', 'מ' to 'ם', 'נ' to 'ן', 'פ' to 'ף', 'צ' to 'ץ')
-    private val finalToMedial = mapOf('ך' to 'כ', 'ם' to 'מ', 'ן' to 'נ', 'ף' to 'פ', 'ץ' to 'צ')
+    // Hebrew letters with distinct word-final forms (defined + tested in TextOps). Typed text uses the
+    // medial form; we snap to the final form at a word end, and back to medial when the word continues.
+    private val medialToFinal = TextOps.hebrewMedialToFinal
+    private val finalToMedial = TextOps.hebrewFinalToMedial
 
     // A geresh / apostrophe marks a transliterated foreign word (ג׳ = j, צ׳ = ch, ז׳ = zh, ת׳, ד׳ …).
     // Those keep their medial letter at the end — e.g. ג׳יפ, צ׳יפ, ג׳ירף — because the final form would
@@ -565,25 +557,19 @@ class LightImeService : InputMethodService(), LightKeyboardView.Listener {
 
     // ------------------------------------------------------------------ helpers
 
-    private fun isWordChar(c: Char): Boolean = c.isLetter() || c == '\''
+    // Word-boundary, casing and grapheme rules live in the Android-free TextOps (unit-tested); the
+    // service just supplies the text around the cursor from the InputConnection.
+    private fun isWordChar(c: Char): Boolean = TextOps.isWordChar(c)
 
-    /** Characters that "finish" a word and may trigger autocorrect — whitespace + sentence punctuation. */
-    private fun isCorrectTrigger(c: Char): Boolean = c.isWhitespace() || c in ".,!?;:)"
+    private fun isCorrectTrigger(c: Char): Boolean = TextOps.isCorrectTrigger(c)
 
     /** The run of word characters immediately before the cursor. */
     private fun trailingWord(): String {
         val before = currentInputConnection?.getTextBeforeCursor(48, 0) ?: return ""
-        var i = before.length
-        while (i > 0 && isWordChar(before[i - 1])) i--
-        return before.substring(i).toString()
+        return TextOps.trailingWord(before)
     }
 
-    /** Match the suggestion's case to what the user typed (ALL CAPS / Capitalized / lower). */
-    private fun applyCase(original: String, fix: String): String = when {
-        original.length > 1 && original.all { it.isUpperCase() } -> fix.uppercase()
-        original.firstOrNull()?.isUpperCase() == true -> fix.replaceFirstChar { it.uppercaseChar() }
-        else -> fix
-    }
+    private fun applyCase(original: String, fix: String): String = TextOps.applyCase(original, fix)
 
     private fun clearUndo() {
         undoFrom = null

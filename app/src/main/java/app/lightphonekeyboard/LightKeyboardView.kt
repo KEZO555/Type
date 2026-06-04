@@ -166,6 +166,12 @@ class LightKeyboardView @JvmOverloads constructor(
     val isHebrew: Boolean get() = lang.code == "he"
     val langCode: String get() = lang.code
 
+    /** Whether voice dictation is usable for the current language right now (set by the host service):
+     *  voice on, and either this language's offline model is downloaded or a system recognizer exists.
+     *  Gates the mic key on the period. */
+    var voiceAvailable: Boolean = false
+        set(value) { if (field != value) { field = value; invalidate() } }
+
     /** Reopen in the last-used language, but only if it's still enabled; otherwise the first enabled. */
     private fun initialLang(): LangDef {
         val enabled = Prefs.enabledLanguages(context)
@@ -686,9 +692,9 @@ class LightKeyboardView @JvmOverloads constructor(
             textPaint.color = Color.WHITE
             textPaint.textAlign = Paint.Align.CENTER
         }
-        // The period doubles as the voice key (long-press) in English — show a small mic so it's
-        // discoverable. Hidden in Hebrew, where dictation isn't available.
-        if (id == Key.PERIOD && Prefs.voiceEnabled(context) && lang.code == "en") {
+        // The period doubles as the voice key (long-press) — show a small mic so it's discoverable.
+        // Shown only when voice is usable for the current language (model downloaded / recognizer present).
+        if (id == Key.PERIOD && voiceAvailable) {
             val s = dpf(15)
             val d = iconCache.getOrPut(R.drawable.ic_kb_mic) { context.getDrawable(R.drawable.ic_kb_mic)!! }
             val cx = pk.vis.centerX()
@@ -945,10 +951,10 @@ class LightKeyboardView @JvmOverloads constructor(
             spaceDownY = y
             spaceSwiping = false
         }
-        // Long-press: a letter → its symbol; the period → voice (English only — Hebrew dictation isn't
-        // supported on this kind of device); the comma → emoji panel.
+        // Long-press: a letter → its symbol; the period → voice (when usable for this language); the
+        // comma → emoji panel.
         if (hintFor(key.id) != null ||
-            (key.id == Key.PERIOD && Prefs.voiceEnabled(context) && lang.code == "en") ||
+            (key.id == Key.PERIOD && voiceAvailable) ||
             key.id == Key.COMMA
         ) {
             longPressPointerId = pointerId
@@ -980,7 +986,7 @@ class LightKeyboardView @JvmOverloads constructor(
         // Long-press the period → start voice dictation (retract the '.' committed on down).
         if (k.id == Key.PERIOD) {
             endAltLongPress()
-            if (Prefs.voiceEnabled(context)) { tap(); listener?.onBackspace(); listener?.onMic() }
+            if (voiceAvailable) { tap(); listener?.onBackspace(); listener?.onMic() }
             return
         }
         // Long-press the comma key → open the emoji panel (retract the ',' typed on down).

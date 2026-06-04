@@ -19,6 +19,8 @@ accents). The emoji key opens emoji.
 - **Spanish / French / German / Italian / Portuguese** — full typing with their layouts (QWERTY, AZERTY,
   QWERTZ) and accents on the 123-key long-press. Offline autocorrect for these is an optional download
   (~0.6 MB each) from **Settings → Languages**, after which it learns your words like English and Hebrew.
+  Each also has its own optional **offline voice model** (~30–48 MB) on that screen — fully on-device,
+  the same as English.
 
 ## Install
 
@@ -68,10 +70,11 @@ The settings below it:
 - **Number row** (off by default): a persistent row of digits above the letters.
 - **Emoji**: tap a grid of candidate emoji to choose which ones appear in the keyboard's emoji panel
   (recently-used still float to the front).
-- **Voice dictation** (off by default): turning it on downloads the ~40 MB offline English model once,
-  then a mic key lets you speak instead of type. English runs entirely on-device; Hebrew dictation uses
-  the phone's own voice service. Once downloaded, a **Delete voice model** button appears to reclaim the
-  space.
+- **Voice dictation** (off by default): turn it on, then download each language's offline model from
+  **Settings → Languages** (~30–48 MB each). A mic appears on the period key — long-press it (or tap the
+  mic) to speak instead of type, fully on-device. Every language **except Hebrew** has an offline model;
+  Hebrew has no offline model, so it falls back to the phone's own voice service (which a de-Googled Light
+  Phone may not have). Tap a downloaded model again to delete it and reclaim the space.
 
 That is the whole setup.
 
@@ -85,8 +88,8 @@ That is the whole setup.
   or slide off the key to cancel and keep the letter.
 - **Long-press the `123`/`ABC` key** (marked with `◌ָ` in Hebrew, `á` in English) — a picker of vowel
   points (Hebrew) / accented letters (English).
-- **Long-press the period** — starts voice dictation (English only; Hebrew dictation needs a system
-  recognizer most Light Phones don't have).
+- **Long-press the period** — starts voice dictation, in any language whose offline voice model you've
+  downloaded (Hebrew has no offline model and needs a system recognizer most Light Phones don't have).
 - **Double-tap space** — inserts `. ` (sentence end).
 - **Drag the space bar** — moves the cursor like an iPhone trackpad: left/right by character, up/down
   by line.

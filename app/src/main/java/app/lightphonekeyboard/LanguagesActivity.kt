@@ -6,8 +6,9 @@ import androidx.appcompat.app.AppCompatActivity
 
 /**
  * Languages screen: toggle which languages the globe key cycles through (a per-language On/Off). English
- * and Hebrew include offline autocorrect in the APK; the other languages show a small line beneath them
- * to download (or delete) their autocorrect dictionary on demand. LightOS template style (see [LightUi]).
+ * and Hebrew include offline autocorrect in the APK; the other languages show a line to download (or
+ * delete) their autocorrect dictionary on demand. Every language but Hebrew can also download an offline
+ * voice-dictation model here (when voice is enabled). LightOS template style (see [LightUi]).
  */
 class LanguagesActivity : AppCompatActivity() {
 
@@ -27,8 +28,47 @@ class LanguagesActivity : AppCompatActivity() {
                     },
                 )
                 if (l.dictUrl != null) content.addView(dictLine(l))
+                // Offline voice model — shown only while voice is enabled (the master toggle is in Setup).
+                if (l.voiceUrl != null && Prefs.voiceEnabled(this)) content.addView(voiceLine(l))
             }
         })
+    }
+
+    /** Small tappable line under a language: download / progress / installed-tap-to-delete its voice model. */
+    private fun voiceLine(l: LangDef): TextView {
+        val d = resources.displayMetrics.density
+        val view = TextView(this).apply {
+            textSize = 13f
+            setTextColor(getColor(R.color.gray))
+            setPadding(0, (4 * d).toInt(), 0, 0)
+            isClickable = true
+        }
+        renderVoice(view, l)
+        return view
+    }
+
+    private fun renderVoice(view: TextView, l: LangDef) {
+        if (VoiceModel.isInstalled(this, l.code)) {
+            view.text = getString(R.string.voice_installed)
+            view.setOnClickListener { VoiceModel.remove(this, l.code); renderVoice(view, l) }
+        } else {
+            view.text = getString(R.string.voice_download, l.voiceSizeMb)
+            view.setOnClickListener { downloadVoice(view, l) }
+        }
+    }
+
+    private fun downloadVoice(view: TextView, l: LangDef) {
+        view.setOnClickListener(null)
+        view.text = getString(R.string.voice_downloading, 0)
+        VoiceModel.install(
+            this, l.code, l.voiceUrl!!,
+            onProgress = { p -> view.text = getString(R.string.voice_downloading, p) },
+            onDone = { renderVoice(view, l) },
+            onError = { msg ->
+                view.text = getString(R.string.voice_failed, msg)
+                view.setOnClickListener { downloadVoice(view, l) }
+            },
+        )
     }
 
     /** Small tappable line under a downloadable language: download / progress / installed-tap-to-delete. */

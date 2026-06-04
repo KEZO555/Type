@@ -11,46 +11,50 @@ import java.net.URL
 import java.util.zip.ZipInputStream
 
 /**
- * Downloads and installs the offline Vosk speech model on demand, so the APK stays small (the model
- * is ~40MB). Unpacks into internal storage; [VoiceDictation] loads it from there.
+ * Downloads and installs offline Vosk speech models on demand — one per language — so the APK stays
+ * small (each model is ~30–48MB). Unpacks into internal storage; [VoiceDictation] loads it from there.
+ * English keeps its original directory name so models installed by older versions aren't orphaned.
  */
 object VoiceModel {
     private const val TAG = "VoiceModel"
-    // ~40MB small English model. (Could be mirrored on the GitHub release for stability.)
-    const val MODEL_URL = "https://alphacephei.com/vosk/models/vosk-model-small-en-us-0.15.zip"
-    private const val DIR = "vosk-model"
 
-    private val main = Handler(Looper.getMainLooper())
+    /** Per-language model directory. English uses the legacy name for backward compatibility. */
+    fun dir(context: Context, code: String): File =
+        File(context.filesDir, if (code == "en") "vosk-model" else "vosk-$code")
 
-    fun dir(context: Context): File = File(context.filesDir, DIR)
-    fun isInstalled(context: Context): Boolean = File(dir(context), ".ok").exists()
-    fun remove(context: Context) { dir(context).deleteRecursively() }
+    fun isInstalled(context: Context, code: String): Boolean = File(dir(context, code), ".ok").exists()
+    fun remove(context: Context, code: String) { dir(context, code).deleteRecursively() }
 
-    /** Download + unpack on a background thread; callbacks fire on the main thread. */
+    /** Download + unpack [url] (a Vosk model zip) for language [code] on a background thread; callbacks
+     *  fire on the main thread. */
     fun install(
         context: Context,
+        code: String,
+        url: String,
         onProgress: (Int) -> Unit,
         onDone: () -> Unit,
         onError: (String) -> Unit,
     ) {
         Thread {
-            val target = dir(context)
-            val tmp = File(context.cacheDir, "vosk-model.zip")
+            val target = dir(context, code)
+            val tmp = File(context.cacheDir, "vosk-$code.zip")
             try {
                 target.deleteRecursively()
-                download(MODEL_URL, tmp) { p -> main.post { onProgress(p) } }
+                download(url, tmp) { p -> main.post { onProgress(p) } }
                 unzipStripTop(tmp, target)
                 File(target, ".ok").writeText("ok")
                 tmp.delete()
-                Log.i(TAG, "model installed at ${target.absolutePath}")
+                Log.i(TAG, "model[$code] installed at ${target.absolutePath}")
                 main.post { onDone() }
             } catch (e: Exception) {
-                Log.e(TAG, "model install failed", e)
+                Log.e(TAG, "model[$code] install failed", e)
                 tmp.delete(); target.deleteRecursively()
                 main.post { onError(e.message ?: "download failed") }
             }
         }.start()
     }
+
+    private val main = Handler(Looper.getMainLooper())
 
     private fun download(url: String, dest: File, onProgress: (Int) -> Unit) {
         val conn = (URL(url).openConnection() as HttpURLConnection).apply {

@@ -18,6 +18,8 @@ class LangDef(
     val lettersLabel: String = "ABC",       // label on the "back to letters" toggle key
     val dictAsset: String? = null,          // bundled autocorrect dictionary (en/he); null otherwise
     val dictUrl: String? = null,            // downloadable autocorrect dictionary (es/fr/de/it/pt)
+    val voiceUrl: String? = null,           // downloadable offline Vosk voice model (every language but Hebrew)
+    val voiceSizeMb: Int = 0,               // approx download size of that model, for the settings hint
     private val hintsOverride: Map<Char, String>? = null,
 ) {
     /** Long-press a letter → its corner number/symbol. Positional by default; Hebrew overrides. */
@@ -50,6 +52,10 @@ object Languages {
     private fun freqWordsUrl(code: String) =
         "https://github.com/KEZO555/light-keyboard/releases/download/dicts-v1/$code.txt"
 
+    // Offline Vosk speech models (small variants), downloaded on demand like the dictionaries so they
+    // stay off the APK. Hosted by the Vosk project. Hebrew has no Vosk model, so it has no entry here.
+    private fun voskUrl(file: String) = "https://alphacephei.com/vosk/models/$file"
+
     private val QWERTY = listOf(
         listOf("q", "w", "e", "r", "t", "y", "u", "i", "o", "p"),
         listOf("a", "s", "d", "f", "g", "h", "j", "k", "l"),
@@ -61,6 +67,7 @@ object Languages {
         rows = QWERTY,
         accents = listOf("á", "é", "í", "ó", "ú", "à", "è", "ñ", "ç", "ü", "ö", "ä"),
         dictAsset = "en_words.txt",
+        voiceUrl = voskUrl("vosk-model-small-en-us-0.15.zip"), voiceSizeMb = 40,
     )
 
     val HE = LangDef(
@@ -93,6 +100,7 @@ object Languages {
         ),
         accents = listOf("á", "é", "í", "ó", "ú", "ü", "ñ", "¿", "¡"),
         dictUrl = freqWordsUrl("es"),
+        voiceUrl = voskUrl("vosk-model-small-es-0.42.zip"), voiceSizeMb = 39,
     )
 
     val FR = LangDef(
@@ -104,6 +112,7 @@ object Languages {
         ),
         accents = listOf("à", "â", "ç", "é", "è", "ê", "ë", "î", "ï", "ô", "û", "ù", "œ"),
         dictUrl = freqWordsUrl("fr"),
+        voiceUrl = voskUrl("vosk-model-small-fr-0.22.zip"), voiceSizeMb = 41,
     )
 
     val DE = LangDef(
@@ -115,6 +124,7 @@ object Languages {
         ),
         accents = listOf("ä", "ö", "ü", "ß"),
         dictUrl = freqWordsUrl("de"),
+        voiceUrl = voskUrl("vosk-model-small-de-0.15.zip"), voiceSizeMb = 45,
     )
 
     val IT = LangDef(
@@ -122,6 +132,7 @@ object Languages {
         rows = QWERTY,
         accents = listOf("à", "è", "é", "ì", "ò", "ù"),
         dictUrl = freqWordsUrl("it"),
+        voiceUrl = voskUrl("vosk-model-small-it-0.22.zip"), voiceSizeMb = 48,
     )
 
     val PT = LangDef(
@@ -129,6 +140,7 @@ object Languages {
         rows = QWERTY,
         accents = listOf("ã", "õ", "á", "à", "â", "ç", "é", "ê", "í", "ó", "ô", "ú", "ü"),
         dictUrl = freqWordsUrl("pt"),
+        voiceUrl = voskUrl("vosk-model-small-pt-0.3.zip"), voiceSizeMb = 31,
     )
 
     /** All supported languages, in the order the globe cycles them. */

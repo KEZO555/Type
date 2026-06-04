@@ -21,7 +21,7 @@ class WordPredictTest {
     )
     private val known = freqs.keys
     private fun correct(w: String) =
-        WordPredict.bestCorrection(w, alphabet, adj, { it in known }) { freqs[it] ?: 0L }
+        WordPredict.bestCorrection(w, alphabet, adj, { it in known }, { freqs[it] ?: 0L })
 
     // ---- autocorrect ----
 

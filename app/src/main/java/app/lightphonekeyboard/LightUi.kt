@@ -83,17 +83,29 @@ object LightUi {
         return bar
     }
 
-    /** A plain big-text item that does something when tapped (navigate, launch, action). */
+    /** A big-text item that opens another screen / runs an action when tapped. A right-hand chevron
+     *  marks it as navigational (vs. the value items, which change in place). */
     fun navItem(parent: LinearLayout, text: String, hint: String? = null, onClick: () -> Unit) {
         val a = parent.context as Activity
+        val titleRow = LinearLayout(a).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            addView(bigText(a, text), LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+            addView(TextView(a).apply {
+                text = "›"
+                textSize = BIG
+                setTextColor(a.getColor(R.color.gray))
+                setPadding(a.px(8f), 0, 0, 0)
+            })
+        }
         val row = LinearLayout(a).apply {
             orientation = LinearLayout.VERTICAL
             isClickable = true
             setBackgroundResource(a.ripple())
             setOnClickListener { onClick() }
+            addView(titleRow)
+            if (hint != null) addView(hintText(a, hint))
         }
-        row.addView(bigText(a, text))
-        if (hint != null) row.addView(hintText(a, hint))
         parent.addView(row, gapParams(a))
     }
 

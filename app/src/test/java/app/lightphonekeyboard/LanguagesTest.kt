@@ -48,24 +48,26 @@ class LanguagesTest {
         }
     }
 
-    @Test fun everyLanguageHasExactlyOneDictionarySource() {
+    @Test fun noLanguageHasTwoDictionarySources() {
+        // A language may have a bundled dict (en/he), a downloadable one (es/fr/…), or none at all
+        // (typing-only, e.g. Arabic) — but never both.
         for (l in Languages.ALL) {
-            val bundled = l.dictAsset != null
-            val downloaded = l.dictUrl != null
-            assertTrue("${l.code}: needs a dictionary source", bundled || downloaded)
-            assertFalse("${l.code}: can't be both bundled and downloaded", bundled && downloaded)
+            assertFalse("${l.code}: can't be both bundled and downloaded",
+                l.dictAsset != null && l.dictUrl != null)
         }
+        assertNotNull("English should be bundled", Languages.EN.dictAsset)
+        assertNotNull("Hebrew should be bundled", Languages.HE.dictAsset)
     }
 
-    @Test fun everyLanguageButHebrewHasAnOfflineVoiceModel() {
+    @Test fun voiceModelConfigIsConsistent() {
+        // A voice URL and its size hint must agree (both set or both absent). Hebrew has no Vosk model;
+        // Arabic is typing-only (no voice).
         for (l in Languages.ALL) {
-            if (l.code == "he") {
-                assertNull("Hebrew has no Vosk model", l.voiceUrl)   // falls back to the system recognizer
-            } else {
-                assertNotNull("${l.code}: missing voice model URL", l.voiceUrl)
-                assertTrue("${l.code}: voice size hint must be set", l.voiceSizeMb > 0)
-            }
+            assertEquals("${l.code}: voiceUrl and voiceSizeMb must agree",
+                l.voiceUrl != null, l.voiceSizeMb > 0)
         }
+        assertNull("Hebrew has no Vosk model", Languages.HE.voiceUrl)
+        assertNull("Arabic is typing-only", Languages.AR.voiceUrl)
     }
 
     @Test fun hintKeysAllExistOnTheLayout() {

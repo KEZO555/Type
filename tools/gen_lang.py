@@ -25,6 +25,9 @@ ALPHABETS = {
     "ar": "ابتثجحخدذرزسشصضطظعغفقكلمنهويةىءأإآؤئ",
     # Mandarin pinyin (romanized) — lowercase a–z plus ü. Build the source list with tools/gen_pinyin.py.
     "zh": "abcdefghijklmnopqrstuvwxyzü",
+    "nl": "abcdefghijklmnopqrstuvwxyzëïöüéèêáàçóú",   # shared by both Dutch layouts (QWERTY + AZERTY)
+    "ru": "абвгдеёжзийклмнопрстуфхцчшщъыьэюя",          # Russian (Cyrillic)
+    "pl": "abcdefghijklmnopqrstuvwxyząćęłńóśźż",
 }
 
 def main():

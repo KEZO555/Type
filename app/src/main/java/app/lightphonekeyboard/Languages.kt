@@ -174,8 +174,53 @@ object Languages {
         dictUrl = repoDictUrl("zh"),     // pinyin autocorrect + completion, downloaded on demand
     )
 
+    // Dutch — two regional layouts that share one dictionary and voice model: Netherlands (QWERTY) and
+    // Belgium/Flanders (AZERTY). Diacritics (trema + acute) on the 123-key long-press.
+    private val DUTCH_ACCENTS = listOf("ë", "ï", "ö", "ü", "é", "è", "ê", "á", "à", "ç")
+    val NL = LangDef(
+        code = "nl", name = "Nederlands", rtl = false, hasCase = true,
+        rows = QWERTY,
+        accents = DUTCH_ACCENTS,
+        dictUrl = repoDictUrl("nl"),
+        voiceUrl = voskUrl("vosk-model-small-nl-0.22.zip"), voiceSizeMb = 39,
+    )
+    val NL_BE = LangDef(
+        code = "nl-be", name = "Nederlands (AZERTY)", rtl = false, hasCase = true,
+        rows = listOf(
+            listOf("a", "z", "e", "r", "t", "y", "u", "i", "o", "p"),
+            listOf("q", "s", "d", "f", "g", "h", "j", "k", "l", "m"),
+            listOf(SH, "w", "x", "c", "v", "b", "n", BK),
+        ),
+        accents = DUTCH_ACCENTS,
+        dictUrl = repoDictUrl("nl"),     // same Dutch dictionary as the QWERTY variant
+        voiceUrl = voskUrl("vosk-model-small-nl-0.22.zip"), voiceSizeMb = 39,
+    )
+
+    // Russian — standard ЙЦУКЕН layout; ё and ъ (not on the main rows) on the 123-key long-press.
+    val RU = LangDef(
+        code = "ru", name = "Русский", rtl = false, hasCase = true,
+        rows = listOf(
+            listOf("й", "ц", "у", "к", "е", "н", "г", "ш", "щ", "з", "х"),
+            listOf("ф", "ы", "в", "а", "п", "р", "о", "л", "д", "ж", "э"),
+            listOf(SH, "я", "ч", "с", "м", "и", "т", "ь", "б", "ю", BK),
+        ),
+        accents = listOf("ё", "ъ"),
+        lettersLabel = "АБВ",
+        dictUrl = repoDictUrl("ru"),
+        voiceUrl = voskUrl("vosk-model-small-ru-0.22.zip"), voiceSizeMb = 45,
+    )
+
+    // Polish — QWERTY with the Polish diacritics (ą ć ę ł ń ó ś ź ż) on the 123-key long-press.
+    val PL = LangDef(
+        code = "pl", name = "Polski", rtl = false, hasCase = true,
+        rows = QWERTY,
+        accents = listOf("ą", "ć", "ę", "ł", "ń", "ó", "ś", "ź", "ż"),
+        dictUrl = repoDictUrl("pl"),
+        voiceUrl = voskUrl("vosk-model-small-pl-0.22.zip"), voiceSizeMb = 50,
+    )
+
     /** All supported languages, in the order the globe cycles them. */
-    val ALL = listOf(EN, HE, ES, FR, DE, IT, PT, AR, ZH)
+    val ALL = listOf(EN, HE, ES, FR, DE, IT, PT, AR, ZH, NL, NL_BE, RU, PL)
 
     fun byCode(code: String): LangDef = ALL.firstOrNull { it.code == code } ?: EN
 }

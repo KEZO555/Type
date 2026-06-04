@@ -8,12 +8,12 @@
     <string name="setup_enabled">✓ Enabled</string>
     <string name="setup_done">Setup complete. It will appear in every text field. Swipe down on the keyboard to close it.</string>
     <string name="setup_autocorrect">Autocorrect</string>
-    <string name="setup_autocorrect_sub">Fix misspellings as you type, using built-in English and Hebrew dictionaries that also learn the words you use. Works fully offline. Other languages can download a dictionary in Languages.</string>
+    <string name="setup_autocorrect_sub">Fix misspellings as you type, using a dictionary that also learns the words you use. Works fully offline. English is built in; every other language downloads its dictionary when you turn it on in Languages.</string>
     <string name="back">‹ Back</string>
     <string name="setup_suggestions">Suggestion bar</string>
     <string name="setup_suggestions_sub">Show a strip of tap-able word completions above the keys as you type. Off by default to keep the keyboard minimal.</string>
     <string name="setup_languages">Languages</string>
-    <string name="setup_languages_sub">Choose which languages the globe key cycles through. Each has its own layout and long-press accents. English and Hebrew include offline autocorrect; the others can download a dictionary below. With voice on, each language (except Hebrew) can download an offline voice model too.</string>
+    <string name="setup_languages_sub">Choose which languages the globe key cycles through. Each has its own layout and long-press accents. Only English includes autocorrect built in; every other language downloads its dictionary automatically when you turn it on (works offline afterwards). With voice on, each language (except Hebrew) can download an offline voice model too.</string>
     <string name="dict_download">Download offline autocorrect (~0.6 MB)</string>
     <string name="dict_downloading">Downloading dictionary… %1$d%%</string>
     <string name="dict_installed">Offline autocorrect ready · tap to delete</string>

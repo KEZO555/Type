@@ -48,15 +48,19 @@ class LanguagesTest {
         }
     }
 
-    @Test fun noLanguageHasTwoDictionarySources() {
-        // A language may have a bundled dict (en/he), a downloadable one (es/fr/…), or none at all
-        // (typing-only, e.g. Arabic) — but never both.
+    @Test fun onlyEnglishIsBundledTheRestDownload() {
+        // Modular dictionaries: only English ships inside the APK; every other language with autocorrect
+        // downloads it. No language has both a bundled and a downloadable source.
         for (l in Languages.ALL) {
             assertFalse("${l.code}: can't be both bundled and downloaded",
                 l.dictAsset != null && l.dictUrl != null)
         }
         assertNotNull("English should be bundled", Languages.EN.dictAsset)
-        assertNotNull("Hebrew should be bundled", Languages.HE.dictAsset)
+        assertNull("Hebrew is now downloaded, not bundled", Languages.HE.dictAsset)
+        assertNotNull("Hebrew should have a download URL", Languages.HE.dictUrl)
+        for (l in listOf(Languages.AR, Languages.ZH)) {
+            assertNotNull("${l.code}: should have a downloadable dictionary", l.dictUrl)
+        }
     }
 
     @Test fun voiceModelConfigIsConsistent() {

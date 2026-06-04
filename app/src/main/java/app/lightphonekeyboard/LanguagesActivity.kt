@@ -5,9 +5,10 @@ import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 
 /**
- * Languages screen: toggle which languages the globe key cycles through (a per-language On/Off). English
- * and Hebrew include offline autocorrect in the APK; the other languages show a line to download (or
- * delete) their autocorrect dictionary on demand. Every language but Hebrew can also download an offline
+ * Languages screen: toggle which languages the globe key cycles through (a per-language On/Off). Only
+ * English ships an autocorrect dictionary inside the APK; every other language **downloads** its
+ * dictionary — automatically the moment you turn it on, so the base app stays small. A line beneath each
+ * shows that download (and lets you delete it). Every language but Hebrew can also download an offline
  * voice-dictation model here (when voice is enabled). LightOS template style (see [LightUi]).
  */
 class LanguagesActivity : AppCompatActivity() {
@@ -18,16 +19,20 @@ class LanguagesActivity : AppCompatActivity() {
         setContentView(LightUi.screen(this, getString(R.string.setup_languages)) { content ->
             LightUi.hint(content, getString(R.string.setup_languages_sub))
             for (l in Languages.ALL) {
+                val dict = if (l.dictUrl != null) dictLine(l) else null
                 LightUi.valueItem(
                     content,
                     label = l.name,
                     value = { if (l.code in enabled) "On" else "Off" },
                     onClick = {
-                        if (!enabled.remove(l.code)) enabled.add(l.code)
+                        val turningOn = l.code !in enabled
+                        if (turningOn) enabled.add(l.code) else enabled.remove(l.code)
                         Prefs.setEnabledLanguages(this, enabled)
+                        // Choosing a language fetches its dictionary so it works offline afterwards.
+                        if (turningOn && dict != null && !DictModel.isInstalled(this, l.code)) downloadDict(dict, l)
                     },
                 )
-                if (l.dictUrl != null) content.addView(dictLine(l))
+                if (dict != null) content.addView(dict)
                 // Offline voice model — shown only while voice is enabled (the master toggle is in Setup).
                 if (l.voiceUrl != null && Prefs.voiceEnabled(this)) content.addView(voiceLine(l))
             }

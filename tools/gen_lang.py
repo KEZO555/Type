@@ -21,6 +21,10 @@ ALPHABETS = {
     "de": "abcdefghijklmnopqrstuvwxyzäöüß",
     "it": "abcdefghijklmnopqrstuvwxyzàèéìíòóùú",
     "pt": "abcdefghijklmnopqrstuvwxyzãõáàâçéêíóôúü",
+    # Arabic: 28 base letters + ة ى and the hamza forms (matches LangDef.AR.autocorrectAlphabet).
+    "ar": "ابتثجحخدذرزسشصضطظعغفقكلمنهويةىءأإآؤئ",
+    # Mandarin pinyin (romanized) — lowercase a–z plus ü. Build the source list with tools/gen_pinyin.py.
+    "zh": "abcdefghijklmnopqrstuvwxyzü",
 }
 
 def main():

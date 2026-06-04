@@ -16,7 +16,7 @@ class LangDef(
     val rows: List<List<String>>,           // three letter rows; the bottom row is shared by all modes
     val accents: List<String>,              // 123-key long-press picker (accents, or Hebrew vowel points)
     val lettersLabel: String = "ABC",       // label on the "back to letters" toggle key
-    val dictAsset: String? = null,          // bundled autocorrect dictionary (en/he); null otherwise
+    val dictAsset: String? = null,          // bundled autocorrect dictionary (English only); null otherwise
     val dictUrl: String? = null,            // downloadable autocorrect dictionary (es/fr/de/it/pt)
     val voiceUrl: String? = null,           // downloadable offline Vosk voice model (every language but Hebrew)
     val voiceSizeMb: Int = 0,               // approx download size of that model, for the settings hint
@@ -52,6 +52,11 @@ object Languages {
     private fun freqWordsUrl(code: String) =
         "https://github.com/KEZO555/light-keyboard/releases/download/dicts-v1/$code.txt"
 
+    // Hebrew, Arabic and Mandarin-pinyin dictionaries live in the repo's dicts/ folder (served raw),
+    // not on the dicts-v1 release. Downloaded + filtered to the language's letters on-device, same format.
+    private fun repoDictUrl(code: String) =
+        "https://raw.githubusercontent.com/KEZO555/light-keyboard/main/dicts/$code.txt"
+
     // Offline Vosk speech models (small variants), downloaded on demand like the dictionaries so they
     // stay off the APK. Hosted by the Vosk project. Hebrew has no Vosk model, so it has no entry here.
     private fun voskUrl(file: String) = "https://alphacephei.com/vosk/models/$file"
@@ -80,7 +85,7 @@ object Languages {
         // Combining marks: patah, qamats, segol, tsere, hiriq, holam, sheva, dagesh.
         accents = listOf("ַ", "ָ", "ֶ", "ֵ", "ִ", "ֹ", "ְ", "ּ"),
         lettersLabel = "אבג",
-        dictAsset = "he_words.txt",
+        dictUrl = repoDictUrl("he"),     // downloaded like the others (no longer bundled in the APK)
         hintsOverride = mapOf(
             '׳' to "1", '-' to "2", 'ק' to "3", 'ר' to "4", 'א' to "5",
             'ט' to "6", 'ו' to "7", 'ן' to "8", 'ם' to "9", 'פ' to "0",
@@ -156,6 +161,7 @@ object Languages {
         ),
         accents = listOf("ء", "أ", "إ", "آ", "ؤ", "ئ", "ً", "ٌ", "ٍ", "َ", "ُ", "ِ", "ّ", "ْ"),
         lettersLabel = "ابج",
+        dictUrl = repoDictUrl("ar"),     // offline autocorrect, downloaded on demand
     )
 
     // Mandarin as QWERTY pinyin: a Latin layout for typing romanized pinyin (no Hanzi conversion — that
@@ -165,6 +171,7 @@ object Languages {
         code = "zh", name = "中文 (拼音)", rtl = false, hasCase = true,
         rows = QWERTY,
         accents = listOf("ü", "ǖ", "ǘ", "ǚ", "ǜ"),
+        dictUrl = repoDictUrl("zh"),     // pinyin autocorrect + completion, downloaded on demand
     )
 
     /** All supported languages, in the order the globe cycles them. */

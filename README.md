@@ -13,16 +13,22 @@ down on the keyboard to hide it.
 English, Hebrew, Spanish, French, German, Italian, Portuguese, Arabic and Mandarin pinyin (each with its
 own layout and long-press accents). The emoji key opens emoji.
 
-- **English** — QWERTY, offline autocorrect (Vosk voice), learns your words.
-- **Hebrew** — Standard Israeli layout (finals included), offline autocorrect, learns your words; voice
-  via the phone's own service (`he-IL`).
+**Modular — only English is built in.** To keep the base app small, only English ships its autocorrect
+dictionary inside the APK. Every other language **downloads** its dictionary (~0.4–0.6 MB) automatically
+the moment you turn it on in **Settings → Languages**; after that it works fully offline and learns your
+words, the same as English. Each then gets the full text stack: autocorrect, the suggestion bar,
+learned words and next-word prediction.
+
+- **English** — QWERTY, built-in offline autocorrect, learns your words.
+- **Hebrew** — Standard Israeli layout (finals included); downloads offline autocorrect; voice via the
+  phone's own service (`he-IL`).
 - **Arabic** — standard Arabic layout (all 28 letters, hamza forms and harakat on the 123-key
-  long-press). Typing only — no autocorrect dictionary or voice (yet).
-- **Mandarin** — QWERTY **pinyin** (type romanized pinyin; `ü` and its tones on the 123-key long-press).
-  Typing only — it does not convert pinyin to Chinese characters.
+  long-press); downloads offline autocorrect. No voice.
+- **Mandarin** — QWERTY **pinyin** (type romanized pinyin; `ü` and its tones on the 123-key long-press);
+  downloads offline pinyin autocorrect + completion. It does **not** convert pinyin to Chinese
+  characters (that would need a candidate-selection IME). No voice.
 - **Spanish / French / German / Italian / Portuguese** — full typing with their layouts (QWERTY, AZERTY,
-  QWERTZ) and accents on the 123-key long-press. Offline autocorrect for these is an optional download
-  (~0.6 MB each) from **Settings → Languages**, after which it learns your words like English and Hebrew.
+  QWERTZ) and accents on the 123-key long-press; download offline autocorrect, then learn your words.
   Each also has its own optional **offline voice model** (~30–48 MB) on that screen — fully on-device,
   the same as English.
 

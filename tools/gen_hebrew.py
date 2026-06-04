@@ -3,8 +3,8 @@
 Build the two Hebrew assets the keyboard needs, from a "word<space>frequency" list
 (e.g. hermitdave/FrequencyWords content/2018/he/he_50k.txt):
 
-  1. app/src/main/assets/he_words.txt
-     The bundled Hebrew dictionary for autocorrect — "word freq" per line, plain text.
+  1. dicts/he.txt
+     The downloadable Hebrew dictionary for autocorrect — "word freq" per line, plain text.
      Filtered to words made *only* of the 27 Hebrew letter forms, length 2..15.
      Loaded by HebrewDictionary (Norvig-style edit-distance corrector). Stored uncompressed
      in the repo; the APK's own deflate shrinks it to ~210 KB on device. (Don't gzip it —
@@ -41,7 +41,7 @@ HE_WORD = re.compile(r"^[א-ת]+$")   # Hebrew letters only, nothing else
 here = os.path.dirname(os.path.abspath(__file__))
 repo = os.path.dirname(here)
 src = sys.argv[1] if len(sys.argv) > 1 else "/tmp/he_50k.txt"
-dict_out = os.path.join(repo, "app/src/main/assets/he_words.txt")
+dict_out = os.path.join(repo, "dicts/he.txt")
 model_out = os.path.join(repo, "app/src/main/res/raw/hebcharmodel.bin")
 
 

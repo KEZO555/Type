@@ -98,6 +98,7 @@ class WordDictionary(
                 learned[line.substring(0, sp)] = c
             }
         }
+        learnedSorted = null   // rebuild the prefix index on first use after loading
     }
 
     private fun loadBigrams(context: Context) {
@@ -144,6 +145,15 @@ class WordDictionary(
     private fun sortedWords(): Array<String> =
         sorted ?: freq.keys.toTypedArray().also { it.sort(); sorted = it }
 
+    // Sorted view of the learned-word keys, so prefix lookups in completions() are a binary search of the
+    // matching run rather than a full scan of the (up to MAX_LEARNED) map on every keystroke. Rebuilt
+    // lazily and invalidated (set to null) whenever the key set changes — a new word, forget, or clear.
+    @Volatile
+    private var learnedSorted: Array<String>? = null
+
+    private fun learnedSortedArr(): Array<String> =
+        learnedSorted ?: learned.keys.toTypedArray().also { it.sort(); learnedSorted = it }
+
     /**
      * Up to [limit] word completions of [prefix], most-frequent first (your learned words weighted in).
      * Empty until the dictionary is loaded, or for a prefix shorter than 2 (too many, unhelpful matches).
@@ -154,10 +164,16 @@ class WordDictionary(
         val p = prefix.lowercase()
         if (p.length < 2) return emptyList()
         // Learned words aren't in the sorted dictionary array, so pass the matching ones as extras
-        // (weighted like effectiveFreq); the dictionary itself is ranked by raw frequency.
+        // (weighted like effectiveFreq); the dictionary itself is ranked by raw frequency. Binary-search
+        // the learned index to the prefix run instead of scanning the whole learned map each keystroke.
         var extra: HashMap<String, Long>? = null
-        for ((w, c) in learned) {
-            if (w !in freq && w.startsWith(p)) (extra ?: HashMap<String, Long>().also { extra = it })[w] = c * LEARN_WEIGHT
+        val ls = learnedSortedArr()
+        var lo = 0; var hi = ls.size
+        while (lo < hi) { val mid = (lo + hi) ushr 1; if (ls[mid] < p) lo = mid + 1 else hi = mid }
+        var i = lo
+        while (i < ls.size && ls[i].startsWith(p)) {
+            val w = ls[i]; i++
+            if (w !in freq) (extra ?: HashMap<String, Long>().also { extra = it })[w] = (learned[w] ?: 0L) * LEARN_WEIGHT
         }
         val base = WordPredict.completions(sortedWords(), p, limit, { freq[it] ?: 0L }, extra ?: emptyMap())
         val ctxMap = prevWord?.lowercase()?.let { bigrams[it] } ?: return base
@@ -203,8 +219,10 @@ class WordDictionary(
         if (w.length < 2 || w.length > maxLearnLen || w.any { it !in letterSet }) return
         appContext = context.applicationContext
         val isNew = !isWord(w)
+        val newKey = w !in learned                    // a brand-new learned key → the prefix index is stale
         learned[w] = (learned[w] ?: 0L) + 1L
         if (isNew) memo.clear() else memo.remove(w)   // a newly-known word changes corrections
+        if (newKey) learnedSorted = null
         scheduleSave()
     }
 
@@ -217,13 +235,13 @@ class WordDictionary(
     /** Forget one learned word. */
     fun forget(context: Context, word: String) {
         if (learned.remove(word.lowercase()) != null) {
-            memo.clear(); appContext = context.applicationContext; scheduleSave()
+            memo.clear(); learnedSorted = null; appContext = context.applicationContext; scheduleSave()
         }
     }
 
     /** Forget every learned word — and the next-word model, which is learned from the same typing. */
     fun clearLearned(context: Context) {
-        learned.clear(); memo.clear(); bigrams.clear()
+        learned.clear(); memo.clear(); bigrams.clear(); learnedSorted = null
         main.removeCallbacks(saveRunnable)
         main.removeCallbacks(bigramSaveRunnable)
         runCatching { File(context.applicationContext.filesDir, learnedFile).delete() }

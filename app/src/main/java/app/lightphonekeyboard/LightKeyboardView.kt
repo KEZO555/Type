@@ -1344,7 +1344,9 @@ class LightKeyboardView @JvmOverloads constructor(
         if (capsLock) return            // caps lock overrides sentence-case auto-shift
         if (shifted != value) {
             shifted = value
-            if (layer == Layer.LETTERS) rebuild()
+            // Case is resolved live at draw (labelFor / the shift icon), so this only changes what's
+            // painted, not geometry — repaint without a layout pass (mirrors the manual Shift key).
+            if (layer == Layer.LETTERS) invalidate()
         }
     }
 

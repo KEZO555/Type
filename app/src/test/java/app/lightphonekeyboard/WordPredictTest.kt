@@ -118,4 +118,24 @@ class WordPredictTest {
         assertEquals("thermos", out.first())
         assertEquals(3, out.size)
     }
+
+    // ---- next-word ranking (topNext) ----
+
+    private val nextCounts = mapOf("apple" to 5L, "apricot" to 3L, "banana" to 9L, "avocado" to 1L)
+
+    @Test fun topNextRanksByCount() {
+        assertEquals(listOf("banana", "apple"), WordPredict.topNext(nextCounts, 2))
+    }
+
+    @Test fun topNextFiltersByPrefix() {
+        // Only the "a…" words, most-used first; "banana" is excluded by the prefix.
+        assertEquals(listOf("apple", "apricot", "avocado"), WordPredict.topNext(nextCounts, 3, "a"))
+    }
+
+    @Test fun topNextHonoursLimitAndEmptyCases() {
+        assertEquals(listOf("apple"), WordPredict.topNext(nextCounts, 1, "a"))
+        assertTrue(WordPredict.topNext(nextCounts, 0).isEmpty())
+        assertTrue(WordPredict.topNext(emptyMap(), 3).isEmpty())
+        assertTrue(WordPredict.topNext(nextCounts, 3, "z").isEmpty())
+    }
 }

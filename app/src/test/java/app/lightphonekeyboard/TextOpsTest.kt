@@ -65,6 +65,23 @@ class TextOpsTest {
         assertEquals("", TextOps.trailingWord(""))
     }
 
+    // ---- precedingWord (next-word-prediction context) ----
+
+    @Test fun precedingWordWhileTypingTheNextWord() {
+        assertEquals("the", TextOps.precedingWord("the qu"))          // typing "qu" after "the"
+        assertEquals("quick", TextOps.precedingWord("the quick brown"))
+    }
+
+    @Test fun precedingWordRightAfterASpace() {
+        assertEquals("the", TextOps.precedingWord("the "))            // cursor sits after the space
+        assertEquals("a", TextOps.precedingWord("a, b"))             // separators between words are skipped
+    }
+
+    @Test fun precedingWordIsEmptyWithNoEarlierWord() {
+        assertEquals("", TextOps.precedingWord("hello"))             // still typing the first word
+        assertEquals("", TextOps.precedingWord(""))
+    }
+
     // ---- lastGraphemeLength ----
 
     @Test fun graphemeLengthIsOneForPlainText() {

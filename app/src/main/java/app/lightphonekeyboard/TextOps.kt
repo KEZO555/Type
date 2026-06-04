@@ -34,6 +34,21 @@ object TextOps {
     }
 
     /**
+     * The completed word *before* the current one — used as next-word-prediction context. Skips the
+     * trailing (possibly empty) word being typed, then the separators, then returns the word before
+     * that. So "the qu" → "the" (while typing "qu"), and "the " → "the" (just after a space). Empty if
+     * there's no such word.
+     */
+    fun precedingWord(before: CharSequence): String {
+        var i = before.length
+        while (i > 0 && isWordChar(before[i - 1])) i--      // skip the current (partial) word
+        while (i > 0 && !isWordChar(before[i - 1])) i--     // skip the separators between the two words
+        val end = i
+        while (i > 0 && isWordChar(before[i - 1])) i--      // the preceding word
+        return before.subSequence(i, end).toString()
+    }
+
+    /**
      * Length (in UTF-16 units) of the last grapheme cluster in [before], so backspace deletes a whole
      * user-perceived character — an emoji built from surrogate pairs, ZWJ sequences or variation
      * selectors comes off in one press instead of leaving a stray half that renders as a white box.

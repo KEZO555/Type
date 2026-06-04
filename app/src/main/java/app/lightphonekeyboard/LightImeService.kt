@@ -180,6 +180,7 @@ class LightImeService : InputMethodService(), LightKeyboardView.Listener {
                 clearUndo()
             }
         }
+        recordContext()   // learn the (previous word → this word) pair for next-word prediction
     }
 
     override fun onBackspace() {
@@ -242,6 +243,7 @@ class LightImeService : InputMethodService(), LightKeyboardView.Listener {
         } else {
             learnTyped(original)   // user kept this word — remember it
         }
+        recordContext()   // record the word pair before the line breaks the context
         clearUndo()
         // Enter inserts a real newline by default. Only fields that ask to submit/advance on Enter
         // (Go / Search / Send / Next) get their action — and not if the field opts out with
@@ -472,12 +474,22 @@ class LightImeService : InputMethodService(), LightKeyboardView.Listener {
         if (!Prefs.suggestions(this)) { barWords = emptyList(); barLiteralIndex = -1; kb.setSuggestions(emptyList()); return }
         val dict = Dictionaries.get(langCode)
         dict?.prepare(this)   // warm on demand (idempotent) so enabling the bar mid-session works too
+        if (dict == null) { barWords = emptyList(); barLiteralIndex = -1; kb.setSuggestions(emptyList()); return }
+        val before = currentInputConnection?.getTextBeforeCursor(64, 0) ?: ""
         val word = trailingWord()
-        if (word.length < 2 || dict == null) { barWords = emptyList(); barLiteralIndex = -1; kb.setSuggestions(emptyList()); return }
+        val prevWord = TextOps.precedingWord(before)
+        // Just after a space (no word yet): predict the likely next word from what usually follows it.
+        if (word.isEmpty()) {
+            val next = if (prevWord.isNotEmpty()) dict.nextWords(prevWord, 3) else emptyList()
+            barWords = next; barLiteralIndex = -1
+            kb.setSuggestions(next)
+            return
+        }
+        if (word.length < 2) { barWords = emptyList(); barLiteralIndex = -1; kb.setSuggestions(emptyList()); return }
 
         // The correction space would auto-apply (only when autocorrect is on and it actually differs).
         val correction = if (autocorrectOn()) dict.correct(word)?.takeIf { !it.equals(word, ignoreCase = true) } else null
-        val completions = dict.completions(word, 3)
+        val completions = dict.completions(word, 3, prevWord)
         val words = ArrayList<String>(3)
         var primary = -1
         var literal = -1
@@ -533,6 +545,21 @@ class LightImeService : InputMethodService(), LightKeyboardView.Listener {
     private fun learnTyped(word: String) {
         if (word.length < 2) return
         Dictionaries.get(langCode)?.takeIf { it.ready }?.learn(this, word)
+    }
+
+    /** A word was just finished: record the (previous word → this word) pair to grow the next-word
+     *  model. Reads the text now before the cursor, so it works the same whether the word was corrected,
+     *  reverted or typed literally. */
+    private fun recordContext() {
+        val dict = Dictionaries.get(langCode)?.takeIf { it.ready } ?: return
+        val before = currentInputConnection?.getTextBeforeCursor(64, 0) ?: return
+        var end = before.length
+        while (end > 0 && !TextOps.isWordChar(before[end - 1])) end--   // drop the trailing terminator(s)
+        if (end == 0) return
+        val core = before.subSequence(0, end)
+        val last = TextOps.trailingWord(core)
+        val prev = TextOps.precedingWord(core)
+        if (prev.isNotEmpty() && last.isNotEmpty()) dict.learnBigram(this, prev, last)
     }
 
     // How many times an unfamiliar word has been typed this session (cleared if it grows large). Lets us

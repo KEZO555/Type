@@ -6,7 +6,8 @@ On a stock Light Phone, the black-and-white keyboard lives inside Light's own to
 system keyboard, and there is no Light one to choose. This is a faithful recreation, packaged as a
 system keyboard you can set as the default, so every app on a modified Light Phone shares the same look.
 
-Optional autocorrect and optional voice dictation. Swipe down on the keyboard to hide it.
+Optional autocorrect, word suggestions with next-word prediction, and optional voice dictation. Swipe
+down on the keyboard to hide it.
 
 **Multiple languages.** Choose which languages the globe key cycles through in **Settings → Languages**:
 English, Hebrew, Spanish, French, German, Italian, Portuguese (each with its own layout and long-press
@@ -52,6 +53,11 @@ The settings below it:
   Hebrew): an unfamiliar word with no near match is kept the first time; one that looks like a typo is
   offered as a correction once, but the second time you type it the keyboard trusts it — adds it to your
   vocabulary and stops correcting it. Rejecting a correction (backspace) also teaches it your word.
+- **Suggestion bar** (on by default): word completions as you type, and — right after a space —
+  **next-word prediction** from the word pairs it learns from your own typing (so "happy" might suggest
+  "birthday"). Tap a suggestion to insert it; when autocorrect would change the word the bar leads with
+  the fix alongside your literal word (tap to keep it). Fully offline; the next-word model is
+  per-language and never leaves your phone.
 - **Auto-capitalize** (on by default): capitalize the first letter of each sentence.
 - **Double-space for period** (on by default): tap space twice to insert `. `.
 - **Haptic feedback**: cycle Off / Light / Medium / Strong; tapping previews the strength.

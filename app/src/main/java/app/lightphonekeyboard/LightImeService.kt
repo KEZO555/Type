@@ -501,11 +501,12 @@ class LightImeService : InputMethodService(), LightKeyboardView.Listener {
     private fun updateSuggestions() {
         val kb = keyboard ?: return
         if (!Prefs.suggestions(this)) { barWords = emptyList(); barLiteralIndex = -1; kb.setSuggestions(emptyList()); return }
-        val dict = Dictionaries.get(langCode)
+        val dict = dict()
         dict?.prepare(this)   // warm on demand (idempotent) so enabling the bar mid-session works too
         if (dict == null) { barWords = emptyList(); barLiteralIndex = -1; kb.setSuggestions(emptyList()); return }
+        // One text fetch per keystroke: both the word being typed and the previous word come from it.
         val before = currentInputConnection?.getTextBeforeCursor(64, 0) ?: ""
-        val word = trailingWord()
+        val word = TextOps.trailingWord(before)
         val prevWord = TextOps.precedingWord(before)
         // Just after a space (no word yet): predict the likely next word from what usually follows it.
         if (word.isEmpty()) {
@@ -565,7 +566,16 @@ class LightImeService : InputMethodService(), LightKeyboardView.Listener {
      */
     private fun autocorrectFix(word: String): String? {
         if (!autocorrectOn() || word.length < 3) return null
-        return Dictionaries.get(langCode)?.correct(word)
+        return dict()?.correct(word)
+    }
+
+    // The active language's dictionary, cached so the per-keystroke paths don't re-scan Languages.ALL +
+    // the instance map each time. Re-fetched only when the language actually changes.
+    private var dictCode: String? = null
+    private var dictRef: WordDictionary? = null
+    private fun dict(): WordDictionary? {
+        if (dictCode != langCode) { dictCode = langCode; dictRef = Dictionaries.get(langCode) }
+        return dictRef
     }
 
     /** Remember a word the user typed, in the active language's dictionary. Gated on the dictionary
@@ -573,14 +583,14 @@ class LightImeService : InputMethodService(), LightKeyboardView.Listener {
      *  for a downloadable language the user hasn't set up. */
     private fun learnTyped(word: String) {
         if (word.length < 2) return
-        Dictionaries.get(langCode)?.takeIf { it.ready }?.learn(this, word)
+        dict()?.takeIf { it.ready }?.learn(this, word)
     }
 
     /** A word was just finished: record the (previous word → this word) pair to grow the next-word
      *  model. Reads the text now before the cursor, so it works the same whether the word was corrected,
      *  reverted or typed literally. */
     private fun recordContext() {
-        val dict = Dictionaries.get(langCode)?.takeIf { it.ready } ?: return
+        val dict = dict()?.takeIf { it.ready } ?: return
         val before = currentInputConnection?.getTextBeforeCursor(64, 0) ?: return
         var end = before.length
         while (end > 0 && !TextOps.isWordChar(before[end - 1])) end--   // drop the trailing terminator(s)

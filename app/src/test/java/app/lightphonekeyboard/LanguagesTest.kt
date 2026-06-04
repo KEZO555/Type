@@ -2,6 +2,8 @@ package app.lightphonekeyboard
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -52,6 +54,17 @@ class LanguagesTest {
             val downloaded = l.dictUrl != null
             assertTrue("${l.code}: needs a dictionary source", bundled || downloaded)
             assertFalse("${l.code}: can't be both bundled and downloaded", bundled && downloaded)
+        }
+    }
+
+    @Test fun everyLanguageButHebrewHasAnOfflineVoiceModel() {
+        for (l in Languages.ALL) {
+            if (l.code == "he") {
+                assertNull("Hebrew has no Vosk model", l.voiceUrl)   // falls back to the system recognizer
+            } else {
+                assertNotNull("${l.code}: missing voice model URL", l.voiceUrl)
+                assertTrue("${l.code}: voice size hint must be set", l.voiceSizeMb > 0)
+            }
         }
     }
 

@@ -18,23 +18,34 @@ class VoiceDictation(private val context: Context) {
 
     private val main = Handler(Looper.getMainLooper())
     private var model: Model? = null
+    private var modelCode: String? = null     // which language's model is currently loaded
     private var loading = false
     private var speech: SpeechService? = null
     private var recognizer: Recognizer? = null
 
-    val ready: Boolean get() = model != null
+    /** True once the model for [code] is loaded and ready to dictate. */
+    fun ready(code: String): Boolean = model != null && modelCode == code
 
-    /** Load the downloaded model into memory (background). No-op if it isn't installed yet. */
-    fun prepare() {
-        if (model != null || loading || !VoiceModel.isInstalled(context)) return
+    /**
+     * Load language [code]'s downloaded model into memory (background). No-op if it isn't installed, is
+     * already loaded, or a load is in flight. Switching languages frees the previous model first.
+     */
+    fun prepare(code: String) {
+        if (loading || (model != null && modelCode == code)) return
+        if (!VoiceModel.isInstalled(context, code)) return
         loading = true
         Thread {
             try {
-                val m = Model(VoiceModel.dir(context).absolutePath)
-                main.post { model = m; loading = false; Log.i(TAG, "model ready") }
+                val m = Model(VoiceModel.dir(context, code).absolutePath)
+                main.post {
+                    destroy()
+                    model?.let { runCatching { it.close() } }   // free the old language's model
+                    model = m; modelCode = code; loading = false
+                    Log.i(TAG, "model[$code] ready")
+                }
             } catch (e: Throwable) {
                 main.post { loading = false }
-                Log.e(TAG, "model load failed", e)
+                Log.e(TAG, "model[$code] load failed", e)
             }
         }.start()
     }
@@ -45,14 +56,15 @@ class VoiceDictation(private val context: Context) {
      * since the last pause then arrive through [onSegment] too. [onPartial] is the live, in-progress text.
      */
     fun listen(
+        code: String,
         onPartial: (String) -> Unit,
         onSegment: (String) -> Unit,
         onError: (String) -> Unit,
     ) {
-        val m = model
+        val m = if (modelCode == code) model else null
         if (m == null) {
-            prepare()
-            onError(if (VoiceModel.isInstalled(context)) "Loading voice…" else "Voice not downloaded")
+            prepare(code)
+            onError(if (VoiceModel.isInstalled(context, code)) "Loading voice…" else "Voice not downloaded")
             return
         }
         destroy()

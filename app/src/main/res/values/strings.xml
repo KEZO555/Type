@@ -13,11 +13,15 @@
     <string name="setup_suggestions">Suggestion bar</string>
     <string name="setup_suggestions_sub">Show a strip of tap-able word completions above the keys as you type. Off by default to keep the keyboard minimal.</string>
     <string name="setup_languages">Languages</string>
-    <string name="setup_languages_sub">Choose which languages the globe key cycles through. Each has its own layout and long-press accents. English and Hebrew include offline autocorrect; the others can download a dictionary below.</string>
+    <string name="setup_languages_sub">Choose which languages the globe key cycles through. Each has its own layout and long-press accents. English and Hebrew include offline autocorrect; the others can download a dictionary below. With voice on, each language (except Hebrew) can download an offline voice model too.</string>
     <string name="dict_download">Download offline autocorrect (~0.6 MB)</string>
     <string name="dict_downloading">Downloading dictionary… %1$d%%</string>
     <string name="dict_installed">Offline autocorrect ready · tap to delete</string>
     <string name="dict_failed">Download failed: %1$s · tap to retry</string>
+    <string name="voice_download">Download offline voice (~%1$d MB)</string>
+    <string name="voice_downloading">Downloading voice… %1$d%%</string>
+    <string name="voice_installed">Offline voice ready · tap to delete</string>
+    <string name="voice_failed">Voice download failed: %1$s · tap to retry</string>
     <string name="setup_number_row">Number row</string>
     <string name="setup_number_row_sub">Show a row of numbers above the letters.</string>
     <string name="setup_auto_cap">Auto-capitalize</string>
@@ -39,8 +43,7 @@
     <string name="vocab_clear">Clear all words</string>
     <string name="vocab_truncated">+ %1$d more</string>
     <string name="setup_voice">Voice dictation</string>
-    <string name="setup_voice_sub">English is private and on-device (downloads 40 MB once). Hebrew uses the phone\'s own voice service, which may need a connection.</string>
-    <string name="setup_voice_clear">Delete voice model (frees ~40 MB)</string>
+    <string name="setup_voice_sub">Private, on-device dictation. Download each language\'s offline model in Settings → Languages. (Hebrew has no offline model — it uses the phone\'s own voice service, if it has one.)</string>
 
     <!-- IME subtype labels (system language switcher). -->
     <string name="subtype_en">English</string>

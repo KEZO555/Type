@@ -8,10 +8,8 @@ import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
 import android.provider.Settings
-import android.view.View
 import android.view.inputmethod.InputMethodManager
 import android.widget.LinearLayout
-import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 
 /**
@@ -21,10 +19,6 @@ import androidx.appcompat.app.AppCompatActivity
  * adb fallback: `adb shell ime enable app.lightphonekeyboard.debug/...LightImeService` then `ime set`.)
  */
 class SetupActivity : AppCompatActivity() {
-
-    private var voiceValue: TextView? = null
-    private var voiceStatus: TextView? = null
-    private var clearVoice: TextView? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -73,11 +67,12 @@ class SetupActivity : AppCompatActivity() {
             LightUi.navItem(c, getString(R.string.setup_emoji), getString(R.string.setup_emoji_sub)) {
                 startActivity(Intent(this, EmojiSettingsActivity::class.java))
             }
-            // Voice dictation — toggling on downloads the offline model once (async; status shown below).
-            buildVoice(c)
+            // Voice dictation — master on/off. Each language's offline model is downloaded per-language
+            // in Settings → Languages (Hebrew uses the phone's recognizer, if it has one).
+            toggleItem(c, R.string.setup_voice, R.string.setup_voice_sub,
+                { Prefs.voiceEnabled(this) }, { Prefs.setVoiceEnabled(this, it) })
             LightUi.hint(c, getString(R.string.setup_tip))
         })
-        refreshVoice()
     }
 
     /** A boolean setting as "label / On|Off". */
@@ -91,45 +86,6 @@ class SetupActivity : AppCompatActivity() {
         LightUi.valueItem(c, label, getString(subRes),
             value = { names[get().coerceIn(0, names.size - 1)] }, onClick = { set((get() + 1) % names.size) })
     }
-
-    /** Voice row (kept custom so the async download can update the value + status text in place). */
-    private fun buildVoice(c: LinearLayout) {
-        val d = resources.displayMetrics.density
-        fun px(v: Float) = (v * d).toInt()
-        val label = TextView(this).apply {
-            text = getString(R.string.setup_voice); textSize = 15f; setTextColor(getColor(R.color.gray))
-        }
-        val value = TextView(this).apply {
-            textSize = 26f; setTextColor(getColor(R.color.white)); text = if (Prefs.voiceEnabled(this@SetupActivity)) "On" else "Off"
-        }.also { voiceValue = it }
-        val sub = TextView(this).apply {
-            text = getString(R.string.setup_voice_sub); textSize = 13f; setTextColor(getColor(R.color.gray)); setPadding(0, px(4f), 0, 0)
-        }
-        val status = TextView(this).apply {
-            textSize = 13f; setTextColor(getColor(R.color.gray)); visibility = View.GONE
-        }.also { voiceStatus = it }
-        val row = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            isClickable = true
-            setBackgroundResource(rippleRes())
-            setOnClickListener { onVoiceToggle(!Prefs.voiceEnabled(this@SetupActivity)) }
-            addView(label); addView(value); addView(sub); addView(status)
-        }
-        c.addView(row, gap(px(26f)))
-        clearVoice = TextView(this).apply {
-            text = getString(R.string.setup_voice_clear); textSize = 20f; setTextColor(getColor(R.color.white))
-            isClickable = true; setBackgroundResource(rippleRes()); visibility = View.GONE
-            setOnClickListener { clearVoiceModel() }
-        }
-        c.addView(clearVoice, gap(px(20f)))
-    }
-
-    private fun gap(top: Int) =
-        LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
-            .apply { topMargin = top }
-
-    private fun rippleRes(): Int =
-        android.util.TypedValue().also { theme.resolveAttribute(android.R.attr.selectableItemBackground, it, true) }.resourceId
 
     /** Buzz once at the chosen strength so the user feels what they picked (matches the keyboard). */
     private fun previewHaptic(level: Int) {
@@ -148,44 +104,4 @@ class SetupActivity : AppCompatActivity() {
         runCatching { v.vibrate(VibrationEffect.createOneShot(ms, amp)) }
     }
 
-    private fun setVoiceStatus(text: String?) {
-        voiceStatus?.apply {
-            this.text = text.orEmpty()
-            visibility = if (text.isNullOrEmpty()) View.GONE else View.VISIBLE
-        }
-    }
-
-    /** Show the "delete model" action only when the model is on disk; reflect the On/Off value. */
-    private fun refreshVoice() {
-        clearVoice?.visibility = if (VoiceModel.isInstalled(this)) View.VISIBLE else View.GONE
-        voiceValue?.text = if (Prefs.voiceEnabled(this)) "On" else "Off"
-    }
-
-    private fun onVoiceToggle(on: Boolean) {
-        if (!on) {
-            Prefs.setVoiceEnabled(this, false)
-            setVoiceStatus(null); refreshVoice()
-            return
-        }
-        if (VoiceModel.isInstalled(this)) {
-            Prefs.setVoiceEnabled(this, true)
-            setVoiceStatus("Voice ready."); refreshVoice()
-            return
-        }
-        // Download the model first; only enable on success.
-        setVoiceStatus("Downloading voice model…")
-        VoiceModel.install(
-            this,
-            onProgress = { p -> setVoiceStatus("Downloading voice model… $p%") },
-            onDone = { Prefs.setVoiceEnabled(this, true); setVoiceStatus("Voice ready."); refreshVoice() },
-            onError = { msg -> Prefs.setVoiceEnabled(this, false); setVoiceStatus("Download failed: $msg"); refreshVoice() },
-        )
-    }
-
-    /** Delete the downloaded model to reclaim space; voice turns off until re-downloaded. */
-    private fun clearVoiceModel() {
-        VoiceModel.remove(this)
-        Prefs.setVoiceEnabled(this, false)
-        setVoiceStatus("Voice model deleted."); refreshVoice()
-    }
 }

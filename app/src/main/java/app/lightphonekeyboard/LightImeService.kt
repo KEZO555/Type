@@ -23,8 +23,8 @@ class LightImeService : InputMethodService(), LightKeyboardView.Listener {
 
     private var keyboard: LightKeyboardView? = null
 
-    private val dictation by lazy { VoiceDictation(this) }          // English: offline Vosk
-    private val sysDictation by lazy { SystemDictation(this) }      // Hebrew: platform recognizer
+    private val dictation by lazy { VoiceDictation(this) }          // offline Vosk (per-language model)
+    private val sysDictation by lazy { SystemDictation(this) }      // platform recognizer (Hebrew fallback)
 
     // Current letters language code, mirrored from the keyboard (globe key). Autocorrect uses the
     // matching dictionary (English/Hebrew bundled today; other languages download in a later phase).
@@ -45,7 +45,26 @@ class LightImeService : InputMethodService(), LightKeyboardView.Listener {
 
     override fun onCreate() {
         super.onCreate()
-        if (Prefs.voiceEnabled(this)) dictation.prepare()   // warm the model if voice is on (and downloaded)
+        warmVoice()   // warm the current language's model if voice is on (and that model is downloaded)
+    }
+
+    /** Voice can be used right now for [code]: the feature is on, and either its offline Vosk model is
+     *  downloaded (most languages) or a system recognizer is present (Hebrew, which has no Vosk model). */
+    private fun voiceUsableFor(code: String): Boolean {
+        if (!Prefs.voiceEnabled(this)) return false
+        val def = Languages.byCode(code)
+        return if (def.voiceUrl != null) VoiceModel.isInstalled(this, code) else sysDictation.available
+    }
+
+    /** Tell the keyboard whether to show the mic for the current language. */
+    private fun updateVoiceAvailability() { keyboard?.voiceAvailable = voiceUsableFor(langCode) }
+
+    /** Pre-load the Vosk model for the current language so the first mic tap is instant. */
+    private fun warmVoice() {
+        val def = Languages.byCode(langCode)
+        if (Prefs.voiceEnabled(this) && def.voiceUrl != null && VoiceModel.isInstalled(this, langCode)) {
+            dictation.prepare(langCode)
+        }
     }
 
     override fun onCreateInputView(): View {
@@ -65,6 +84,8 @@ class LightImeService : InputMethodService(), LightKeyboardView.Listener {
         // The keyboard keeps its language across fields; sync ours and warm the dictionaries.
         langCode = keyboard?.langCode ?: "en"
         if (dictNeeded()) prepareDict(langCode)
+        warmVoice()
+        updateVoiceAvailability()
         updateShift()
         updateSuggestions()
     }
@@ -86,6 +107,8 @@ class LightImeService : InputMethodService(), LightKeyboardView.Listener {
         langCode = code
         clearUndo()
         if (dictNeeded()) prepareDict(code)
+        warmVoice()
+        updateVoiceAvailability()
         updateSuggestions()
     }
 
@@ -99,6 +122,8 @@ class LightImeService : InputMethodService(), LightKeyboardView.Listener {
         keyboard?.setLanguageCode(langCode)
         clearUndo()
         if (dictNeeded()) prepareDict(langCode)
+        warmVoice()
+        updateVoiceAvailability()
     }
 
     override fun onUpdateSelection(
@@ -362,7 +387,10 @@ class LightImeService : InputMethodService(), LightKeyboardView.Listener {
         val kb = keyboard ?: return
         micActive = true
         kb.startListeningUi()
-        if (hebrew) startHebrewDictation(kb) else startDictationWhenReady(kb, attempts = 0)
+        // Languages with an offline Vosk model dictate on-device; Hebrew (no Vosk model) falls back to
+        // the platform recognizer.
+        if (Languages.byCode(langCode).voiceUrl != null) startDictationWhenReady(kb, langCode, attempts = 0)
+        else startHebrewDictation(kb)
     }
 
     /** Hebrew dictation through the platform recognizer (no model download; needs the recognizer present). */
@@ -389,11 +417,12 @@ class LightImeService : InputMethodService(), LightKeyboardView.Listener {
         )
     }
 
-    /** Wait (briefly) for the model to finish unpacking on first use, then start listening. */
-    private fun startDictationWhenReady(kb: LightKeyboardView, attempts: Int) {
-        if (!micActive) return
-        if (dictation.ready) {
+    /** Wait (briefly) for [code]'s model to finish loading on first use, then start listening. */
+    private fun startDictationWhenReady(kb: LightKeyboardView, code: String, attempts: Int) {
+        if (!micActive || langCode != code) return   // bail if the user switched language meanwhile
+        if (dictation.ready(code)) {
             dictation.listen(
+                code,
                 onPartial = { kb.setListeningStatus(it) },
                 // Each finished segment commits to the field; dictation keeps going across pauses.
                 onSegment = { text ->
@@ -408,15 +437,15 @@ class LightImeService : InputMethodService(), LightKeyboardView.Listener {
             )
             return
         }
-        dictation.prepare()
-        if (attempts > 40) {   // ~12s; first-run model unpack should be done well before this
+        dictation.prepare(code)
+        if (attempts > 40) {   // ~12s; first-run model load should be done well before this
             micActive = false
             kb.setListeningStatus("Voice unavailable")
             kb.postDelayed({ kb.stopListeningUi() }, 1200)
             return
         }
         kb.setListeningStatus("Preparing voice…")
-        kb.postDelayed({ startDictationWhenReady(kb, attempts + 1) }, 300)
+        kb.postDelayed({ startDictationWhenReady(kb, code, attempts + 1) }, 300)
     }
 
     /** Tap on the listening surface = "I'm done": flush the trailing words, then close it. */

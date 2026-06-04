@@ -1,6 +1,6 @@
 <img src="assets/images/example.png" alt="Type — a black-and-white keyboard for the Light Phone">
 
-**a black-and-white keyboard for the Light Phone.**
+**Type** — a black-and-white keyboard for the Light Phone.
 A faithful recreation of the Light Phone 3 keyboard, as a system keyboard for any app.
 
 > Built on [**light-keyboard**](https://github.com/adam-weber/light-keyboard) by
@@ -13,14 +13,6 @@ A faithful recreation of the Light Phone 3 keyboard, as a system keyboard for an
 **Voice dictation (optional, on-device):** English, Spanish, French, German, Italian, Portuguese, Dutch, Russian, Polish via downloadable Vosk models; Hebrew via the phone's recognizer.
 
 **Make it yours:** emoji picker, haptics, key-press sound, long-press delay, cursor-swipe sensitivity, keyboard height, number row — plus a quick-settings panel on the globe long-press.
-
-Optional autocorrect, word suggestions with next-word prediction, and optional voice dictation. Swipe
-down on the keyboard to hide it.
-
-**Multiple languages.** Choose which languages the globe key cycles through in **Settings → Languages**:
-English, Hebrew, Spanish, French, German, Italian, Portuguese, Arabic, Mandarin pinyin, Dutch (QWERTY +
-Belgian AZERTY), Russian and Polish (each with its own layout and long-press accents). The emoji key
-opens emoji.
 
 **Modular — only English is built in.** To keep the base app small, only English ships its autocorrect
 dictionary inside the APK. Every other language **downloads** its dictionary (~0.4–0.6 MB) automatically

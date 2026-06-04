@@ -143,8 +143,32 @@ object Languages {
         voiceUrl = voskUrl("vosk-model-small-pt-0.3.zip"), voiceSizeMb = 31,
     )
 
+    // Arabic — RTL and caseless like Hebrew (so no shift key). The text field handles direction; the
+    // keyboard just commits letters. Standard Arabic arrangement; all 28 base letters across the three
+    // rows (plus ة and ى), with hamza forms and harakat on the 123-key long-press. Typing-only for now
+    // (no autocorrect dictionary, no voice). Western digits via the positional long-press hints.
+    val AR = LangDef(
+        code = "ar", name = "العربية", rtl = true, hasCase = false,
+        rows = listOf(
+            listOf("ض", "ص", "ث", "ق", "ف", "غ", "ع", "ه", "خ", "ح", "ج"),
+            listOf("ش", "س", "ي", "ب", "ل", "ا", "ت", "ن", "م", "ك"),
+            listOf("ظ", "ط", "ذ", "د", "ز", "ر", "و", "ة", "ى", BK),
+        ),
+        accents = listOf("ء", "أ", "إ", "آ", "ؤ", "ئ", "ً", "ٌ", "ٍ", "َ", "ُ", "ِ", "ّ", "ْ"),
+        lettersLabel = "ابج",
+    )
+
+    // Mandarin as QWERTY pinyin: a Latin layout for typing romanized pinyin (no Hanzi conversion — that
+    // would need a full candidate-selection IME). 'ü' (the one pinyin vowel not on QWERTY, plus its
+    // toned forms) sits on the 123-key long-press. Typing-only — no autocorrect dictionary, no voice.
+    val ZH = LangDef(
+        code = "zh", name = "中文 (拼音)", rtl = false, hasCase = true,
+        rows = QWERTY,
+        accents = listOf("ü", "ǖ", "ǘ", "ǚ", "ǜ"),
+    )
+
     /** All supported languages, in the order the globe cycles them. */
-    val ALL = listOf(EN, HE, ES, FR, DE, IT, PT)
+    val ALL = listOf(EN, HE, ES, FR, DE, IT, PT, AR, ZH)
 
     fun byCode(code: String): LangDef = ALL.firstOrNull { it.code == code } ?: EN
 }

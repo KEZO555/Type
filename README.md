@@ -10,12 +10,16 @@ Optional autocorrect, word suggestions with next-word prediction, and optional v
 down on the keyboard to hide it.
 
 **Multiple languages.** Choose which languages the globe key cycles through in **Settings → Languages**:
-English, Hebrew, Spanish, French, German, Italian, Portuguese (each with its own layout and long-press
-accents). The emoji key opens emoji.
+English, Hebrew, Spanish, French, German, Italian, Portuguese, Arabic and Mandarin pinyin (each with its
+own layout and long-press accents). The emoji key opens emoji.
 
 - **English** — QWERTY, offline autocorrect (Vosk voice), learns your words.
 - **Hebrew** — Standard Israeli layout (finals included), offline autocorrect, learns your words; voice
   via the phone's own service (`he-IL`).
+- **Arabic** — standard Arabic layout (all 28 letters, hamza forms and harakat on the 123-key
+  long-press). Typing only — no autocorrect dictionary or voice (yet).
+- **Mandarin** — QWERTY **pinyin** (type romanized pinyin; `ü` and its tones on the 123-key long-press).
+  Typing only — it does not convert pinyin to Chinese characters.
 - **Spanish / French / German / Italian / Portuguese** — full typing with their layouts (QWERTY, AZERTY,
   QWERTZ) and accents on the 123-key long-press. Offline autocorrect for these is an optional download
   (~0.6 MB each) from **Settings → Languages**, after which it learns your words like English and Hebrew.

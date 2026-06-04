@@ -3,6 +3,9 @@
 **Type v1.0.0 — a black-and-white keyboard for the Light Phone.**
 A faithful recreation of the Light Phone 3 keyboard, as a system keyboard for any app.
 
+> Built on [**light-keyboard**](https://github.com/adam-weber/light-keyboard) by
+> [**Adam Weber**](https://github.com/adam-weber), extended with more languages, voice dictation, and more.
+
 **Languages (9):** English, Hebrew, Spanish, French, German, Italian, Portuguese, Arabic, and Mandarin (QWERTY pinyin) — each with its own layout and long-press accents. Only English is built in; every other language downloads its dictionary automatically when you enable it, then works fully offline.
 
 **Typing:** offline autocorrect (keyboard-aware, with a distance-2 fallback) that learns your vocabulary in every language · a suggestion bar with next-word prediction · auto-capitalize · double-space for period · Hebrew final-letter forms.
@@ -170,10 +173,18 @@ Then for each release, bump `versionCode`/`versionName` in `app/build.gradle` an
 git tag v0.1.0 && git push origin v0.1.0
 ```
 
+## Credits
+
+Type is built on [**light-keyboard**](https://github.com/adam-weber/light-keyboard) by
+[**Adam Weber**](https://github.com/adam-weber) — the original black-and-white Light Phone keyboard
+recreation, and the foundation this project stands on. Type extends it with more languages, on-device
+voice dictation, modular downloadable dictionaries, next-word prediction, and other polish. Huge thanks
+to Adam for the groundwork. 🙏
+
 ## A note
 
-This is an independent, open-source project. It is made for the Light Phone, but it is not made by Light.
+This is an open-source project, made for the Light Phone but not by Light.
 
 ## License
 
-[MIT](LICENSE). Do what you like with it.
+[MIT](LICENSE) — © Adam Weber. Do what you like with it.

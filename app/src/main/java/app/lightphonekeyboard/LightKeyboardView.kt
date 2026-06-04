@@ -663,7 +663,7 @@ class LightKeyboardView @JvmOverloads constructor(
         val size = when {
             layer == Layer.EMOJI && id in EMOJI_CANDIDATES -> spf(24)
             id.length == 1 -> if (short) spf(16) else spf(23)
-            cornerAccent -> spf(15)
+            cornerAccent -> spf(17)      // the "123" toggle — a bit larger, close to the "ABC" size
             else -> spf(18)
         }
         textPaint.textSize = size
@@ -781,7 +781,7 @@ class LightKeyboardView @JvmOverloads constructor(
     // read clearly; shift keeps a touch more breathing room for its caps-lock underline.
     private fun padFor(id: String): Float = when (id) {
         Key.SHIFT -> dpf(7)
-        Key.GLOBE -> dpf(5)              // a touch smaller so the gear badge has a clear corner
+        Key.GLOBE -> dpf(3.5f)           // roomy globe; the gear badge still tucks into the corner
         Key.EMOJI, Key.ENTER -> dpf(2)
         Key.BACKSPACE -> dpf(4)
         else -> dpf(6)

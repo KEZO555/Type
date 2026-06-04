@@ -1,10 +1,15 @@
 <img src="assets/images/example.png" alt="Type">
 
-A clone of the Light Phone 3's built-in keyboard, for any app.
+**Type v1.0.0 — a black-and-white keyboard for the Light Phone.**
+A faithful recreation of the Light Phone 3 keyboard, as a system keyboard for any app.
 
-On a stock Light Phone, the black-and-white keyboard lives inside Light's own tools. Other apps use the
-system keyboard, and there is no Light one to choose. This is a faithful recreation, packaged as a
-system keyboard you can set as the default, so every app on a modified Light Phone shares the same look.
+**Languages (9):** English, Hebrew, Spanish, French, German, Italian, Portuguese, Arabic, and Mandarin (QWERTY pinyin) — each with its own layout and long-press accents. Only English is built in; every other language downloads its dictionary automatically when you enable it, then works fully offline.
+
+**Typing:** offline autocorrect (keyboard-aware, with a distance-2 fallback) that learns your vocabulary in every language · a suggestion bar with next-word prediction · auto-capitalize · double-space for period · Hebrew final-letter forms.
+
+**Voice dictation (optional, on-device):** English, Spanish, French, German, Italian, Portuguese via downloadable Vosk models; Hebrew via the phone's recognizer.
+
+**Make it yours:** emoji picker, haptics, key-press sound, long-press delay, cursor-swipe sensitivity, keyboard height, number row — plus a quick-settings panel on the globe long-press.
 
 Optional autocorrect, word suggestions with next-word prediction, and optional voice dictation. Swipe
 down on the keyboard to hide it.

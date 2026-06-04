@@ -32,12 +32,17 @@ class WordDictionary(
 ) {
     private val tag = "Dict-$code"
     private val learnedFile = "${code}_learned.txt"
+    private val bigramFile = "${code}_bigrams.txt"
     private val adj = WordPredict.adjacency(adjacencyRows)
     private val letterSet = alphabet.toHashSet()
 
     private val main = Handler(Looper.getMainLooper())
     private val freq = HashMap<String, Long>(freqSizeHint)
     private val learned = HashMap<String, Long>()
+    // Next-word model: prev word -> (next word -> times seen), learned from your own typing. Powers the
+    // suggestion bar after a space, and biases completions of a partly-typed word toward what usually
+    // follows the previous word.
+    private val bigrams = HashMap<String, HashMap<String, Long>>()
     private val memo = HashMap<String, String?>()   // word -> fix (null = checked, no correction)
     private var appContext: Context? = null
 
@@ -69,6 +74,7 @@ class WordDictionary(
                     }
                 }
                 loadLearned(app)
+                loadBigrams(app)
                 main.post { ready = true; loading = false; Log.i(tag, "loaded ${freq.size}+${learned.size}") }
             } catch (e: Throwable) {
                 main.post { loading = false }
@@ -90,6 +96,19 @@ class WordDictionary(
                 if (sp <= 0) return@forEach
                 val c = line.substring(sp + 1).toLongOrNull() ?: return@forEach
                 learned[line.substring(0, sp)] = c
+            }
+        }
+    }
+
+    private fun loadBigrams(context: Context) {
+        val f = File(context.filesDir, bigramFile)
+        if (!f.exists()) return
+        f.bufferedReader(Charsets.UTF_8).useLines { lines ->
+            lines.forEach { line ->
+                val a = line.indexOf(' '); if (a <= 0) return@forEach
+                val b = line.indexOf(' ', a + 1); if (b <= a + 1) return@forEach
+                val c = line.substring(b + 1).toLongOrNull() ?: return@forEach
+                bigrams.getOrPut(line.substring(0, a)) { HashMap() }[line.substring(a + 1, b)] = c
             }
         }
     }
@@ -128,8 +147,9 @@ class WordDictionary(
     /**
      * Up to [limit] word completions of [prefix], most-frequent first (your learned words weighted in).
      * Empty until the dictionary is loaded, or for a prefix shorter than 2 (too many, unhelpful matches).
+     * If [prevWord] is given, words that usually follow it (learned bigrams) are floated to the front.
      */
-    fun completions(prefix: String, limit: Int = 3): List<String> {
+    fun completions(prefix: String, limit: Int = 3, prevWord: String? = null): List<String> {
         if (!ready) return emptyList()
         val p = prefix.lowercase()
         if (p.length < 2) return emptyList()
@@ -139,8 +159,42 @@ class WordDictionary(
         for ((w, c) in learned) {
             if (w !in freq && w.startsWith(p)) (extra ?: HashMap<String, Long>().also { extra = it })[w] = c * LEARN_WEIGHT
         }
-        return WordPredict.completions(sortedWords(), p, limit, { freq[it] ?: 0L }, extra ?: emptyMap())
+        val base = WordPredict.completions(sortedWords(), p, limit, { freq[it] ?: 0L }, extra ?: emptyMap())
+        val ctxMap = prevWord?.lowercase()?.let { bigrams[it] } ?: return base
+        val ctx = WordPredict.topNext(ctxMap, limit, p).filter { it.length > p.length }
+        if (ctx.isEmpty()) return base
+        // Lead with the context predictions, then fill from the frequency-ranked completions.
+        val out = LinkedHashSet<String>()
+        for (w in ctx) { out.add(w); if (out.size >= limit) break }
+        for (w in base) { if (out.size >= limit) break; out.add(w) }
+        return out.toList()
     }
+
+    /** Up to [limit] words that usually follow [prevWord] (learned next-word predictions), most-used first. */
+    fun nextWords(prevWord: String, limit: Int = 3): List<String> {
+        if (!ready) return emptyList()
+        val m = bigrams[prevWord.lowercase()] ?: return emptyList()
+        return WordPredict.topNext(m, limit)
+    }
+
+    /** Record that [next] was typed right after [prev] (a word pair), to grow the next-word model. */
+    fun learnBigram(context: Context, prev: String, next: String) {
+        if (!ready) return
+        val p = prev.lowercase(); val n = next.lowercase()
+        if (!validForLearn(p) || !validForLearn(n)) return
+        appContext = context.applicationContext
+        val m = bigrams[p]
+        if (m == null) {
+            if (bigrams.size >= MAX_BIGRAM_PREV) return   // keep the key set bounded; existing keys keep learning
+            bigrams[p] = HashMap<String, Long>().apply { put(n, 1L) }
+        } else {
+            m[n] = (m[n] ?: 0L) + 1L
+        }
+        scheduleBigramSave()
+    }
+
+    private fun validForLearn(w: String): Boolean =
+        w.isNotEmpty() && w.length <= maxLearnLen && w.all { it in letterSet }
 
     /** Remember a word the user typed (and kept). Becomes known and rankable; persisted (debounced).
      *  Only this language's own letters, length 2..[maxLearnLen]. */
@@ -167,11 +221,13 @@ class WordDictionary(
         }
     }
 
-    /** Forget every learned word. */
+    /** Forget every learned word — and the next-word model, which is learned from the same typing. */
     fun clearLearned(context: Context) {
-        learned.clear(); memo.clear()
+        learned.clear(); memo.clear(); bigrams.clear()
         main.removeCallbacks(saveRunnable)
+        main.removeCallbacks(bigramSaveRunnable)
         runCatching { File(context.applicationContext.filesDir, learnedFile).delete() }
+        runCatching { File(context.applicationContext.filesDir, bigramFile).delete() }
     }
 
     private val saveRunnable = Runnable { writeLearned() }
@@ -195,9 +251,33 @@ class WordDictionary(
         }.start()
     }
 
+    private val bigramSaveRunnable = Runnable { writeBigrams() }
+    private fun scheduleBigramSave() {
+        main.removeCallbacks(bigramSaveRunnable)
+        main.postDelayed(bigramSaveRunnable, 5000)   // coalesce bursts of typing into one write
+    }
+
+    private fun writeBigrams() {
+        val ctx = appContext ?: return
+        val snapshot = ArrayList<Triple<String, String, Long>>()
+        for ((p, m) in bigrams) for ((n, c) in m) snapshot.add(Triple(p, n, c))
+        Thread {
+            try {
+                val top = snapshot.sortedByDescending { it.third }.take(MAX_BIGRAM_LINES)
+                val sb = StringBuilder(top.size * 16)
+                for (t in top) sb.append(t.first).append(' ').append(t.second).append(' ').append(t.third).append('\n')
+                File(ctx.filesDir, bigramFile).writeText(sb.toString(), Charsets.UTF_8)
+            } catch (e: Throwable) {
+                Log.e(tag, "save bigrams failed", e)
+            }
+        }.start()
+    }
+
     private companion object {
         const val LEARN_WEIGHT = 50_000L
         const val MAX_LEARNED = 2000
+        const val MAX_BIGRAM_PREV = 4000     // cap distinct context words held in memory
+        const val MAX_BIGRAM_LINES = 6000    // cap pairs persisted to disk (most-used kept)
     }
 }
 

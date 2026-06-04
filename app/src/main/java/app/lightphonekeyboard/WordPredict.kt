@@ -168,6 +168,22 @@ object WordPredict {
         return topW.filterNotNull()
     }
 
+    /**
+     * The [limit] highest-count keys of [counts] (e.g. the words seen most often after some word), most
+     * frequent first. If [prefix] is non-empty, only keys starting with it are considered — used to rank
+     * next-word predictions and to bias completions of a partly-typed word by the previous word.
+     */
+    fun topNext(counts: Map<String, Long>, limit: Int, prefix: String = ""): List<String> {
+        if (limit <= 0 || counts.isEmpty()) return emptyList()
+        val topW = arrayOfNulls<String>(limit)
+        val topF = LongArray(limit) { -1L }
+        for ((w, c) in counts) {
+            if (prefix.isNotEmpty() && !w.startsWith(prefix)) continue
+            insertTop(topW, topF, w, c)
+        }
+        return topW.filterNotNull()
+    }
+
     /** Keep [topW]/[topF] as a descending top-N list: insert ([w],[f]) if it beats the smallest kept. */
     private fun insertTop(topW: Array<String?>, topF: LongArray, w: String, f: Long) {
         var pos = topF.size

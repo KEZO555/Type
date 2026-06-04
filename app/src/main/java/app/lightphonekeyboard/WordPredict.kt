@@ -15,11 +15,22 @@ object WordPredict {
     private const val COST_INDEL = 2     // insertion / deletion (a missed or doubled key)
     private const val COST_SUB = 3       // substitution of a non-adjacent key (least likely)
 
+    // Distance-2 fallback only kicks in for words at least this long: shorter words have too many real
+    // words two edits away, so a "fix" there is as likely to be wrong as right.
+    private const val MIN_LEN_DIST2 = 6
+
     /**
      * Keyboard-aware autocorrection: among the real words ([isKnown]) within a single edit of [word],
      * pick the most likely — preferring transpositions and adjacent-key slips (per [adjacency]), then
-     * the most frequent ([freqOf]). Edit distance is capped at 1 to stay conservative (no surprise
-     * replacements). Returns null if [word] is already a word or nothing confident is found.
+     * the most frequent ([freqOf]). Returns null if [word] is already a word or nothing confident is
+     * found.
+     *
+     * Distance 1 is preferred and always wins. If it finds nothing and a [sortedDict] (the lexically
+     * sorted word list) is supplied, a conservative distance-2 *fallback* runs for longer words: it
+     * scans the dictionary words sharing [word]'s first and last letter (both common errors are interior)
+     * within ±2 in length, and takes the most frequent one within edit distance 2. Matching both ends is
+     * a strong typo signal — it catches slips like "publically"→"publicly" without inventing surprise
+     * replacements for names or deliberate words.
      */
     fun bestCorrection(
         word: String,
@@ -27,6 +38,7 @@ object WordPredict {
         adjacency: Map<Char, String>,
         isKnown: (String) -> Boolean,
         freqOf: (String) -> Long,
+        sortedDict: Array<String>? = null,
     ): String? {
         if (isKnown(word)) return null
         var best: String? = null
@@ -54,7 +66,53 @@ object WordPredict {
             }
             for (c in alphabet) consider(l + c + r, COST_INDEL)                         // insert
         }
+        if (best != null) return best
+        return bestCorrectionDist2(word, sortedDict, freqOf)
+    }
+
+    /** Conservative distance-2 fallback (see [bestCorrection]); null unless a confident long-word fix. */
+    private fun bestCorrectionDist2(word: String, sortedDict: Array<String>?, freqOf: (String) -> Long): String? {
+        if (sortedDict == null || word.length < MIN_LEN_DIST2) return null
+        val first = word[0]
+        val last = word[word.length - 1]
+        // Binary search to the first dictionary word starting with `first`, then scan that letter's run.
+        val firstStr = first.toString()
+        var lo = 0; var hi = sortedDict.size
+        while (lo < hi) { val mid = (lo + hi) ushr 1; if (sortedDict[mid] < firstStr) lo = mid + 1 else hi = mid }
+        var best: String? = null
+        var bestFreq = -1L
+        var i = lo
+        while (i < sortedDict.size && sortedDict[i].isNotEmpty() && sortedDict[i][0] == first) {
+            val cand = sortedDict[i]; i++
+            if (cand.length < word.length - 2 || cand.length > word.length + 2) continue
+            if (cand[cand.length - 1] != last || cand == word) continue
+            if (levAtMost(word, cand, 2) <= 2) {
+                val f = freqOf(cand)
+                if (f > bestFreq) { bestFreq = f; best = cand }
+            }
+        }
         return best
+    }
+
+    /** Levenshtein distance between [a] and [b], computed only up to [max] (returns max+1 if it exceeds). */
+    private fun levAtMost(a: String, b: String, max: Int): Int {
+        val la = a.length; val lb = b.length
+        if (kotlin.math.abs(la - lb) > max) return max + 1
+        var prev = IntArray(lb + 1) { it }
+        for (i in 1..la) {
+            val cur = IntArray(lb + 1)
+            cur[0] = i
+            var rowMin = cur[0]
+            val ai = a[i - 1]
+            for (j in 1..lb) {
+                val cost = if (ai == b[j - 1]) 0 else 1
+                cur[j] = minOf(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + cost)
+                if (cur[j] < rowMin) rowMin = cur[j]
+            }
+            if (rowMin > max) return max + 1   // every cell in this row already exceeds the cap
+            prev = cur
+        }
+        return prev[lb]
     }
 
     /**

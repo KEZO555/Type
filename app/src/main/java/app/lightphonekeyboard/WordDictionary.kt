@@ -16,8 +16,9 @@ import java.io.File
  *     Italian, Portuguese.
  *
  * Either way it's a `word<space>count` list, loaded into a frequency map and fed to the shared
- * keyboard-aware, edit-distance-1 corrector ([WordPredict]): [correct] returns the most likely real
- * word within one edit of what was typed (preferring transpositions and adjacent-key slips), or null.
+ * keyboard-aware corrector ([WordPredict]): [correct] returns the most likely real word within one edit
+ * of what was typed (preferring transpositions and adjacent-key slips), or — for longer words with no
+ * single-edit fix — a conservative distance-2 fallback, or null.
  * The keyboard also [learn]s the words you type — weighted so your own vocabulary competes with common
  * words and persisted per language — so they stop being "corrected" and can win as suggestions.
  */
@@ -107,7 +108,9 @@ class WordDictionary(
         if (!ready || word.length < 3) return null
         val w = word.lowercase()
         if (memo.containsKey(w)) return memo[w]
-        val fix = WordPredict.bestCorrection(w, alphabet, adj, ::isWord) { effectiveFreq(it) }
+        // sortedWords() enables the conservative distance-2 fallback (longer words only) at no per-key
+        // cost — correct() runs once per finished word, not on every keystroke.
+        val fix = WordPredict.bestCorrection(w, alphabet, adj, ::isWord, { effectiveFreq(it) }, sortedWords())
         if (memo.size > 4000) memo.clear()   // bound the cache over a long session
         memo[w] = fix
         return fix

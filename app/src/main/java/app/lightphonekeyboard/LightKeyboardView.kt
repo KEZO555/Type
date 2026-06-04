@@ -135,6 +135,13 @@ class LightKeyboardView @JvmOverloads constructor(
             listOf("£", "¢", "€", "¥", "^", "°", "=", "{", "}", "\\"),
             listOf(Key.SYMBOLS, "%", "©", "®", "™", "[", "]", "<", ">", Key.BACKSPACE),
         )
+        // Numeric layer: opened automatically by the host when a number / phone / datetime field is
+        // focused (see LightImeService). Digits up top, then the symbols a number or phone needs.
+        val number = listOf(
+            listOf("1", "2", "3", "4", "5", "6", "7", "8", "9", "0"),
+            listOf("+", "-", "*", "/", "=", ".", ",", "(", ")"),
+            listOf("%", "$", "€", "£", "#", ":", ";", "!", Key.BACKSPACE),
+        )
     }
 
     companion object {
@@ -160,7 +167,7 @@ class LightKeyboardView @JvmOverloads constructor(
         ).distinct()
     }
 
-    private enum class Layer { LETTERS, SYMBOLS, MORE, EMOJI, SETTINGS }
+    private enum class Layer { LETTERS, SYMBOLS, MORE, NUMBER, EMOJI, SETTINGS }
 
     private var lang: LangDef = initialLang()
     val isHebrew: Boolean get() = lang.code == "he"
@@ -335,6 +342,7 @@ class LightKeyboardView @JvmOverloads constructor(
                 Layer.LETTERS -> lang.rows
                 Layer.SYMBOLS -> Layout.symbols
                 Layer.MORE -> Layout.more
+                Layer.NUMBER -> Layout.number
                 Layer.EMOJI, Layer.SETTINGS -> emptyList()
             }
             // Optional persistent number row sits above the letters (the symbols layer has its own).
@@ -1308,6 +1316,12 @@ class LightKeyboardView @JvmOverloads constructor(
         endAltLongPress()
         spacePointerId = -1; spaceSwiping = false; pendingReleasePointer = -1
         layer = Layer.LETTERS; shifted = lang.hasCase; capsLock = false; listening = false; rebuild()
+    }
+
+    /** Open the numeric layer — the host calls this when a number / phone / datetime field gains focus,
+     *  so digits are there without tapping 123. The ABC toggle still switches to letters. */
+    fun showNumbers() {
+        if (layer != Layer.NUMBER) { layer = Layer.NUMBER; rebuild() }
     }
 
     override fun onDetachedFromWindow() {

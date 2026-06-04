@@ -4,6 +4,7 @@ import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.inputmethodservice.InputMethodService
+import android.text.InputType
 import android.view.KeyEvent
 import android.view.View
 import android.view.inputmethod.EditorInfo
@@ -77,6 +78,9 @@ class LightImeService : InputMethodService(), LightKeyboardView.Listener {
     override fun onStartInputView(info: EditorInfo?, restarting: Boolean) {
         super.onStartInputView(info, restarting)
         keyboard?.reset()
+        // Number / phone / datetime fields open straight on the numeric layer (the ABC key still
+        // switches to letters) — like most keyboards, so you don't have to tap 123 every time.
+        if (isNumericField(info)) keyboard?.showNumbers()
         micActive = false
         dictation.destroy()
         sysDictation.destroy()
@@ -89,6 +93,14 @@ class LightImeService : InputMethodService(), LightKeyboardView.Listener {
         updateShift()
         updateSuggestions()
     }
+
+    /** True for fields that expect digits — number, phone, or date/time — so the keyboard can open on
+     *  its numeric layer. */
+    private fun isNumericField(info: EditorInfo?): Boolean =
+        when (info?.inputType?.and(InputType.TYPE_MASK_CLASS)) {
+            InputType.TYPE_CLASS_NUMBER, InputType.TYPE_CLASS_PHONE, InputType.TYPE_CLASS_DATETIME -> true
+            else -> false
+        }
 
     /** Warm the autocorrect dictionary for [code] (bundled languages always; downloadable ones only
      *  once the user has downloaded them — [WordDictionary.prepare] no-ops otherwise). */

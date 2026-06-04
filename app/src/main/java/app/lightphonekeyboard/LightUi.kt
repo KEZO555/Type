@@ -92,7 +92,7 @@ object LightUi {
             gravity = Gravity.CENTER_VERTICAL
             addView(bigText(a, text), LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
             addView(TextView(a).apply {
-                text = "›"
+                this.text = "›"          // this.text — 'text' alone binds to the val parameter above
                 textSize = BIG
                 setTextColor(a.getColor(R.color.gray))
                 setPadding(a.px(8f), 0, 0, 0)

@@ -55,16 +55,18 @@ Open Type. The setup screen holds everything:
 The settings below it:
 
 - **Languages**: choose which languages the globe key (bottom row) cycles through; the emoji key opens
-  emoji. English and Hebrew ship with offline autocorrect built in; Spanish, French, German, Italian and
-  Portuguese each offer an optional dictionary download right on this screen. Hebrew is caseless, so it
-  has no shift key — just the 27 letter forms in the standard Israeli arrangement.
-- **Autocorrect** (on by default): fixes misspellings as you type, using bundled English and Hebrew
-  frequency dictionaries that also learn the words you use. Keyboard-aware (it prefers fixes that are a
-  neighbouring-key slip or a swapped pair) and conservative, so it doesn't replace words you meant.
-  Fully offline. Turn it off to type exactly what you tap. **It learns your vocabulary** (English and
-  Hebrew): an unfamiliar word with no near match is kept the first time; one that looks like a typo is
-  offered as a correction once, but the second time you type it the keyboard trusts it — adds it to your
-  vocabulary and stops correcting it. Rejecting a correction (backspace) also teaches it your word.
+  emoji. English, Hebrew, Spanish, French, German, Italian, Portuguese, Arabic and Mandarin pinyin. Only
+  English's autocorrect dictionary is built in — every other language **downloads** its dictionary
+  automatically when you turn it on here, then works fully offline. Hebrew and Arabic are caseless, so
+  they have no shift key.
+- **Autocorrect** (on by default): fixes misspellings as you type, using the active language's frequency
+  dictionary (English built in, the rest downloaded) which also learns the words you use. Keyboard-aware
+  (it prefers a neighbouring-key slip or a swapped pair), with a conservative distance-2 fallback for
+  longer words, so it doesn't replace words you meant. Fully offline. Turn it off to type exactly what
+  you tap. **It learns your vocabulary** in every language: an unfamiliar word with no near match is kept
+  the first time; one that looks like a typo is offered as a correction once, but the second time you
+  type it the keyboard trusts it — adds it to your vocabulary and stops correcting it. Rejecting a
+  correction (backspace) also teaches it your word.
 - **Suggestion bar** (on by default): word completions as you type, and — right after a space —
   **next-word prediction** from the word pairs it learns from your own typing (so "happy" might suggest
   "birthday"). Tap a suggestion to insert it; when autocorrect would change the word the bar leads with
@@ -80,11 +82,12 @@ The settings below it:
 - **Number row** (off by default): a persistent row of digits above the letters.
 - **Emoji**: tap a grid of candidate emoji to choose which ones appear in the keyboard's emoji panel
   (recently-used still float to the front).
-- **Voice dictation** (off by default): turn it on, then download each language's offline model from
-  **Settings → Languages** (~30–48 MB each). A mic appears on the period key — long-press it (or tap the
-  mic) to speak instead of type, fully on-device. Every language **except Hebrew** has an offline model;
-  Hebrew has no offline model, so it falls back to the phone's own voice service (which a de-Googled Light
-  Phone may not have). Tap a downloaded model again to delete it and reclaim the space.
+- **Voice dictation** (off by default): turn it on, then download a language's offline model from
+  **Settings → Languages**. A mic appears on the period key — long-press it (or tap the mic) to speak
+  instead of type, fully on-device. **English, Spanish, French, German, Italian and Portuguese** have
+  offline voice models (~30–48 MB each). **Hebrew** has no offline model, so it falls back to the phone's
+  own voice service (which a de-Googled Light Phone may not have). **Arabic and Mandarin** have no voice.
+  Tap a downloaded model again to delete it and reclaim the space.
 
 That is the whole setup.
 
@@ -96,14 +99,14 @@ That is the whole setup.
   tap types a comma; **long-press opens the emoji panel** (recently-used float to the front).
 - **Long-press a letter** — pops up its corner number/symbol (selected by default); release to type it,
   or slide off the key to cancel and keep the letter.
-- **Long-press the `123`/`ABC` key** (marked with `◌ָ` in Hebrew, `á` in English) — a picker of vowel
-  points (Hebrew) / accented letters (English).
+- **Long-press the `123`/`ABC` key** (hinted with the first one in its corner) — a picker of the active
+  language's accents: accented letters (Latin), vowel points (Hebrew), hamza forms and harakat (Arabic),
+  or pinyin tone marks (Mandarin).
 - **Long-press the period** — starts voice dictation, in any language whose offline voice model you've
   downloaded (Hebrew has no offline model and needs a system recognizer most Light Phones don't have).
 - **Double-tap space** — inserts `. ` (sentence end).
 - **Drag the space bar** — moves the cursor like an iPhone trackpad: left/right by character, up/down
   by line.
-- **Long-press the `123`/`ABC` key** — opens an edit menu: select all · copy · cut · paste.
 - **Hold backspace** — repeats, then deletes whole words after a longer hold.
 - **Enter** — inserts a newline (or submits in Go/Search/Send/Next fields); it no longer closes the
   keyboard. **Long-press Enter** — hides the keyboard.
@@ -123,14 +126,18 @@ the last letter becomes ם), and back when the word continues.
 ```
 
 Needs JDK 17 and the Android SDK (API 35). Tagged releases (`v*`) are built and signed by
-[`.github/workflows/release.yml`](.github/workflows/release.yml). The English typing model in
-`app/src/main/res/raw/charmodel.bin` is regenerated by [`tools/gen_charmodel.py`](tools/gen_charmodel.py).
-The Hebrew typing model (`app/src/main/res/raw/hebcharmodel.bin`) and the bundled Hebrew dictionary
-(`app/src/main/assets/he_words.txt`) are regenerated by [`tools/gen_hebrew.py`](tools/gen_hebrew.py)
-from a `word<space>frequency` list (e.g. the Hebrew list from
-[hermitdave/FrequencyWords](https://github.com/hermitdave/FrequencyWords)). The English prediction list
-(`app/src/main/assets/en_words.txt`) is built by [`tools/gen_english.py`](tools/gen_english.py) from a
-frequency list such as [Norvig's count_1w.txt](https://norvig.com/ngrams/count_1w.txt).
+[`.github/workflows/release.yml`](.github/workflows/release.yml).
+
+Only English's dictionary (`app/src/main/assets/en_words.txt`, built by
+[`tools/gen_english.py`](tools/gen_english.py) from a frequency list such as
+[Norvig's count_1w.txt](https://norvig.com/ngrams/count_1w.txt)) is bundled. Every other language's
+dictionary lives in [`dicts/`](dicts) and is downloaded on demand: Hebrew (`dicts/he.txt`, from
+[`tools/gen_hebrew.py`](tools/gen_hebrew.py)), Arabic (`dicts/ar.txt`) and the Latin languages (on the
+`dicts-v1` release) come from [hermitdave/FrequencyWords](https://github.com/hermitdave/FrequencyWords)
+via [`tools/gen_lang.py`](tools/gen_lang.py); Mandarin pinyin (`dicts/zh.txt`) is the Chinese list
+converted to romanized pinyin by [`tools/gen_pinyin.py`](tools/gen_pinyin.py). The English and Hebrew
+typing models (`app/src/main/res/raw/charmodel.bin`, `hebcharmodel.bin`) come from
+[`tools/gen_charmodel.py`](tools/gen_charmodel.py) and [`tools/gen_hebrew.py`](tools/gen_hebrew.py).
 
 ## Releasing
 

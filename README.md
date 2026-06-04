@@ -1,5 +1,3 @@
-<img src="assets/images/example.png" alt="Type">
-
 **Type v1.0.0 — a black-and-white keyboard for the Light Phone.**
 A faithful recreation of the Light Phone 3 keyboard, as a system keyboard for any app.
 

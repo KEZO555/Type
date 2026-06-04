@@ -11,9 +11,9 @@ import java.io.File
  * The keyboard's offline autocorrect dictionary — one instance per language, configured by
  * [Dictionaries]. The word list comes from one of two places:
  *
- *   • **bundled** in the APK as an asset ([assetName]) — English and Hebrew, always available; or
- *   • **downloaded** on demand into internal storage ([DictModel]) — Spanish, French, German,
- *     Italian, Portuguese.
+ *   • **bundled** in the APK as an asset ([assetName]) — English only, always available; or
+ *   • **downloaded** on demand into internal storage ([DictModel]) — every other language (Hebrew,
+ *     Spanish, French, German, Italian, Portuguese, Arabic, Mandarin pinyin), fetched when enabled.
  *
  * Either way it's a `word<space>count` list, loaded into a frequency map and fed to the shared
  * keyboard-aware corrector ([WordPredict]): [correct] returns the most likely real word within one edit

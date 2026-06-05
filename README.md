@@ -1,4 +1,4 @@
-<img src="assets/images/example.png">
+<img src="assets/images/example.png" alt="Type — a black-and-white keyboard for the Light Phone">
 
 **Type** — a black-and-white keyboard for the Light Phone.
 A faithful recreation of the Light Phone 3 keyboard, as a system keyboard for any app.
@@ -100,10 +100,11 @@ That is the whole setup.
 
 ## Gestures
 
-- **Globe** (marked with a small ⚙) — tap switches English ⇄ Hebrew; **long-press opens a quick-settings
-  panel** right on the keyboard (haptic strength, autocorrect, auto-capitalize, double-space, number row,
-  plus a shortcut to the full settings) — no need to leave the app you're typing in. **Comma key** —
-  tap types a comma; **long-press opens the emoji panel** (recently-used float to the front).
+- **Globe** (marked with a small ⚙) — tap cycles your enabled languages (the active one is shown on the
+  space bar, e.g. `EN` / `NL` / `RU`); **long-press opens a quick-settings panel** right on the keyboard
+  (haptic strength, autocorrect, auto-capitalize, double-space, number row, plus a shortcut to the full
+  settings) — no need to leave the app you're typing in. **Comma key** — tap types a comma; **long-press
+  opens the emoji panel** (recently-used float to the front).
 - **Long-press a letter** — pops up its corner number/symbol (selected by default); release to type it,
   or slide off the key to cancel and keep the letter.
 - **Long-press the `123`/`ABC` key** (hinted with the first one in its corner) — a picker of the active

@@ -254,8 +254,9 @@ class LightKeyboardView @JvmOverloads constructor(
     // from prefs once per measure/layout pass (refreshMetrics) and cached here, so rowPitch — accessed
     // several times per pass — doesn't hit SharedPreferences each time.
     private var heightScale = 1f
-    private var numberRowOn = false   // all three cached once per measure/layout pass (refreshMetrics)
+    private var numberRowOn = false   // all cached once per measure/layout pass (refreshMetrics)
     private var suggestionsOn = false
+    private var multiLang = false     // 2+ languages enabled → label the space bar with the active one
     private fun refreshMetrics() {
         heightScale = when (Prefs.keyboardHeight(context)) {
             Prefs.LEVEL_LOW -> 0.84f
@@ -264,6 +265,7 @@ class LightKeyboardView @JvmOverloads constructor(
         }
         numberRowOn = Prefs.numberRow(context)
         suggestionsOn = Prefs.suggestions(context)
+        multiLang = Prefs.enabledLanguages(context).size > 1
     }
     private val rowKeyH: Float get() = dpf(43) * heightScale
     private val rowPitch: Float get() = rowKeyH + keyGap * 2   // ~49dp per row at normal height
@@ -634,10 +636,19 @@ class LightKeyboardView @JvmOverloads constructor(
         val id = pk.id
         if (id.startsWith("__SET_")) { drawSettingRow(canvas, pk); return }
         if (id == Key.SPACE) {
-            // Plain centred line, matching the LightOS keyboard. (Double-tap inserts ". "; a horizontal
-            // drag moves the caret — no label clutter on the bar itself.)
-            val y = pk.vis.centerY()
-            canvas.drawRect(pk.vis.left + dpf(28), y - dpf(1), pk.vis.right - dpf(28), y + dpf(1), spacePaint)
+            // With more than one language enabled, label the space bar with the active one (e.g. EN / NL /
+            // NL-BE / RU) so it's clear which is on — like iOS/Gboard. Otherwise a plain centred line.
+            if (multiLang) {
+                textPaint.textAlign = Paint.Align.CENTER
+                textPaint.textSize = spf(13)
+                textPaint.color = Color.argb(170, 255, 255, 255)
+                val baseline = pk.vis.centerY() - (textPaint.descent() + textPaint.ascent()) / 2f
+                canvas.drawText(lang.code.uppercase(), pk.vis.centerX(), baseline, textPaint)
+                textPaint.color = Color.WHITE
+            } else {
+                val y = pk.vis.centerY()
+                canvas.drawRect(pk.vis.left + dpf(28), y - dpf(1), pk.vis.right - dpf(28), y + dpf(1), spacePaint)
+            }
             return
         }
         val icon = iconFor(id)

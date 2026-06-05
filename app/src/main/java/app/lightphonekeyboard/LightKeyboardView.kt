@@ -780,7 +780,7 @@ class LightKeyboardView @JvmOverloads constructor(
     /** A Light Phone–style toggle ending at [rightX], vertical centre [cy]: a short track with a knob —
      *  hollow knob on the left when [on] is false, a filled knob on the right when true. */
     private fun drawSwitch(canvas: Canvas, rightX: Float, cy: Float, on: Boolean) {
-        val r = dpf(5.5f)
+        val r = dpf(5)                        // knob radius
         val w = dpf(30)                       // total track width
         val left = rightX - w
         switchPaint.style = Paint.Style.STROKE

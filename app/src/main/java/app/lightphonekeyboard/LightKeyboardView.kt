@@ -636,18 +636,27 @@ class LightKeyboardView @JvmOverloads constructor(
         val id = pk.id
         if (id.startsWith("__SET_")) { drawSettingRow(canvas, pk); return }
         if (id == Key.SPACE) {
-            // With more than one language enabled, label the space bar with the active one (e.g. EN / NL /
-            // NL-BE / RU) so it's clear which is on — like iOS/Gboard. Otherwise a plain centred line.
+            // The centred space-bar line, with the active language code set into the middle of it (line
+            // segments flanking the label) when more than one language is enabled — so the line stays but
+            // it's clear which language is on. With a single language it's just the plain line.
+            val y = pk.vis.centerY()
+            val lineL = pk.vis.left + dpf(28)
+            val lineR = pk.vis.right - dpf(28)
             if (multiLang) {
+                val label = lang.code.uppercase()
                 textPaint.textAlign = Paint.Align.CENTER
-                textPaint.textSize = spf(13)
-                textPaint.color = Color.argb(170, 255, 255, 255)
-                val baseline = pk.vis.centerY() - (textPaint.descent() + textPaint.ascent()) / 2f
-                canvas.drawText(lang.code.uppercase(), pk.vis.centerX(), baseline, textPaint)
+                textPaint.textSize = spf(12)
+                textPaint.color = Color.argb(190, 255, 255, 255)
+                val cx = pk.vis.centerX()
+                val gap = dpf(8)                                    // breathing room around the label
+                val leftEnd = cx - textPaint.measureText(label) / 2f - gap
+                val rightStart = cx - (leftEnd - cx)                // mirror of leftEnd about the centre
+                if (leftEnd > lineL) canvas.drawRect(lineL, y - dpf(1), leftEnd, y + dpf(1), spacePaint)
+                if (rightStart < lineR) canvas.drawRect(rightStart, y - dpf(1), lineR, y + dpf(1), spacePaint)
+                canvas.drawText(label, cx, y - (textPaint.descent() + textPaint.ascent()) / 2f, textPaint)
                 textPaint.color = Color.WHITE
             } else {
-                val y = pk.vis.centerY()
-                canvas.drawRect(pk.vis.left + dpf(28), y - dpf(1), pk.vis.right - dpf(28), y + dpf(1), spacePaint)
+                canvas.drawRect(lineL, y - dpf(1), lineR, y + dpf(1), spacePaint)
             }
             return
         }

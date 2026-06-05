@@ -24,6 +24,8 @@
     <string name="voice_failed">Voice download failed: %1$s · tap to retry</string>
     <string name="setup_number_row">Number row</string>
     <string name="setup_number_row_sub">Show a row of numbers above the letters.</string>
+    <string name="setup_lang_indicator">Language on space bar</string>
+    <string name="setup_lang_indicator_sub">When more than one language is enabled, show the active one\'s code (EN / NL / RU …) on the space bar.</string>
     <string name="setup_auto_cap">Auto-capitalize</string>
     <string name="setup_auto_cap_sub">Capitalize the first letter of each sentence (English).</string>
     <string name="setup_double_space">Double-space for period</string>

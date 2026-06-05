@@ -64,6 +64,8 @@ class SetupActivity : AppCompatActivity() {
                 { Prefs.keyboardHeight(this) }, { Prefs.setKeyboardHeight(this, it) })
             toggleItem(c, R.string.setup_number_row, R.string.setup_number_row_sub,
                 { Prefs.numberRow(this) }, { Prefs.setNumberRow(this, it) })
+            toggleItem(c, R.string.setup_lang_indicator, R.string.setup_lang_indicator_sub,
+                { Prefs.languageIndicator(this) }, { Prefs.setLanguageIndicator(this, it) })
             LightUi.navItem(c, getString(R.string.setup_emoji), getString(R.string.setup_emoji_sub)) {
                 startActivity(Intent(this, EmojiSettingsActivity::class.java))
             }

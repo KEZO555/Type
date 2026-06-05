@@ -12,6 +12,7 @@ object Prefs {
     private const val KEY_HAPTIC = "haptic_level"
     private const val KEY_AUTO_CAP = "auto_cap"
     private const val KEY_DOUBLE_SPACE = "double_space_period"
+    private const val KEY_LANG_INDICATOR = "language_indicator"
     private const val KEY_RECENT_EMOJI = "recent_emoji"
     private const val RECENT_EMOJI_MAX = 12
     private const val KEY_EMOJI_SET = "emoji_set"
@@ -78,6 +79,12 @@ object Prefs {
 
     fun setDoubleSpacePeriod(c: Context, value: Boolean) =
         prefs(c).edit().putBoolean(KEY_DOUBLE_SPACE, value).apply()
+
+    /** Show the active language code on the space bar (only matters with 2+ languages). On by default. */
+    fun languageIndicator(c: Context): Boolean = prefs(c).getBoolean(KEY_LANG_INDICATOR, true)
+
+    fun setLanguageIndicator(c: Context, value: Boolean) =
+        prefs(c).edit().putBoolean(KEY_LANG_INDICATOR, value).apply()
 
     /** Play a click on each key press (uses the system key-press sound). Off by default. */
     fun soundEnabled(c: Context): Boolean = prefs(c).getBoolean(KEY_SOUND, false)

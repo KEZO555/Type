@@ -311,6 +311,12 @@ class LightKeyboardView @JvmOverloads constructor(
         textAlign = Paint.Align.CENTER
     }
     private val spacePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.WHITE }
+    // LightOS-style toggle in the quick-settings panel: a knob on a short track (hollow-left = off,
+    // filled-right = on). Round-capped stroke for the track and the hollow knob.
+    private val switchPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.WHITE; style = Paint.Style.STROKE
+        strokeWidth = 2f * resources.displayMetrics.density; strokeCap = Paint.Cap.ROUND
+    }
     private val pressPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.argb(70, 255, 255, 255) }
     // Suggestion-bar dividers / baseline: faint white, matching the keyboard's restrained look.
     private val stripDivPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.argb(38, 255, 255, 255) }
@@ -743,7 +749,8 @@ class LightKeyboardView @JvmOverloads constructor(
         }
     }
 
-    /** A quick-settings row: label on the left, current value on the right (Done/All-settings centred). */
+    /** A quick-settings row: label on the left; a LightOS switch (on/off rows) or the current value text
+     *  (multi-level rows) on the right; Done/All-settings centred. */
     private fun drawSettingRow(canvas: Canvas, pk: PlacedKey) {
         val (label, value) = settingLabel(pk.id)
         val baseline = pk.vis.centerY() - (textPaint.descent() + textPaint.ascent()) / 2f
@@ -755,11 +762,36 @@ class LightKeyboardView @JvmOverloads constructor(
         val padX = dpf(18)
         textPaint.textAlign = Paint.Align.LEFT
         canvas.drawText(label, pk.vis.left + padX, baseline, textPaint)
-        textPaint.textAlign = Paint.Align.RIGHT
-        textPaint.color = Color.argb(190, 255, 255, 255)
-        canvas.drawText(value, pk.vis.right - padX, baseline, textPaint)
-        textPaint.color = Color.WHITE
+        // True on/off rows show a LightOS switch; multi-level rows (haptics, height — whose value can also
+        // read "Off") keep their text value.
+        val isToggle = pk.id == Key.SET_AUTOCORRECT || pk.id == Key.SET_AUTOCAP ||
+            pk.id == Key.SET_LANGIND || pk.id == Key.SET_SUGGEST
+        if (isToggle) {
+            drawSwitch(canvas, pk.vis.right - padX, pk.vis.centerY(), value == "On")
+        } else {
+            textPaint.textAlign = Paint.Align.RIGHT
+            textPaint.color = Color.argb(190, 255, 255, 255)
+            canvas.drawText(value, pk.vis.right - padX, baseline, textPaint)
+            textPaint.color = Color.WHITE
+        }
         textPaint.textAlign = Paint.Align.CENTER
+    }
+
+    /** A Light Phone–style toggle ending at [rightX], vertical centre [cy]: a short track with a knob —
+     *  hollow knob on the left when [on] is false, a filled knob on the right when true. */
+    private fun drawSwitch(canvas: Canvas, rightX: Float, cy: Float, on: Boolean) {
+        val r = dpf(5.5f)
+        val w = dpf(30)                       // total track width
+        val left = rightX - w
+        switchPaint.style = Paint.Style.STROKE
+        if (on) {
+            canvas.drawLine(left, cy, rightX - r, cy, switchPaint)         // track, then…
+            switchPaint.style = Paint.Style.FILL
+            canvas.drawCircle(rightX - r, cy, r, switchPaint)             // …filled knob at the right
+        } else {
+            canvas.drawCircle(left + r, cy, r, switchPaint)              // hollow knob at the left…
+            canvas.drawLine(left + r * 2 + dpf(2), cy, rightX, cy, switchPaint)  // …then track
+        }
     }
 
     /** Label + current-value text for a quick-settings row (value null = a plain centred button). */

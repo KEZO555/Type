@@ -89,7 +89,7 @@ class LightKeyboardView @JvmOverloads constructor(
         const val SET_HAPTIC = "__SET_HAPTIC__"
         const val SET_AUTOCORRECT = "__SET_AC__"
         const val SET_AUTOCAP = "__SET_CAP__"
-        const val SET_DBLSPACE = "__SET_DSP__"
+        const val SET_LANGIND = "__SET_LANGIND__"
         const val SET_KBHEIGHT = "__SET_KBH__"
         const val SET_SUGGEST = "__SET_SUGGEST__"
         const val SET_DONE = "__SET_DONE__"
@@ -102,7 +102,7 @@ class LightKeyboardView @JvmOverloads constructor(
         rows.add(listOf(Key.SET_HAPTIC))
         rows.add(listOf(Key.SET_AUTOCORRECT))
         rows.add(listOf(Key.SET_AUTOCAP))
-        rows.add(listOf(Key.SET_DBLSPACE))
+        rows.add(listOf(Key.SET_LANGIND))
         rows.add(listOf(Key.SET_KBHEIGHT))
         rows.add(listOf(Key.SET_SUGGEST))
         rows.add(listOf(Key.SET_DONE, Key.SET_ALL))
@@ -256,7 +256,8 @@ class LightKeyboardView @JvmOverloads constructor(
     private var heightScale = 1f
     private var numberRowOn = false   // all cached once per measure/layout pass (refreshMetrics)
     private var suggestionsOn = false
-    private var multiLang = false     // 2+ languages enabled → label the space bar with the active one
+    private var multiLang = false     // 2+ languages enabled → can label the space bar with the active one
+    private var langIndicatorOn = true  // user toggle (quick settings / Settings) for that label
     private fun refreshMetrics() {
         heightScale = when (Prefs.keyboardHeight(context)) {
             Prefs.LEVEL_LOW -> 0.84f
@@ -266,6 +267,7 @@ class LightKeyboardView @JvmOverloads constructor(
         numberRowOn = Prefs.numberRow(context)
         suggestionsOn = Prefs.suggestions(context)
         multiLang = Prefs.enabledLanguages(context).size > 1
+        langIndicatorOn = Prefs.languageIndicator(context)
     }
     private val rowKeyH: Float get() = dpf(43) * heightScale
     private val rowPitch: Float get() = rowKeyH + keyGap * 2   // ~49dp per row at normal height
@@ -642,7 +644,7 @@ class LightKeyboardView @JvmOverloads constructor(
             val y = pk.vis.centerY()
             val lineL = pk.vis.left + dpf(28)
             val lineR = pk.vis.right - dpf(28)
-            if (multiLang) {
+            if (multiLang && langIndicatorOn) {
                 val label = lang.code.uppercase()
                 textPaint.textAlign = Paint.Align.CENTER
                 textPaint.textSize = spf(12)
@@ -768,7 +770,7 @@ class LightKeyboardView @JvmOverloads constructor(
                 "Haptics" to listOf("Off", "Light", "Medium", "Strong")[Prefs.hapticLevel(context).coerceIn(0, 3)]
             Key.SET_AUTOCORRECT -> "Autocorrect" to onOff(Prefs.autocorrect(context))
             Key.SET_AUTOCAP -> "Auto-capitalize" to onOff(Prefs.autoCap(context))
-            Key.SET_DBLSPACE -> "Double-space  ." to onOff(Prefs.doubleSpacePeriod(context))
+            Key.SET_LANGIND -> "Language label" to onOff(Prefs.languageIndicator(context))
             Key.SET_KBHEIGHT ->
                 "Keyboard size" to listOf("Compact", "Normal", "Tall")[Prefs.keyboardHeight(context).coerceIn(0, 2)]
             Key.SET_SUGGEST -> "Suggestion bar" to onOff(Prefs.suggestions(context))
@@ -1250,7 +1252,7 @@ class LightKeyboardView @JvmOverloads constructor(
             }
             Key.SET_AUTOCORRECT -> { Prefs.setAutocorrect(context, !Prefs.autocorrect(context)); invalidate() }
             Key.SET_AUTOCAP -> { Prefs.setAutoCap(context, !Prefs.autoCap(context)); invalidate() }
-            Key.SET_DBLSPACE -> { Prefs.setDoubleSpacePeriod(context, !Prefs.doubleSpacePeriod(context)); invalidate() }
+            Key.SET_LANGIND -> { Prefs.setLanguageIndicator(context, !Prefs.languageIndicator(context)); rebuild() }
             Key.SET_KBHEIGHT -> {
                 Prefs.setKeyboardHeight(context, (Prefs.keyboardHeight(context) + 1) % 3); rebuild()
             }

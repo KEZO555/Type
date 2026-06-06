@@ -113,6 +113,8 @@ class LightKeyboardView @JvmOverloads constructor(
     // The comma key types "," on tap and opens the emoji panel on long-press (emoji shown small in its
     // corner). Only the toggle (123/ABC) and the key right of space (period, ⌫ in emoji) change.
     private fun bottomRow(): List<String> {
+        // Numpad has its own bottom row (no space bar): ABC · , · 0 · . · ⏎, aligned to the 5-wide grid.
+        if (layer == Layer.NUMBER) return listOf(Key.LETTERS, ",", "0", ".", Key.ENTER)
         val toggle = if (layer == Layer.LETTERS) Key.SYMBOLS else Key.LETTERS
         val rightOfSpace = if (layer == Layer.EMOJI) Key.BACKSPACE else Key.PERIOD
         return listOf(toggle, Key.COMMA, Key.GLOBE, Key.SPACE, rightOfSpace, Key.ENTER)
@@ -136,11 +138,13 @@ class LightKeyboardView @JvmOverloads constructor(
             listOf(Key.SYMBOLS, "%", "©", "®", "™", "[", "]", "<", ">", Key.BACKSPACE),
         )
         // Numeric layer: opened automatically by the host when a number / phone / datetime field is
-        // focused (see LightImeService). Digits up top, then the symbols a number or phone needs.
+        // focused (see LightImeService). A calculator-style numpad — 1–9 in a 3×3 block with 0 below,
+        // operators down the left, and % / ⌫ down the right. The bottom row (ABC · , · 0 · . · ⏎) and
+        // the uniform key widths are handled in bottomRow()/weightFor().
         val number = listOf(
-            listOf("1", "2", "3", "4", "5", "6", "7", "8", "9", "0"),
-            listOf("+", "-", "*", "/", "=", ".", ",", "(", ")"),
-            listOf("%", "$", "€", "£", "#", ":", ";", "!", Key.BACKSPACE),
+            listOf("+", "1", "2", "3", "%"),
+            listOf("-", "4", "5", "6", "/"),
+            listOf("*", "7", "8", "9", Key.BACKSPACE),
         )
     }
 
@@ -858,7 +862,11 @@ class LightKeyboardView @JvmOverloads constructor(
         else -> id
     }
 
-    private fun weightFor(id: String): Float = when (id) {
+    // The numpad is a uniform grid (every key the same width); other layers use the per-key weights.
+    private fun weightFor(id: String): Float =
+        if (layer == Layer.NUMBER) 1f else weightForKey(id)
+
+    private fun weightForKey(id: String): Float = when (id) {
         Key.SPACE -> 5f
         // Only the bottom-row layer toggle is wide. =\< stays normal width so the symbols row-3
         // backspace lines up with the letters row-3 backspace.

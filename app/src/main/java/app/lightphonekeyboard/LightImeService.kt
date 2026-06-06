@@ -4,6 +4,7 @@ import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.inputmethodservice.InputMethodService
+import android.os.Build
 import android.text.InputType
 import android.view.KeyEvent
 import android.view.View
@@ -94,13 +95,26 @@ class LightImeService : InputMethodService(), LightKeyboardView.Listener {
         updateSuggestions()
     }
 
+    // Hints/labels (lowercased) that mark a text field as really wanting digits.
+    private val NUMERIC_HINT = Regex("phone|mobile|number|postal|postcode|\\bfax\\b|\\btel\\b|\\bpin\\b|\\bzip\\b")
+
     /** True for fields that expect digits — number, phone, or date/time — so the keyboard can open on
-     *  its numeric layer. */
-    private fun isNumericField(info: EditorInfo?): Boolean =
-        when (info?.inputType?.and(InputType.TYPE_MASK_CLASS)) {
-            InputType.TYPE_CLASS_NUMBER, InputType.TYPE_CLASS_PHONE, InputType.TYPE_CLASS_DATETIME -> true
-            else -> false
+     *  its numeric layer. Some apps (e.g. WhatsApp's contact editor) declare a phone field as plain
+     *  *text*; for those we fall back to the field's hint/label (e.g. "Phone number"). */
+    private fun isNumericField(info: EditorInfo?): Boolean {
+        info ?: return false
+        when (info.inputType and InputType.TYPE_MASK_CLASS) {
+            InputType.TYPE_CLASS_NUMBER, InputType.TYPE_CLASS_PHONE, InputType.TYPE_CLASS_DATETIME -> return true
+            InputType.TYPE_CLASS_TEXT -> {
+                val hint = buildString {
+                    info.label?.let { append(it).append(' ') }
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) info.hintText?.let { append(it) }
+                }.lowercase()
+                return hint.isNotBlank() && NUMERIC_HINT.containsMatchIn(hint)
+            }
         }
+        return false
+    }
 
     /** Warm the autocorrect dictionary for [code] (bundled languages always; downloadable ones only
      *  once the user has downloaded them — [WordDictionary.prepare] no-ops otherwise). */

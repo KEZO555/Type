@@ -112,4 +112,20 @@ class TextOpsTest {
         // No letter is both a medial and a final key (the two alphabets are disjoint).
         assertTrue((m2f.keys intersect f2m.keys).isEmpty())
     }
+
+    @Test fun procliticSplitsPeelLeadingParticles() {
+        // "ג" isn't a proclitic, so peeling stops after the one leading "ו".
+        assertEquals(listOf("ו" to "גדול"), TextOps.hebrewProcliticSplits("וגדול"))
+        // Stacked proclitics peel one at a time, shortest-prefix first, stopping at the first non-proclitic.
+        assertEquals(
+            listOf("ו" to "כשאמר", "וכ" to "שאמר", "וכש" to "אמר"),
+            TextOps.hebrewProcliticSplits("וכשאמר"),
+        )
+    }
+
+    @Test fun procliticSplitsStopAtNonParticlesAndShortStems() {
+        assertTrue(TextOps.hebrewProcliticSplits("רכבת").isEmpty())     // first letter not a proclitic
+        assertTrue(TextOps.hebrewProcliticSplits("של").isEmpty())        // stem "ל" shorter than minStem
+        assertEquals(2, TextOps.hebrewProcliticSplits("וכשמלך", maxStrip = 2).size)
+    }
 }

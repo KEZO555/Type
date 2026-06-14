@@ -69,4 +69,25 @@ object TextOps {
     // user keeps typing). These two maps are exact inverses of each other (asserted in TextOpsTest).
     val hebrewMedialToFinal = mapOf('כ' to 'ך', 'מ' to 'ם', 'נ' to 'ן', 'פ' to 'ף', 'צ' to 'ץ')
     val hebrewFinalToMedial = mapOf('ך' to 'כ', 'ם' to 'מ', 'ן' to 'נ', 'ף' to 'פ', 'ץ' to 'צ')
+
+    // Hebrew one-letter proclitics — the "Moshe ve-Kalev" set (מ ש ה ו כ ל ב): from / that / the / and /
+    // like / to / in. They glue onto the front of the next word, often several at once (e.g. וכש־), so a
+    // surface form like "ושלום" never appears in a base-form word list — peel these to reach the stem.
+    const val HEBREW_PROCLITICS = "משהוכלב"
+
+    /**
+     * Candidate (prefix, stem) splits of a Hebrew [word], peeling 1..[maxStrip] leading proclitic letters
+     * while the stem keeps at least [minStem] letters; shortest-prefix first. The caller checks each stem
+     * against the dictionary — bogus peels simply match nothing.
+     * e.g. hebrewProcliticSplits("וכשאמר") = [("ו","כשאמר"), ("וכ","שאמר"), ("וכש","אמר")].
+     */
+    fun hebrewProcliticSplits(word: String, maxStrip: Int = 3, minStem: Int = 2): List<Pair<String, String>> {
+        val out = ArrayList<Pair<String, String>>(maxStrip)
+        var i = 0
+        while (i < maxStrip && i < word.length && word[i] in HEBREW_PROCLITICS && word.length - (i + 1) >= minStem) {
+            i++
+            out.add(word.substring(0, i) to word.substring(i))
+        }
+        return out
+    }
 }

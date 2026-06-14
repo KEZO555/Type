@@ -114,10 +114,33 @@ class WordDictionary(
         }
     }
 
-    fun isWord(w: String): Boolean = freq.containsKey(w) || learned.containsKey(w)
+    private val hebrew = code == "he"
 
-    /** Ranking frequency: dictionary count, else a learned word's count × LEARN_WEIGHT, else 0. */
-    private fun effectiveFreq(w: String): Long = freq[w] ?: learned[w]?.let { it * LEARN_WEIGHT } ?: 0L
+    /** Is [w] a real word? Directly in the dictionary/learned, or — for Hebrew — a known stem with one or
+     *  more glued-on proclitics (ו/ה/ש/ב/כ/ל/מ), e.g. "ושלום" = ו + שלום. */
+    fun isWord(w: String): Boolean {
+        if (freq.containsKey(w) || learned.containsKey(w)) return true
+        if (hebrew) for ((_, stem) in TextOps.hebrewProcliticSplits(w)) {
+            if (freq.containsKey(stem) || learned.containsKey(stem)) return true
+        }
+        return false
+    }
+
+    /** Raw count of a known word/stem (no proclitic handling). */
+    private fun rawFreq(w: String): Long = freq[w] ?: learned[w]?.let { it * LEARN_WEIGHT } ?: 0L
+
+    /** Ranking frequency: dictionary/learned count; for an unknown Hebrew surface form, its stem's count
+     *  (discounted) so a proclitic+word reconstruction still ranks sensibly behind exact matches. */
+    private fun effectiveFreq(w: String): Long {
+        val direct = freq[w] ?: learned[w]?.let { it * LEARN_WEIGHT }
+        if (direct != null) return direct
+        if (hebrew) {
+            var best = 0L
+            for ((_, stem) in TextOps.hebrewProcliticSplits(w)) { val f = rawFreq(stem); if (f > best) best = f }
+            if (best > 0) return best / 4
+        }
+        return 0L
+    }
 
     /**
      * Best correction for [word], or null if it's already known / too short (< 3) / nothing confident.
@@ -174,6 +197,18 @@ class WordDictionary(
         while (i < ls.size && ls[i].startsWith(p)) {
             val w = ls[i]; i++
             if (w !in freq) (extra ?: HashMap<String, Long>().also { extra = it })[w] = (learned[w] ?: 0L) * LEARN_WEIGHT
+        }
+        // Hebrew: also complete the stem under any glued proclitics — typing "ושל" suggests "ושלום" — by
+        // completing the stem in the dictionary and re-attaching the prefix. Added as discounted extras so
+        // they rank alongside the ordinary completions.
+        if (hebrew) for ((prefix, stem) in TextOps.hebrewProcliticSplits(p)) {
+            for (sc in WordPredict.completions(sortedWords(), stem, limit, { freq[it] ?: 0L })) {
+                val cand = prefix + sc
+                if (cand == p || freq.containsKey(cand)) continue
+                val f = (freq[sc] ?: 0L) / 4
+                val m = extra ?: HashMap<String, Long>().also { extra = it }
+                if ((m[cand] ?: -1L) < f) m[cand] = f
+            }
         }
         val base = WordPredict.completions(sortedWords(), p, limit, { freq[it] ?: 0L }, extra ?: emptyMap())
         val ctxMap = prevWord?.lowercase()?.let { bigrams[it] } ?: return base

@@ -39,16 +39,22 @@ object WordPredict {
         isKnown: (String) -> Boolean,
         freqOf: (String) -> Long,
         sortedDict: Array<String>? = null,
+        contextOf: (String) -> Long = { 0L },
     ): String? {
         if (isKnown(word)) return null
         var best: String? = null
         var bestCost = Int.MAX_VALUE
+        var bestCtx = -1L
         var bestFreq = -1L
+        // Within the same (most plausible) edit cost, a candidate that the previous word is known to be
+        // followed by (contextOf > 0) wins; ties then fall back to raw frequency. With no context
+        // (contextOf == 0 everywhere) this reduces exactly to the frequency ranking.
         fun consider(cand: String, cost: Int) {
             if (cand == word || !isKnown(cand)) return
+            val ctx = contextOf(cand)
             val f = freqOf(cand)
-            if (cost < bestCost || (cost == bestCost && f > bestFreq)) {
-                bestCost = cost; bestFreq = f; best = cand
+            if (cost < bestCost || (cost == bestCost && (ctx > bestCtx || (ctx == bestCtx && f > bestFreq)))) {
+                bestCost = cost; bestCtx = ctx; bestFreq = f; best = cand
             }
         }
         for (i in 0..word.length) {
@@ -67,11 +73,13 @@ object WordPredict {
             for (c in alphabet) consider(l + c + r, COST_INDEL)                         // insert
         }
         if (best != null) return best
-        return bestCorrectionDist2(word, sortedDict, freqOf)
+        return bestCorrectionDist2(word, sortedDict, freqOf, contextOf)
     }
 
     /** Conservative distance-2 fallback (see [bestCorrection]); null unless a confident long-word fix. */
-    private fun bestCorrectionDist2(word: String, sortedDict: Array<String>?, freqOf: (String) -> Long): String? {
+    private fun bestCorrectionDist2(
+        word: String, sortedDict: Array<String>?, freqOf: (String) -> Long, contextOf: (String) -> Long = { 0L },
+    ): String? {
         if (sortedDict == null || word.length < MIN_LEN_DIST2) return null
         val first = word[0]
         val last = word[word.length - 1]
@@ -80,6 +88,7 @@ object WordPredict {
         var lo = 0; var hi = sortedDict.size
         while (lo < hi) { val mid = (lo + hi) ushr 1; if (sortedDict[mid] < firstStr) lo = mid + 1 else hi = mid }
         var best: String? = null
+        var bestCtx = -1L
         var bestFreq = -1L
         var i = lo
         while (i < sortedDict.size && sortedDict[i].isNotEmpty() && sortedDict[i][0] == first) {
@@ -87,8 +96,8 @@ object WordPredict {
             if (cand.length < word.length - 2 || cand.length > word.length + 2) continue
             if (cand[cand.length - 1] != last || cand == word) continue
             if (levAtMost(word, cand, 2) <= 2) {
-                val f = freqOf(cand)
-                if (f > bestFreq) { bestFreq = f; best = cand }
+                val ctx = contextOf(cand); val f = freqOf(cand)
+                if (ctx > bestCtx || (ctx == bestCtx && f > bestFreq)) { bestCtx = ctx; bestFreq = f; best = cand }
             }
         }
         return best

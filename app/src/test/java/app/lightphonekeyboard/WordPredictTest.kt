@@ -84,6 +84,22 @@ class WordPredictTest {
         assertEquals("because", correct2("becuase"))
     }
 
+    // ---- autocorrect: context (previous-word) tie-break ----
+
+    // "ct" is one insertion from both "cat" and "cot" — equally likely edits.
+    private val ctxFreqs = mapOf("cat" to 100L, "cot" to 50L)
+    private fun correctCtx(w: String, context: (String) -> Long) =
+        WordPredict.bestCorrection(w, alphabet, adj, { it in ctxFreqs }, { ctxFreqs[it] ?: 0L }, contextOf = context)
+
+    @Test fun withoutContextMostFrequentTieWins() {
+        assertEquals("cat", correctCtx("ct") { 0L })
+    }
+
+    @Test fun contextFloatsTheExpectedNextWordAboveAMoreFrequentOne() {
+        // The previous word is usually followed by "cot", so it wins despite "cat" being more frequent.
+        assertEquals("cot", correctCtx("ct") { if (it == "cot") 1L else 0L })
+    }
+
     // ---- completions ----
 
     private val sorted = arrayOf("the", "they", "there", "them", "then", "their", "cat").also { it.sort() }

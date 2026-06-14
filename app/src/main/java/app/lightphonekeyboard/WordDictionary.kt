@@ -147,15 +147,17 @@ class WordDictionary(
      * Lowercased for lookup; the caller reapplies the original case. (Hebrew is caseless, so lowercasing
      * is a no-op there.)
      */
-    fun correct(word: String): String? {
+    fun correct(word: String, prevWord: String? = null): String? {
         if (!ready || word.length < 3) return null
         val w = word.lowercase()
-        if (memo.containsKey(w)) return memo[w]
-        // sortedWords() enables the conservative distance-2 fallback (longer words only) at no per-key
-        // cost — correct() runs once per finished word, not on every keystroke.
-        val fix = WordPredict.bestCorrection(w, alphabet, adj, ::isWord, { effectiveFreq(it) }, sortedWords())
-        if (memo.size > 4000) memo.clear()   // bound the cache over a long session
-        memo[w] = fix
+        // The context-free result is memoized; a context-aware one depends on prevWord, so it's computed
+        // fresh (still only when a word finishes / the bar updates, not in a tight loop).
+        val ctx = prevWord?.lowercase()?.let { bigrams[it] }?.takeIf { it.isNotEmpty() }
+        if (ctx == null && memo.containsKey(w)) return memo[w]
+        val contextOf: (String) -> Long = if (ctx == null) NO_CONTEXT else { cand -> ctx[cand] ?: 0L }
+        // sortedWords() enables the conservative distance-2 fallback (longer words only) at no per-key cost.
+        val fix = WordPredict.bestCorrection(w, alphabet, adj, ::isWord, { effectiveFreq(it) }, sortedWords(), contextOf)
+        if (ctx == null) { if (memo.size > 4000) memo.clear(); memo[w] = fix }
         return fix
     }
 
@@ -331,6 +333,7 @@ class WordDictionary(
         const val MAX_LEARNED = 2000
         const val MAX_BIGRAM_PREV = 4000     // cap distinct context words held in memory
         const val MAX_BIGRAM_LINES = 6000    // cap pairs persisted to disk (most-used kept)
+        val NO_CONTEXT: (String) -> Long = { 0L }   // shared no-op so correct() allocates nothing
     }
 }
 

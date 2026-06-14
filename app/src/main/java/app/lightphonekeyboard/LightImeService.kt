@@ -544,7 +544,7 @@ class LightImeService : InputMethodService(), LightKeyboardView.Listener {
         if (word.length < 2) { barWords = emptyList(); barLiteralIndex = -1; kb.setSuggestions(emptyList()); return }
 
         // The correction space would auto-apply (only when autocorrect is on and it actually differs).
-        val correction = if (autocorrectOn()) dict.correct(word)?.takeIf { !it.equals(word, ignoreCase = true) } else null
+        val correction = if (autocorrectOn()) dict.correct(word, prevWord.ifEmpty { null })?.takeIf { !it.equals(word, ignoreCase = true) } else null
         val completions = dict.completions(word, 3, prevWord)
         val words = ArrayList<String>(3)
         var primary = -1
@@ -592,7 +592,10 @@ class LightImeService : InputMethodService(), LightKeyboardView.Listener {
      */
     private fun autocorrectFix(word: String): String? {
         if (!autocorrectOn() || word.length < 3) return null
-        return dict()?.correct(word)
+        // The word just before this one (the cursor still sits right after `word`) gives correction its
+        // context, so the fix can be biased toward what usually follows that previous word.
+        val prev = TextOps.precedingWord(currentInputConnection?.getTextBeforeCursor(48, 0) ?: "")
+        return dict()?.correct(word, prev.ifEmpty { null })
     }
 
     // The active language's dictionary, cached so the per-keystroke paths don't re-scan Languages.ALL +

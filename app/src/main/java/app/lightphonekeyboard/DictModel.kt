@@ -24,13 +24,29 @@ object DictModel {
     private const val MIN_LEN = 1
     private const val MAX_LEN = 16
 
+    // Data version per downloadable dictionary. Bump a language's number whenever dicts/<code>.txt is
+    // improved, so phones that already downloaded an older copy refresh themselves (see [refreshIfStale]).
+    // Absent = version 1, the original baseline — so only languages listed here ever re-download.
+    private val DICT_VERSIONS = mapOf("he" to 2)
+    private const val META = "dict_meta"
+
     private val main = Handler(Looper.getMainLooper())
+    private val refreshing = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
+
+    private fun currentVersion(code: String) = DICT_VERSIONS[code] ?: 1
+    private fun meta(context: Context) = context.getSharedPreferences(META, Context.MODE_PRIVATE)
+    private fun stampVersion(context: Context, code: String) =
+        meta(context).edit().putInt("ver_$code", currentVersion(code)).apply()
 
     /** Where a language's downloaded dictionary lives (internal storage). */
     fun dictFile(context: Context, code: String): File = File(context.filesDir, "${code}_words.txt")
 
     fun isInstalled(context: Context, code: String): Boolean =
         dictFile(context, code).let { it.exists() && it.length() > 0 }
+
+    /** Installed, but from an older data version than the app now ships → a better list is available. */
+    private fun isStale(context: Context, code: String): Boolean =
+        isInstalled(context, code) && meta(context).getInt("ver_$code", 1) < currentVersion(code)
 
     fun remove(context: Context, code: String) {
         dictFile(context, code).delete()
@@ -55,12 +71,42 @@ object DictModel {
                 downloadFiltered(url, tmp, letters) { p -> main.post { onProgress(p) } }
                 out.delete()
                 if (!tmp.renameTo(out)) { tmp.copyTo(out, overwrite = true); tmp.delete() }
+                stampVersion(app, def.code)
                 Log.i(TAG, "dictionary installed: ${out.name} (${out.length()} bytes)")
                 main.post { onDone() }
             } catch (e: Exception) {
                 Log.e(TAG, "dictionary install failed", e)
                 tmp.delete()
                 main.post { onError(e.message ?: "download failed") }
+            }
+        }.start()
+    }
+
+    /**
+     * If the installed dictionary is from an older data version, re-download the improved list once in
+     * the background (no progress UI) and call [onUpdated] on the main thread when the new file is in
+     * place. One attempt per process; a failure is logged and retried on the next launch.
+     */
+    fun refreshIfStale(context: Context, def: LangDef, onUpdated: () -> Unit) {
+        val url = def.dictUrl ?: return
+        val code = def.code
+        if (!isStale(context, code)) return
+        if (!refreshing.add(code)) return   // already attempted/attempting this session
+        val app = context.applicationContext
+        val letters = def.autocorrectAlphabet.toHashSet()
+        Thread {
+            val tmp = File(app.cacheDir, "${code}_words.upd")
+            try {
+                downloadFiltered(url, tmp, letters) {}
+                val out = dictFile(app, code)
+                out.delete()
+                if (!tmp.renameTo(out)) { tmp.copyTo(out, overwrite = true); tmp.delete() }
+                stampVersion(app, code)
+                Log.i(TAG, "dictionary refreshed: $code -> v${currentVersion(code)}")
+                main.post { onUpdated() }
+            } catch (e: Exception) {
+                Log.w(TAG, "dictionary refresh failed (retry next launch)", e)
+                tmp.delete()
             }
         }.start()
     }

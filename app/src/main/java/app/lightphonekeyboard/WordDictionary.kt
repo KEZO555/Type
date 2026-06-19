@@ -389,7 +389,7 @@ object Dictionaries {
             adjacencyRows = listOf("׳־קראטוןםפ", "שדגכעיחלךף", "זסבהנמצתץ"),
             assetName = def.dictAsset,
             maxLearnLen = 15,
-            freqSizeHint = 48_000,
+            freqSizeHint = 96_000,   // curated list now holds ~70k words; size to avoid rehashing on load
         )
         // English corrects over plain a–z — its bundled dictionary has no accents, unlike the other
         // Latin languages whose alphabets include their accented letters (derived from the layout).

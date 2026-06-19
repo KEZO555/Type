@@ -100,6 +100,20 @@ class WordPredictTest {
         assertEquals("cot", correctCtx("ct") { if (it == "cot") 1L else 0L })
     }
 
+    // ---- autocorrect: never invent a non-dictionary target (the Hebrew proclitic bug) ----
+
+    @Test fun doesNotCorrectToAKnownButNonDictionaryForm() {
+        // Mirrors Hebrew: "scat" is accepted as a word only because it parses as proclitic "s" + stem
+        // "cat" — it isn't a real listed entry. A typo must not be "corrected" into that invented form.
+        val isKnown = { w: String -> w == "cat" || w == "scat" }
+        val isTarget = { w: String -> w == "cat" }
+        val freq = { w: String -> if (w == "scat") 1000L else 10L }
+        // With the permissive predicate as the target, the corrector invents "scat":
+        assertEquals("scat", WordPredict.bestCorrection("sct", alphabet, adj, isKnown, freq))
+        // With a strict target it refuses — there is no real word one edit from "sct":
+        assertNull(WordPredict.bestCorrection("sct", alphabet, adj, isKnown, freq, isTarget = isTarget))
+    }
+
     // ---- completions ----
 
     private val sorted = arrayOf("the", "they", "there", "them", "then", "their", "cat").also { it.sort() }

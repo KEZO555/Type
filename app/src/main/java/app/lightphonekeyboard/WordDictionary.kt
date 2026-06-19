@@ -126,6 +126,11 @@ class WordDictionary(
         return false
     }
 
+    /** A *direct* dictionary/learned entry — the only thing we may autocorrect *to*. Unlike [isWord] this
+     *  deliberately excludes Hebrew proclitic+stem reconstructions, so corrections never invent a glued
+     *  surface form (e.g. ש/ו + a common stem) that isn't itself a real listed word. */
+    private fun isDictWord(w: String): Boolean = freq.containsKey(w) || learned.containsKey(w)
+
     /** Raw count of a known word/stem (no proclitic handling). */
     private fun rawFreq(w: String): Long = freq[w] ?: learned[w]?.let { it * LEARN_WEIGHT } ?: 0L
 
@@ -156,7 +161,11 @@ class WordDictionary(
         if (ctx == null && memo.containsKey(w)) return memo[w]
         val contextOf: (String) -> Long = if (ctx == null) NO_CONTEXT else { cand -> ctx[cand] ?: 0L }
         // sortedWords() enables the conservative distance-2 fallback (longer words only) at no per-key cost.
-        val fix = WordPredict.bestCorrection(w, alphabet, adj, ::isWord, { effectiveFreq(it) }, sortedWords(), contextOf)
+        // isWord stays permissive (so a correctly-typed prefixed word is left alone), but we only ever
+        // correct *to* a real listed word via isDictWord — never to an invented proclitic+stem form.
+        val fix = WordPredict.bestCorrection(
+            w, alphabet, adj, ::isWord, { effectiveFreq(it) }, sortedWords(), contextOf, isTarget = ::isDictWord,
+        )
         if (ctx == null) { if (memo.size > 4000) memo.clear(); memo[w] = fix }
         return fix
     }

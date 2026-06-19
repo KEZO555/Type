@@ -114,6 +114,21 @@ class WordPredictTest {
         assertNull(WordPredict.bestCorrection("sct", alphabet, adj, isKnown, freq, isTarget = isTarget))
     }
 
+    // ---- autocorrect: spatial (touch) cost steers the substitution ----
+
+    @Test fun spatialCostSteersAmbiguousSubstitutionAgainstTheKeyGrid() {
+        // "cay": by the key grid, y→t is adjacent (cheap) and y→r is a far substitution (costly), so the
+        // grid alone fixes it to "cat". A spatial model that saw the finger land nearest 'r' should win.
+        val known = setOf("cat", "car")
+        val subCost = { pos: Int, from: Char, to: Char ->
+            if (pos == 2 && from == 'y') (if (to == 'r') 0 else if (to == 't') 1 else null) else null
+        }
+        fun corr(sc: (Int, Char, Char) -> Int?) =
+            WordPredict.bestCorrection("cay", alphabet, adj, { it in known }, { 0L }, subCost = sc)
+        assertEquals("cat", corr { _, _, _ -> null })   // grid only: adjacent 't' beats far 'r'
+        assertEquals("car", corr(subCost))              // touch said 'r' → overrides the grid
+    }
+
     // ---- completions ----
 
     private val sorted = arrayOf("the", "they", "there", "them", "then", "their", "cat").also { it.sort() }

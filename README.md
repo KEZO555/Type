@@ -8,7 +8,7 @@ A faithful recreation of the Light Phone 3 keyboard, as a system keyboard for an
 
 **Languages (13):** English, Hebrew, Spanish, French, German, Italian, Portuguese, Arabic, Mandarin (QWERTY pinyin), Dutch (QWERTY + Belgian AZERTY), Russian, and Polish — each with its own layout and long-press accents. Only English is built in; every other language downloads its dictionary automatically when you enable it, then works fully offline.
 
-**Typing:** offline autocorrect (keyboard-aware, with a distance-2 fallback, that uses the previous word as context) and learns your vocabulary in every language · a suggestion bar with next-word prediction · auto-capitalize · double-space for period · a numeric layout that opens automatically for number / phone fields · Hebrew final-letter forms.
+**Typing:** offline autocorrect (keyboard-aware — it weighs where your finger actually landed — with a distance-2 fallback, and uses the previous word as context) and learns your vocabulary in every language · a suggestion bar with next-word prediction · auto-capitalize · double-space for period · a numeric layout that opens automatically for number / phone fields · Hebrew final-letter forms.
 
 **Voice dictation (optional, on-device):** English, Spanish, French, German, Italian, Portuguese, Dutch, Russian, Polish via downloadable Vosk models; Hebrew via the phone's recognizer.
 

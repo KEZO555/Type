@@ -1,27 +1,39 @@
 #!/usr/bin/env python3
 """
 Build the two Hebrew assets the keyboard needs, from a "word<space>frequency" list
-(e.g. hermitdave/FrequencyWords content/2018/he/he_50k.txt):
+plus one or more real Hebrew lexicons used to scrub junk out of the long tail.
 
   1. dicts/he.txt
      The downloadable Hebrew dictionary for autocorrect — "word freq" per line, plain text.
-     Filtered to words made *only* of the 27 Hebrew letter forms, length 2..15.
-     Loaded by HebrewDictionary (Norvig-style edit-distance corrector). Stored uncompressed
-     in the repo; the APK's own deflate shrinks it to ~210 KB on device. (Don't gzip it —
-     AGP auto-decompresses .gz assets at packaging time, which just renames the entry.)
+     Loaded by WordDictionary (Norvig-style edit-distance corrector). Stored uncompressed
+     in the repo; the APK's own deflate shrinks it on device. (Don't gzip it — AGP
+     auto-decompresses .gz assets at packaging time, which just renames the entry.)
 
   2. app/src/main/res/raw/hebcharmodel.bin
      The Hebrew analogue of charmodel.bin — a character trigram model for the
-     per-tap typing-accuracy layer. Same on-disk format as the English one
-     (little-endian float32 [N][N][N], value = ln P(c3 | c1, c2)), but over the
-     Hebrew alphabet instead of a-z.
+     per-tap typing-accuracy layer (little-endian float32 [N][N][N], ln P(c3|c1,c2)),
+     over the Hebrew alphabet. Built from the same cleaned word list.
 
-Alphabet: the 27 contiguous Hebrew letter forms U+05D0..U+05EA (alef..tav,
-finals included), indexed by (codepoint - 0x05D0) → 0..26. Index 27 is the
-word-boundary symbol, so N = 28. This is exactly the indexing the Kotlin side
-uses (Lang.HE: base = 'א', size = 27), so the two stay in lockstep.
+Why a lexicon?
+  The raw frequency list (OpenSubtitles) is full of proper nouns, foreign-name
+  transliterations (מייקל, פרנק), interjections and OCR fragments. Left in, the
+  corrector happily "fixes" typos onto them. We therefore admit a corpus word only if:
+      • it is among the HEAD_KEEP most frequent words (so genuinely common vocabulary —
+        including colloquial spellings the lexicon may lack, e.g. אמא/אוקיי — is never
+        dropped), OR
+      • it (or its Hebrew proclitic stem, matching the keyboard's own ו/ה/ש/ב/כ/ל/מ
+        splitting) appears in a real Hebrew lexicon.
+  Everything else — the rare, unlexiconned tail where the junk lives — is discarded.
+  The kept words, in frequency order, are capped at MAX_WORDS.
 
-Usage:  python3 gen_hebrew.py [he_50k.txt]
+Sources (download once, then pass as args):
+  frequency : hermitdave/FrequencyWords content/2018/he/he_full.txt
+  lexicons  : LibreOffice/dictionaries he_IL/he_IL.dic  (Hspell-derived, ~469k forms)
+              wooorm/dictionaries dictionaries/he/index.dic  (optional, near-subset)
+  Each lexicon is a hunspell .dic: a leading count line, then "surfaceform/FLAGS" lines.
+
+Usage:  python3 gen_hebrew.py [he_full.txt] [lexicon.dic ...]
+        (defaults: /tmp/he_full.txt and /tmp/lo_he.dic, /tmp/woo_he.dic if present)
 """
 import struct, math, re, sys, os
 
@@ -34,13 +46,18 @@ ADD_K = 0.05
 L3, L2, L1 = 0.7, 0.25, 0.05   # interpolation weights: trigram, bigram, unigram
 
 MIN_LEN, MAX_LEN = 2, 15
-MAX_WORDS = 40000              # cap the bundled dictionary size
+HEAD_KEEP = 8000               # most-frequent words admitted unconditionally
+MAX_WORDS = 35000              # cap on the bundled dictionary size (DictModel keeps the top 30k on device)
 
 HE_WORD = re.compile(r"^[א-ת]+$")   # Hebrew letters only, nothing else
+PROCLITICS = set("משהוכלב")          # the gluable one-letter prefixes (matches TextOps)
 
 here = os.path.dirname(os.path.abspath(__file__))
 repo = os.path.dirname(here)
-src = sys.argv[1] if len(sys.argv) > 1 else "/tmp/he_50k.txt"
+src = sys.argv[1] if len(sys.argv) > 1 else "/tmp/he_full.txt"
+lex_args = sys.argv[2:]
+if not lex_args:
+    lex_args = [p for p in ("/tmp/lo_he.dic", "/tmp/woo_he.dic") if os.path.exists(p)]
 dict_out = os.path.join(repo, "dicts/he.txt")
 model_out = os.path.join(repo, "app/src/main/res/raw/hebcharmodel.bin")
 
@@ -49,30 +66,65 @@ def idx(ch):
     return ord(ch) - HE_BASE
 
 
-# ---- read + filter the frequency list ----------------------------------------
-words = []   # (word, weight), kept in frequency order
+def proclitic_stems(w, max_strip=3, min_stem=2):
+    """The stems under up to 3 glued proclitics — mirrors TextOps.hebrewProcliticSplits."""
+    out, i = [], 0
+    while i < max_strip and i < len(w) and w[i] in PROCLITICS and len(w) - (i + 1) >= min_stem:
+        i += 1
+        out.append(w[i:])
+    return out
+
+
+# ---- load the real-word lexicon(s) -------------------------------------------
+if not lex_args:
+    sys.exit("no lexicon given; see the docstring for the source .dic files")
+lex = set()
+for path in lex_args:
+    with open(path, encoding="utf-8", errors="ignore") as f:
+        next(f, None)   # leading count line
+        for line in f:
+            word = line.split("/", 1)[0].strip()
+            if word:
+                lex.add(word)
+print(f"lexicon surface forms: {len(lex):,}  (from {', '.join(os.path.basename(p) for p in lex_args)})")
+
+
+def is_real(w):
+    return w in lex or any(s in lex for s in proclitic_stems(w))
+
+
+# ---- read + frequency-sort the candidate words -------------------------------
+rows = []
 with open(src, encoding="utf-8", errors="ignore") as f:
     for line in f:
         parts = line.split()
         if len(parts) != 2:
             continue
-        w, c = parts[0], parts[1]
+        w, c = parts
         if not HE_WORD.match(w) or not (MIN_LEN <= len(w) <= MAX_LEN):
             continue
         try:
-            weight = float(c)
+            rows.append((w, int(float(c))))
         except ValueError:
             continue
-        words.append((w, weight))
+rows.sort(key=lambda x: -x[1])
+print(f"candidate Hebrew words: {len(rows):,}")
 
-words = words[:MAX_WORDS]
-print(f"dictionary words kept: {len(words):,}")
+# ---- admit head-or-lexicon words, in frequency order, up to the cap ----------
+floor = rows[HEAD_KEEP][1] if len(rows) > HEAD_KEEP else 0
+words = []
+for w, c in rows:
+    if c >= floor or is_real(w):
+        words.append((w, c))
+        if len(words) >= MAX_WORDS:
+            break
+print(f"dictionary words kept: {len(words):,}  (head floor freq = {floor})")
 
 # ---- 1. bundled dictionary (plain-text "word freq") --------------------------
 os.makedirs(os.path.dirname(dict_out), exist_ok=True)
 with open(dict_out, "w", encoding="utf-8") as fo:
-    for w, weight in words:
-        fo.write(f"{w} {int(weight)}\n")
+    for w, c in words:
+        fo.write(f"{w} {c}\n")
 print(f"wrote {dict_out}  ({os.path.getsize(dict_out):,} bytes)")
 
 # ---- 2. character trigram model ----------------------------------------------
@@ -111,8 +163,6 @@ print(f"wrote {model_out}  (entries {len(table):,}, {len(table) * 4:,} bytes)")
 def lp(a, b, c):
     return table[(idx(a) * N + idx(b)) * N + idx(c)]
 
-# After שׁ-less "של" stem etc. — just show that frequent continuations score higher.
 print("sanity (higher = more likely):")
-print(f"  P(ל|ש,ל-ctx של)  P(ת|את)  showing a few:")
 print(f"  ln P(ל | ש, ל) = {lp('ש','ל','ל'):.2f}")
 print(f"  ln P(ה | ז, ה) = {lp('ז','ה','ה'):.2f}")

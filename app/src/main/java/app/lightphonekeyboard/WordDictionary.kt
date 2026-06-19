@@ -83,6 +83,17 @@ class WordDictionary(
         }.start()
     }
 
+    /** Drop the in-memory word list and re-read it from disk — used after the downloaded dictionary file
+     *  has been refreshed to a newer version. Predictions briefly return nothing while it reloads; learned
+     *  words and the next-word model are re-read from their own files too. */
+    fun reload(context: Context) {
+        if (loading) return
+        ready = false
+        freq.clear(); learned.clear(); bigrams.clear(); memo.clear()
+        sorted = null; learnedSorted = null
+        prepare(context)
+    }
+
     private fun openReader(context: Context): BufferedReader =
         if (assetName != null) context.assets.open(assetName).bufferedReader(Charsets.UTF_8)
         else DictModel.dictFile(context, code).bufferedReader(Charsets.UTF_8)

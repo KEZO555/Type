@@ -119,7 +119,11 @@ class LightImeService : InputMethodService(), LightKeyboardView.Listener {
     /** Warm the autocorrect dictionary for [code] (bundled languages always; downloadable ones only
      *  once the user has downloaded them — [WordDictionary.prepare] no-ops otherwise). */
     private fun prepareDict(code: String) {
-        Dictionaries.get(code)?.prepare(this)
+        val dict = Dictionaries.get(code) ?: return
+        dict.prepare(this)
+        // If the bundled dictionary data has been improved since this phone last downloaded it, quietly
+        // fetch the new copy in the background and hot-reload it (no user action needed).
+        DictModel.refreshIfStale(this, Languages.byCode(code)) { dict.reload(this) }
     }
 
     override fun onDestroy() {

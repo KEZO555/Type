@@ -20,14 +20,14 @@ import java.net.URL
  */
 object DictModel {
     private const val TAG = "DictModel"
-    private const val MAX_WORDS = 30_000
+    private const val MAX_WORDS = 30_000     // default device cap; a language may raise it (LangDef.dictMaxWords)
     private const val MIN_LEN = 1
     private const val MAX_LEN = 16
 
     // Data version per downloadable dictionary. Bump a language's number whenever dicts/<code>.txt is
     // improved, so phones that already downloaded an older copy refresh themselves (see [refreshIfStale]).
     // Absent = version 1, the original baseline — so only languages listed here ever re-download.
-    private val DICT_VERSIONS = mapOf("he" to 2)
+    private val DICT_VERSIONS = mapOf("he" to 3)
     private const val META = "dict_meta"
 
     private val main = Handler(Looper.getMainLooper())
@@ -68,7 +68,7 @@ object DictModel {
             val tmp = File(app.cacheDir, "${def.code}_words.dl")
             val out = dictFile(app, def.code)
             try {
-                downloadFiltered(url, tmp, letters) { p -> main.post { onProgress(p) } }
+                downloadFiltered(url, tmp, letters, capFor(def)) { p -> main.post { onProgress(p) } }
                 out.delete()
                 if (!tmp.renameTo(out)) { tmp.copyTo(out, overwrite = true); tmp.delete() }
                 stampVersion(app, def.code)
@@ -97,7 +97,7 @@ object DictModel {
         Thread {
             val tmp = File(app.cacheDir, "${code}_words.upd")
             try {
-                downloadFiltered(url, tmp, letters) {}
+                downloadFiltered(url, tmp, letters, capFor(def)) {}
                 val out = dictFile(app, code)
                 out.delete()
                 if (!tmp.renameTo(out)) { tmp.copyTo(out, overwrite = true); tmp.delete() }
@@ -111,9 +111,12 @@ object DictModel {
         }.start()
     }
 
+    /** How many words to keep on device for [def] — its own cap if set, else the default. */
+    private fun capFor(def: LangDef): Int = def.dictMaxWords.takeIf { it > 0 } ?: MAX_WORDS
+
     /** Stream [url] line by line, keeping "<word> <count>" rows whose word is made only of [letters]
-     *  (lowercased) and is [MIN_LEN]..[MAX_LEN] long, up to [MAX_WORDS]. Progress is reported by bytes. */
-    private fun downloadFiltered(url: String, dest: File, letters: Set<Char>, onProgress: (Int) -> Unit) {
+     *  (lowercased) and is [MIN_LEN]..[MAX_LEN] long, up to [maxWords]. Progress is reported by bytes. */
+    private fun downloadFiltered(url: String, dest: File, letters: Set<Char>, maxWords: Int, onProgress: (Int) -> Unit) {
         val conn = (URL(url).openConnection() as HttpURLConnection).apply {
             connectTimeout = 20_000; readTimeout = 60_000; instanceFollowRedirects = true
         }
@@ -128,7 +131,7 @@ object DictModel {
                 dest.bufferedWriter(Charsets.UTF_8).use { writer ->
                     reader.forEachLine { line ->
                         read += line.length + 1
-                        if (kept < MAX_WORDS) {
+                        if (kept < maxWords) {
                             val sp = line.indexOf(' ')
                             if (sp > 0) {
                                 val w = line.substring(0, sp).lowercase()

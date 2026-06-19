@@ -47,7 +47,7 @@ L3, L2, L1 = 0.7, 0.25, 0.05   # interpolation weights: trigram, bigram, unigram
 
 MIN_LEN, MAX_LEN = 2, 15
 HEAD_KEEP = 8000               # most-frequent words admitted unconditionally
-MAX_WORDS = 35000              # cap on the bundled dictionary size (DictModel keeps the top 30k on device)
+MAX_WORDS = 70000              # cap on the bundled dictionary size (Hebrew keeps all of it on device)
 
 HE_WORD = re.compile(r"^[א-ת]+$")   # Hebrew letters only, nothing else
 PROCLITICS = set("משהוכלב")          # the gluable one-letter prefixes (matches TextOps)

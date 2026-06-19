@@ -18,6 +18,7 @@ class LangDef(
     val lettersLabel: String = "ABC",       // label on the "back to letters" toggle key
     val dictAsset: String? = null,          // bundled autocorrect dictionary (English only); null otherwise
     val dictUrl: String? = null,            // downloadable autocorrect dictionary (es/fr/de/it/pt)
+    val dictMaxWords: Int = 0,              // device cap for that download; 0 → DictModel's default
     val voiceUrl: String? = null,           // downloadable offline Vosk voice model (every language but Hebrew)
     val voiceSizeMb: Int = 0,               // approx download size of that model, for the settings hint
     private val hintsOverride: Map<Char, String>? = null,
@@ -86,6 +87,7 @@ object Languages {
         accents = listOf("ַ", "ָ", "ֶ", "ֵ", "ִ", "ֹ", "ְ", "ּ"),
         lettersLabel = "אבג",
         dictUrl = repoDictUrl("he"),     // downloaded like the others (no longer bundled in the APK)
+        dictMaxWords = 70_000,           // curated + lexicon-filtered, so a deeper list stays clean
         hintsOverride = mapOf(
             '׳' to "1", '-' to "2", 'ק' to "3", 'ר' to "4", 'א' to "5",
             'ט' to "6", 'ו' to "7", 'ן' to "8", 'ם' to "9", 'פ' to "0",

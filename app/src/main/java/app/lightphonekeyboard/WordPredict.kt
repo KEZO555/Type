@@ -40,6 +40,7 @@ object WordPredict {
         freqOf: (String) -> Long,
         sortedDict: Array<String>? = null,
         contextOf: (String) -> Long = { 0L },
+        isTarget: (String) -> Boolean = isKnown,
     ): String? {
         if (isKnown(word)) return null
         var best: String? = null
@@ -49,8 +50,12 @@ object WordPredict {
         // Within the same (most plausible) edit cost, a candidate that the previous word is known to be
         // followed by (contextOf > 0) wins; ties then fall back to raw frequency. With no context
         // (contextOf == 0 everywhere) this reduces exactly to the frequency ranking.
+        //
+        // [isTarget] gates what we may correct *to*. It can be stricter than [isKnown]: e.g. Hebrew treats
+        // a glued proclitic+stem as "known" (so we don't mangle a word you typed correctly), but must NOT
+        // invent such a surface form as a correction — that's what produced non-words like שאתה/ואתה.
         fun consider(cand: String, cost: Int) {
-            if (cand == word || !isKnown(cand)) return
+            if (cand == word || !isTarget(cand)) return
             val ctx = contextOf(cand)
             val f = freqOf(cand)
             if (cost < bestCost || (cost == bestCost && (ctx > bestCtx || (ctx == bestCtx && f > bestFreq)))) {

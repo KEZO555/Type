@@ -41,6 +41,7 @@ object WordPredict {
         sortedDict: Array<String>? = null,
         contextOf: (String) -> Long = { 0L },
         isTarget: (String) -> Boolean = isKnown,
+        subCost: (Int, Char, Char) -> Int? = { _, _, _ -> null },
     ): String? {
         if (isKnown(word)) return null
         var best: String? = null
@@ -72,7 +73,11 @@ object WordPredict {
                 val near = adjacency[typed].orEmpty()
                 for (c in alphabet) {
                     if (c == typed) continue
-                    consider(l + c + r.substring(1), if (c in near) COST_ADJACENT else COST_SUB)
+                    // [subCost] lets a spatial touch model price this substitution from where the finger
+                    // actually landed; it only ever returns a value <= the keyboard-adjacency default, so
+                    // it can steer toward the key under the finger but never blocks a fix the grid allows.
+                    val cost = subCost(i, typed, c) ?: if (c in near) COST_ADJACENT else COST_SUB
+                    consider(l + c + r.substring(1), cost)
                 }
             }
             for (c in alphabet) consider(l + c + r, COST_INDEL)                         // insert

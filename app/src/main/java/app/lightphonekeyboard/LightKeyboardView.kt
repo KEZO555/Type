@@ -247,7 +247,14 @@ class LightKeyboardView @JvmOverloads constructor(
     }
 
     private val placed = ArrayList<PlacedKey>()
-    private val letterKeys = ArrayList<PlacedKey>()   // a-z keys only, for the accuracy model
+    private val letterKeys = ArrayList<PlacedKey>()   // letter keys of the active layout, for the accuracy model
+
+    // Spatial "tap lattice": for the word being typed, the nearby keys (and their spatial log-likelihood)
+    // under each ambiguous tap (null entry = a confident tap). Fed to autocorrect so a fix is steered by
+    // where the finger actually landed, not just the static key grid.
+    private val tapLattice = ArrayList<HashMap<Char, Float>?>()
+    private val tapChars = StringBuilder()             // committed letters this set covers, for alignment
+    private var tapPrevWasLetter = false
 
     // --- metrics (px) ---
     private val padTop = dpf(3)
@@ -419,7 +426,7 @@ class LightKeyboardView @JvmOverloads constructor(
             layoutRow(rows[i], bandTop, bandBottom, visTop, visBottom, w)
             rowTop += pitch
         }
-        for (k in placed) if (isLetter(k.id)) letterKeys.add(k)
+        for (k in placed) if (isLetterKey(k.id)) letterKeys.add(k)
     }
 
     private fun layoutRow(
@@ -988,7 +995,7 @@ class LightKeyboardView @JvmOverloads constructor(
             if (layer == Layer.LETTERS && suggestions.isNotEmpty()) {
                 val cellW = (width - padSide * 2f) / suggestions.size
                 val j = (((x - padSide) / cellW).toInt()).coerceIn(0, suggestions.size - 1)
-                tap(); listener?.onSuggestionPicked(j)
+                tap(); clearTapLattice(); listener?.onSuggestionPicked(j)
             }
             return false
         }
@@ -997,9 +1004,18 @@ class LightKeyboardView @JvmOverloads constructor(
         val key = if (layer == Layer.LETTERS && isLetter(raw.id)) resolveLetter(x, y, raw) else raw
         pressed[pointerId] = key
         invalidate()
+        // Maintain the spatial tap lattice for the word being typed (consumed by [spatialSubCost]).
+        val letterTap = layer == Layer.LETTERS && isLetterKey(key.id)
+        if (letterTap) {
+            if (!tapPrevWasLetter) clearTapLattice()      // a new word starts
+            tapLattice.add(tapCandidates(x, y, raw))
+            tapChars.append(key.id[0])
+            tapPrevWasLetter = true
+        }
         if (key.id == Key.SYMBOLS || key.id == Key.LETTERS || key.id == Key.GLOBE || key.id == Key.ENTER) {
             // Resolve on release: tap = the key's action, long-press = 123/ABC→accents, globe→settings,
             // enter→hide the keyboard.
+            clearTapLattice()                             // layer switch / globe / enter break the word
             pendingReleasePointer = pointerId
             pendingReleaseId = key.id
             longPressPointerId = pointerId
@@ -1009,7 +1025,9 @@ class LightKeyboardView @JvmOverloads constructor(
             return false
         }
         val retractable = onKey(key.id)
+        if (!letterTap) tapPrevWasLetter = false          // a non-letter (space, punctuation) ends the word
         if (key.id == Key.BACKSPACE) {           // first delete fired on down; now arm the repeat
+            clearTapLattice()                    // edits break lattice↔text alignment; drop it
             backspacePointerId = pointerId
             backspaceDownMs = System.currentTimeMillis()
             removeCallbacks(backspaceRepeat)
@@ -1221,6 +1239,52 @@ class LightKeyboardView @JvmOverloads constructor(
         return id.length == 1 && id[0] in sp
     }
 
+    /** A letter key in any language — used to collect [letterKeys] and the spatial tap lattice, regardless
+     *  of whether the language has a character model. */
+    private fun isLetterKey(id: String): Boolean = id.length == 1 && id[0].isLetter()
+
+    /** Nearby letter keys → spatial log-likelihood (-d²/σ²) for an ambiguous tap; null for a confident tap
+     *  or when there are no letter keys. Pure geometry (no character model), so every language feeds it. */
+    private fun tapCandidates(x: Float, y: Float, raw: PlacedKey): HashMap<Char, Float>? {
+        if (letterKeys.isEmpty()) return null
+        val cx = x + biasX
+        val cy = y + biasY
+        val kw = raw.vis.width().coerceAtLeast(1f)
+        var nd2 = Float.MAX_VALUE
+        for (k in letterKeys) { val d2 = norm2(k, cx, cy, kw); if (d2 < nd2) nd2 = d2 }
+        if (sqrt(nd2) < coreFrac) return null              // confident tap — no ambiguity to record
+        val sigma2 = 2f * sigmaFrac * sigmaFrac
+        val radius2 = radiusFrac * radiusFrac
+        val cands = HashMap<Char, Float>(8)
+        for (k in letterKeys) { val d2 = norm2(k, cx, cy, kw); if (d2 <= radius2) cands[k.id[0]] = -d2 / sigma2 }
+        return cands
+    }
+
+    private fun clearTapLattice() {
+        tapLattice.clear(); tapChars.setLength(0); tapPrevWasLetter = false
+    }
+
+    /**
+     * A spatial substitution-cost function for [word], built from the tap lattice of the word currently
+     * being typed — or null if the lattice doesn't line up with [word] (then autocorrect just uses the key
+     * grid). Returns the cheapest cost (0) for the key the finger was most likely on, 1 for another nearby
+     * key, and null (→ grid cost) for a key the finger wasn't near. Self-checking: any mismatch in length
+     * or letters means we can't trust the alignment, so we fall back rather than risk a wrong steer.
+     */
+    fun spatialSubCost(word: String): ((Int, Char, Char) -> Int?)? {
+        if (word.isEmpty() || tapChars.length != word.length) return null
+        for (i in word.indices) if (tapChars[i].lowercaseChar() != word[i].lowercaseChar()) return null
+        val lattice = ArrayList(tapLattice)
+        return fn@{ pos, from, to ->
+            val cand = lattice.getOrNull(pos) ?: return@fn null
+            val toP = cand[to.lowercaseChar()] ?: return@fn null     // finger wasn't near 'to' → grid
+            val f = from.lowercaseChar()
+            var bestAlt = -Float.MAX_VALUE
+            for ((ch, p) in cand) if (ch != f && p > bestAlt) bestAlt = p
+            if (bestAlt == -Float.MAX_VALUE) null else if (toP >= bestAlt - 1e-3f) 0 else 1
+        }
+    }
+
     private fun resolveLetter(x: Float, y: Float, raw: PlacedKey): PlacedKey {
         if (letterKeys.isEmpty()) return raw
         val cx = x + biasX
@@ -1368,6 +1432,7 @@ class LightKeyboardView @JvmOverloads constructor(
      *  this does NOT re-notify the host — the host is the one driving the change. */
     fun setLanguageCode(code: String) {
         if (lang.code == code) return
+        clearTapLattice()
         applyLang(Languages.byCode(code))
         rebuild()
     }
@@ -1376,6 +1441,7 @@ class LightKeyboardView @JvmOverloads constructor(
     fun reset() {
         stopBackspaceRepeat()
         endAltLongPress()
+        clearTapLattice()
         spacePointerId = -1; spaceSwiping = false; pendingReleasePointer = -1
         layer = Layer.LETTERS; shifted = lang.hasCase; capsLock = false; listening = false; rebuild()
     }

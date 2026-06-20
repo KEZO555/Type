@@ -129,6 +129,18 @@ class WordPredictTest {
         assertEquals("car", corr(subCost))              // touch said 'r' → overrides the grid
     }
 
+    // ---- confidence: report the winning edit cost (gates auto-apply) ----
+
+    @Test fun reportsWinningEditCostForConfidenceGating() {
+        val known = setOf("the", "cat")
+        val c0 = IntArray(1)
+        assertEquals("the", WordPredict.bestCorrection("teh", alphabet, adj, { it in known }, { 0L }, costOut = c0))
+        assertTrue(c0[0] <= WordPredict.CONFIDENT_MAX_COST)   // transposition → confident, auto-applies
+        val c1 = IntArray(1)
+        assertEquals("cat", WordPredict.bestCorrection("cpt", alphabet, adj, { it in known }, { 0L }, costOut = c1))
+        assertTrue(c1[0] > WordPredict.CONFIDENT_MAX_COST)    // far substitution → offered, not auto-applied
+    }
+
     // ---- cheap matres-lectionis indel (Hebrew ktiv male/haser) ----
 
     @Test fun cheapMatresIndelBeatsAMoreFrequentPlainInsertion() {

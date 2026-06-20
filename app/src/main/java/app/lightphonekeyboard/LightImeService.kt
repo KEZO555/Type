@@ -217,6 +217,21 @@ class LightImeService : InputMethodService(), LightKeyboardView.Listener {
             undoFrom = cased + s; undoTo = original + s; undoWord = null; undoKeepMedial = null
             return
         }
+        // Merge-words: a fragment that completes the previous word into a real word ("to gether" → "together").
+        if (autocorrectOn() && finalizedMedial == null) {
+            val before = ic.getTextBeforeCursor(64, 0)?.toString() ?: ""
+            val prev = TextOps.precedingWord(before)
+            val merged = dict()?.mergeWord(prev, original)
+            if (merged != null && before.lowercase().endsWith("${prev.lowercase()} ${original.lowercase()}")) {
+                val cased = applyCase(prev, merged)
+                ic.beginBatchEdit()
+                ic.deleteSurroundingText(prev.length + 1 + original.length, 0)
+                ic.commitText(cased, 1); ic.commitText(s, 1)
+                ic.endBatchEdit()
+                undoFrom = cased + s; undoTo = "$prev $original$s"; undoWord = null; undoKeepMedial = null
+                return
+            }
+        }
         val fix = if (autocorrectOn()) autocorrectFix(original) else null
         // A non-null fix means `original` is unfamiliar (sits one edit from a real word). The first time
         // we offer the correction in case it's a typo; once you've used the same unfamiliar word again,
@@ -559,8 +574,12 @@ class LightImeService : InputMethodService(), LightKeyboardView.Listener {
         }
         if (word.length < 2) { barWords = emptyList(); barLiteralIndex = -1; kb.setSuggestions(emptyList()); return }
 
-        // The correction space would auto-apply (only when autocorrect is on and it actually differs).
-        val correction = if (autocorrectOn()) dict.correct(word, prevWord.ifEmpty { null }, keyboard?.spatialSubCost(word))?.takeIf { !it.equals(word, ignoreCase = true) } else null
+        // The correction space would auto-apply (only when autocorrect is on and it actually differs). Falls
+        // back to the run-on split so it previews in the bar too ("לארקובלתי" → "לא קיבלתי").
+        val correction = if (autocorrectOn())
+            (dict.correct(word, prevWord.ifEmpty { null }, keyboard?.spatialSubCost(word))
+                ?: dict.correctRunOn(word, prevWord.ifEmpty { null }))?.takeIf { !it.equals(word, ignoreCase = true) }
+        else null
         val completions = dict.completions(word, 3, prevWord)
         val words = ArrayList<String>(3)
         var primary = -1

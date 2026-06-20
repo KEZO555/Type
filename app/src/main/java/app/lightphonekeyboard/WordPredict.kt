@@ -169,6 +169,18 @@ object WordPredict {
         return best
     }
 
+    /**
+     * Merge correction (inverse of [splitCorrection]): if [current] isn't a real word on its own but
+     * [prev]+[current] is a real listed word, return the merged word — "to"+"gether" → "together". Both
+     * inputs are expected lowercased. Returns null when [current] is itself a word (so "key board" — both
+     * real — is never glued) or the join isn't a listed word.
+     */
+    fun mergeCorrection(prev: String, current: String, isWord: (String) -> Boolean, isDictWord: (String) -> Boolean): String? {
+        if (prev.isEmpty() || current.isEmpty() || isWord(current)) return null
+        val merged = prev + current
+        return if (isDictWord(merged)) merged else null
+    }
+
     /** Levenshtein distance between [a] and [b], computed only up to [max] (returns max+1 if it exceeds). */
     private fun levAtMost(a: String, b: String, max: Int): Int {
         val la = a.length; val lb = b.length

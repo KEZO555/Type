@@ -182,6 +182,22 @@ class WordPredictTest {
         assertNull(WordPredict.splitCorrection("thisix", { it in known }, fix, { 1L }))
     }
 
+    // ---- merge-words (inverse of split) ----
+
+    @Test fun mergesAFragmentThatCompletesThePreviousWord() {
+        val dict = setOf("together", "another", "keyboard")
+        fun merge(prev: String, cur: String) =
+            WordPredict.mergeCorrection(prev, cur, { it in dict }, { it in dict })
+        assertEquals("together", merge("to", "gether"))   // "gether" isn't a word, "together" is
+        assertEquals("another", merge("a", "nother"))
+    }
+
+    @Test fun mergeLeavesTwoRealWordsAlone() {
+        val dict = setOf("key", "board", "keyboard")
+        // "board" is a real word, so "key board" must stay two words, not become "keyboard".
+        assertNull(WordPredict.mergeCorrection("key", "board", { it in dict }, { it in dict }))
+    }
+
     // ---- completions ----
 
     private val sorted = arrayOf("the", "they", "there", "them", "then", "their", "cat").also { it.sort() }

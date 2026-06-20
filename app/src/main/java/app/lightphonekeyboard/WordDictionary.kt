@@ -209,6 +209,13 @@ class WordDictionary(
     /** The real contraction for an apostrophe-less English form ("dont" → "don't"), or null. */
     fun contractionOf(word: String): String? = if (english) CONTRACTIONS[word.lowercase()] else null
 
+    /** Merge [prev]+[current] into one word when [current] is only a fragment ("to gether" → "together"),
+     *  or null. The merged word is lowercase; the caller reapplies case. */
+    fun mergeWord(prev: String, current: String): String? {
+        if (!ready || prev.isEmpty()) return null
+        return WordPredict.mergeCorrection(prev.lowercase(), current.lowercase(), ::isWord, ::isDictWord)
+    }
+
     fun correct(
         word: String,
         prevWord: String? = null,

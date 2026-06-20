@@ -129,6 +129,19 @@ class WordPredictTest {
         assertEquals("car", corr(subCost))              // touch said 'r' → overrides the grid
     }
 
+    // ---- cheap matres-lectionis indel (Hebrew ktiv male/haser) ----
+
+    @Test fun cheapMatresIndelBeatsAMoreFrequentPlainInsertion() {
+        // Stand-in for Hebrew ו/י: inserting the "optional" letter is a cheap edit, so it wins over a more
+        // frequent but ordinary insertion. (In Hebrew: היתה → הייתה rather than some commoner near-word.)
+        val known = setOf("cat", "cit")
+        val freq = mapOf("cat" to 100L, "cit" to 1L)
+        fun corr(cheap: Set<Char>) =
+            WordPredict.bestCorrection("ct", alphabet, adj, { it in known }, { freq[it] ?: 0L }, cheapIndel = cheap)
+        assertEquals("cat", corr(emptySet()))     // plain: both cost the same, most frequent wins
+        assertEquals("cit", corr(setOf('i')))      // 'i' is "optional" → its insertion is cheaper, so it wins
+    }
+
     // ---- run-on split correction ----
 
     @Test fun splitsACleanRunOnIntoTwoWords() {

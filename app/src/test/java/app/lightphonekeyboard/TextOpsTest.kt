@@ -128,4 +128,10 @@ class TextOpsTest {
         assertTrue(TextOps.hebrewProcliticSplits("של").isEmpty())        // stem "ל" shorter than minStem
         assertEquals(2, TextOps.hebrewProcliticSplits("וכשמלך", maxStrip = 2).size)
     }
+
+    @Test fun aSecondPrefixNeedsAThreeLetterStem() {
+        // לודה must NOT parse as לו+דה (two prefixes + a 2-letter stem) — only the single-prefix split is
+        // kept, so it isn't treated as a real word and stays correctable (to תודה).
+        assertEquals(listOf("ל" to "ודה"), TextOps.hebrewProcliticSplits("לודה"))
+    }
 }

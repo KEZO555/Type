@@ -32,6 +32,7 @@ object DictModel {
 
     private val main = Handler(Looper.getMainLooper())
     private val refreshing = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
+    private val downloading = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
 
     private fun currentVersion(code: String) = DICT_VERSIONS[code] ?: 1
     private fun meta(context: Context) = context.getSharedPreferences(META, Context.MODE_PRIVATE)
@@ -79,6 +80,38 @@ object DictModel {
                 Log.e(TAG, "dictionary install failed", e)
                 tmp.delete()
                 main.post { onError(e.message ?: "download failed") }
+            }
+        }.start()
+    }
+
+    /**
+     * Auto-download a downloadable language's dictionary the first time it's used, if it's missing — so a
+     * freshly-installed (or reinstalled) app never has dead autocorrect for an enabled language. Silent,
+     * background, one attempt per process (retried next launch on failure); [onDone] fires on the main
+     * thread when the dictionary (and its next-word model) are in place so the engine can hot-load them.
+     */
+    fun ensureInstalled(context: Context, def: LangDef, onDone: () -> Unit) {
+        val url = def.dictUrl ?: return
+        val code = def.code
+        if (isInstalled(context, code)) return
+        if (!downloading.add(code)) return
+        val app = context.applicationContext
+        val letters = def.autocorrectAlphabet.toHashSet()
+        Thread {
+            val tmp = File(app.cacheDir, "${code}_words.new")
+            try {
+                downloadFiltered(url, tmp, letters, capFor(def)) {}
+                val out = dictFile(app, code)
+                out.delete()
+                if (!tmp.renameTo(out)) { tmp.copyTo(out, overwrite = true); tmp.delete() }
+                stampVersion(app, code)
+                fetchBigrams(app, def)
+                Log.i(TAG, "dictionary auto-installed: $code (${out.length()} bytes)")
+                main.post { onDone() }
+            } catch (e: Exception) {
+                Log.w(TAG, "auto-install failed (retry next launch)", e)
+                tmp.delete()
+                downloading.remove(code)   // allow a retry within this session
             }
         }.start()
     }

@@ -129,6 +129,34 @@ class WordPredictTest {
         assertEquals("car", corr(subCost))              // touch said 'r' → overrides the grid
     }
 
+    // ---- run-on split correction ----
+
+    @Test fun splitsACleanRunOnIntoTwoWords() {
+        val known = setOf("this", "is", "in", "fact")
+        val out = WordPredict.splitCorrection("thisis", { it in known }, { null }, { 1L })
+        assertEquals("this is", out)
+    }
+
+    @Test fun splitsARunOnWithATypoInEachHalf() {
+        // Mirrors לארקובלתי → לא קיבלתי: neither half is a word, but each is one edit from one.
+        val known = setOf("this", "is")
+        val fix = { p: String -> when (p) { "thes" -> "this"; "iss" -> "is"; else -> null } }
+        assertEquals("this is", WordPredict.splitCorrection("thesiss", { it in known }, fix, { 1L }))
+    }
+
+    @Test fun runOnNeedsBothHalvesToResolve() {
+        val known = setOf("this", "is")
+        // "thisxq": "this" + "xq" — second half is neither a word nor fixable → no split.
+        assertNull(WordPredict.splitCorrection("thisxq", { it in known }, { null }, { 1L }))
+    }
+
+    @Test fun runOnRejectsAnEditOnATwoLetterFragment() {
+        // A part that needs an edit must be >= 3 long; "ix" (2) can't be fixed to "is" here.
+        val known = setOf("this")
+        val fix = { p: String -> if (p == "ix") "is" else null }
+        assertNull(WordPredict.splitCorrection("thisix", { it in known }, fix, { 1L }))
+    }
+
     // ---- completions ----
 
     private val sorted = arrayOf("the", "they", "there", "them", "then", "their", "cat").also { it.sort() }

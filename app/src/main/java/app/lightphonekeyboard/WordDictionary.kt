@@ -187,6 +187,30 @@ class WordDictionary(
         return fix
     }
 
+    /**
+     * Run-on correction: when [word] isn't a real word and has no single-word fix, try splitting it into
+     * two words (inserting a space) — "thisis" → "this is", "לארקובלתי" → "לא קיבלתי". Each half must be a
+     * real word or a confident single edit from one. Returns "a b" or null. Tried by the caller only after
+     * [correct] comes up empty.
+     */
+    fun correctRunOn(word: String, prevWord: String? = null): String? {
+        if (!ready || word.length < 4 || word.length > 18) return null
+        val w = word.lowercase()
+        if (isWord(w)) return null                       // a real word (incl. proclitic) — never split
+        val ctx = prevWord?.lowercase()
+        return WordPredict.splitCorrection(
+            w,
+            isWord = ::isWord,
+            // a part isn't a real word → its best *distance-1* fix to a listed word (no dist-2, stay tight)
+            fixPart = { p ->
+                WordPredict.bestCorrection(p, alphabet, adj, ::isWord, { effectiveFreq(it) }, isTarget = ::isDictWord)
+            },
+            freqOf = { effectiveFreq(it) },
+            // a learned previous→a (first half) pairing, then a→b, gently favour seen sequences
+            bigramOf = { a, b -> (bigrams[a]?.get(b) ?: 0L) + (ctx?.let { bigrams[it]?.get(a) } ?: 0L) },
+        )
+    }
+
     // Lexically-sorted view of the dictionary keys, built once on first use, for prefix completion: a
     // binary search to the prefix range then a short scan of just that range. freq is never mutated
     // after loading, so this stays valid; learned words (added later) are scanned separately below.

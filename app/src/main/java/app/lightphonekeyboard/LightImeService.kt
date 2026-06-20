@@ -205,6 +205,18 @@ class LightImeService : InputMethodService(), LightKeyboardView.Listener {
         // A word terminator: snap a trailing medial Hebrew letter to its final form, then autocorrect.
         val finalizedMedial = fixFinalForWordEnd()
         val original = trailingWord()
+        // English "always" fixes (standalone "i" → "I", apostrophe-less contractions): applied before — and
+        // independent of — the typo/learn flow, so they never get suppressed or relearned.
+        val forced = if (autocorrectOn()) forcedFix(original) else null
+        if (forced != null) {
+            val cased = applyCase(original, forced)
+            ic.beginBatchEdit()
+            ic.deleteSurroundingText(original.length, 0)
+            ic.commitText(cased, 1); ic.commitText(s, 1)
+            ic.endBatchEdit()
+            undoFrom = cased + s; undoTo = original + s; undoWord = null; undoKeepMedial = null
+            return
+        }
         val fix = if (autocorrectOn()) autocorrectFix(original) else null
         // A non-null fix means `original` is unfamiliar (sits one edit from a real word). The first time
         // we offer the correction in case it's a typo; once you've used the same unfamiliar word again,
@@ -594,6 +606,14 @@ class LightImeService : InputMethodService(), LightKeyboardView.Listener {
      * edit distance of what you typed (+ your learned words). A language whose dictionary isn't loaded
      * — e.g. a downloadable one you haven't downloaded — returns null (no correction).
      */
+    /** English-only fixes that always apply (not the typo/learn flow): standalone "i" → "I", and
+     *  apostrophe-less contractions ("dont" → "don't"). Null otherwise. */
+    private fun forcedFix(word: String): String? {
+        if (langCode != "en") return null
+        if (word == "i") return "I"
+        return dict()?.contractionOf(word)
+    }
+
     private fun autocorrectFix(word: String): String? {
         if (!autocorrectOn() || word.length < 3) return null
         // The word just before this one (the cursor still sits right after `word`) gives correction its

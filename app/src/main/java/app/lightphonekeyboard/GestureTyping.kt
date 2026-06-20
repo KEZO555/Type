@@ -59,6 +59,15 @@ object GestureTyping {
         return top.sortedByDescending { it.second }.map { it.first }
     }
 
+    /** Normalised alignment cost of a specific [word] against the path — used by the tap-typing hybrid to
+     *  compare a candidate against what was actually typed. Null if a letter isn't on the layout. */
+    fun costOf(word: String, keys: List<Key>, xs: FloatArray, ys: FloatArray, keyWidth: Float): Double? {
+        if (xs.isEmpty() || keyWidth <= 0f) return null
+        val keyOf = HashMap<Char, Key>(keys.size)
+        for (k in keys) if (k.ch !in keyOf) keyOf[k.ch] = k
+        return alignmentCost(word, keyOf, xs, ys, keyWidth)
+    }
+
     /** Greedy monotonic alignment: total normalised distance from each letter's key to the nearest path
      *  point at or after the previous letter's point. Null if a letter isn't on the layout. */
     private fun alignmentCost(w: String, keyOf: Map<Char, Key>, xs: FloatArray, ys: FloatArray, keyWidth: Float): Double? {

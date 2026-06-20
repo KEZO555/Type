@@ -662,9 +662,13 @@ class LightImeService : InputMethodService(), LightKeyboardView.Listener {
         val prev = TextOps.precedingWord(currentInputConnection?.getTextBeforeCursor(48, 0) ?: "")
         val d = dict() ?: return null
         val p = prev.ifEmpty { null }
-        // Single-word fix first (auto-apply only confident ones); if there's none, try splitting a run-on
-        // into two words ("לארקובלתי" → "לא קיבלתי"). The commit path handles a space in the fix like any other.
-        return d.correct(word, p, keyboard?.spatialSubCost(word), confidentOnly = true) ?: d.correctRunOn(word, p)
+        // Single-word fix first (auto-apply only confident ones); then a run-on split ("לארקובלתי" → "לא
+        // קיבלתי"); then the tap-typing hybrid — decode the whole tap path, catching multi-tap fat-finger
+        // errors the edit-distance corrector misses. The commit path handles a space in the fix like any other.
+        d.correct(word, p, keyboard?.spatialSubCost(word), confidentOnly = true)?.let { return it }
+        d.correctRunOn(word, p)?.let { return it }
+        keyboard?.tapPath(word)?.let { tp -> return d.tapCorrect(word, tp.keys, tp.xs, tp.ys, tp.keyWidth, p) }
+        return null
     }
 
     // The active language's dictionary, cached so the per-keystroke paths don't re-scan Languages.ALL +

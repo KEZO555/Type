@@ -752,7 +752,8 @@ class LightImeService : InputMethodService(), LightKeyboardView.Listener {
         const val EXTRA_VISIBLE = "visible"
         /** Window of text to inspect when deleting the last grapheme cluster (covers long emoji). */
         private const val GRAPHEME_LOOKBACK = 16
-        /** Use an unfamiliar word this many times → it's added to your vocabulary (and stops correcting). */
-        private const val LEARN_AFTER_USES = 2
+        /** Use an unfamiliar word this many times → it's added to your vocabulary (and stops correcting).
+         *  Kept fairly high so a repeated *typo* isn't memorised as a real word after just a couple of uses. */
+        private const val LEARN_AFTER_USES = 4
     }
 }

@@ -141,13 +141,30 @@ class WordPredictTest {
         assertTrue(c1[0] > WordPredict.CONFIDENT_MAX_COST)    // far substitution → offered, not auto-applied
     }
 
+    // ---- noisy-channel: a much more frequent word beats a cheaper rare edit ----
+
+    @Test fun aMuchMoreFrequentWordBeatsACheaperRareEdit() {
+        // "no": the cheapest edit is the transposition → "on" (rare), but "go" (one substitution, far
+        // commoner) is the likelier intent. Mirrors נרעה → נראה over the rarer נערה.
+        val known = setOf("on", "go")
+        val freq = mapOf("on" to 5L, "go" to 1000L)
+        assertEquals("go", WordPredict.bestCorrection("no", alphabet, adj, { it in known }, { freq[it] ?: 0L }))
+    }
+
+    @Test fun aSmallFrequencyEdgeDoesNotOverrideACheaperEdit() {
+        // Only ~2× more frequent → the cheaper transposition "on" still wins (promotion stays conservative).
+        val known = setOf("on", "go")
+        val freq = mapOf("on" to 50L, "go" to 100L)
+        assertEquals("on", WordPredict.bestCorrection("no", alphabet, adj, { it in known }, { freq[it] ?: 0L }))
+    }
+
     // ---- cheap matres-lectionis indel (Hebrew ktiv male/haser) ----
 
     @Test fun cheapMatresIndelBeatsAMoreFrequentPlainInsertion() {
         // Stand-in for Hebrew ו/י: inserting the "optional" letter is a cheap edit, so it wins over a more
         // frequent but ordinary insertion. (In Hebrew: היתה → הייתה rather than some commoner near-word.)
         val known = setOf("cat", "cit")
-        val freq = mapOf("cat" to 100L, "cit" to 1L)
+        val freq = mapOf("cat" to 100L, "cit" to 60L)   // comparable freqs (not a lopsided gap)
         fun corr(cheap: Set<Char>) =
             WordPredict.bestCorrection("ct", alphabet, adj, { it in known }, { freq[it] ?: 0L }, cheapIndel = cheap)
         assertEquals("cat", corr(emptySet()))     // plain: both cost the same, most frequent wins

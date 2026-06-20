@@ -90,11 +90,29 @@ class LanguagesActivity : AppCompatActivity() {
     }
 
     private fun renderDict(view: TextView, l: LangDef) {
+        val d = resources.displayMetrics.density
         if (DictModel.isInstalled(this, l.code)) {
+            // Installed: quiet gray line, tap to remove.
             view.text = getString(R.string.dict_installed)
+            view.textSize = 13f
+            view.setTextColor(getColor(R.color.gray))
+            view.typeface = android.graphics.Typeface.DEFAULT
+            view.background = null
+            view.setPadding(0, (4 * d).toInt(), 0, 0)
             view.setOnClickListener { DictModel.remove(this, l.code); renderDict(view, l) }
         } else {
-            view.text = getString(R.string.dict_download)
+            // Not installed: a clearly tappable, outlined "button" so it's not missed — without a
+            // dictionary there's no autocorrect for this language.
+            view.text = "⬇  ${getString(R.string.dict_download)}"
+            view.textSize = 15f
+            view.setTextColor(getColor(R.color.white))
+            view.typeface = android.graphics.Typeface.DEFAULT_BOLD
+            view.background = android.graphics.drawable.GradientDrawable().apply {
+                cornerRadius = 10 * d
+                setStroke((1.5f * d).toInt(), getColor(R.color.white))
+            }
+            val px = (12 * d).toInt(); val py = (9 * d).toInt()
+            view.setPadding(px, py, px, py)
             view.setOnClickListener { downloadDict(view, l) }
         }
     }

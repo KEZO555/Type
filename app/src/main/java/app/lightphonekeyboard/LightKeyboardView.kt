@@ -101,6 +101,7 @@ class LightKeyboardView @JvmOverloads constructor(
         // In-keyboard quick-settings panel (opened by holding the globe). Each row toggles/cycles a pref.
         const val SET_HAPTIC = "__SET_HAPTIC__"
         const val SET_AUTOCORRECT = "__SET_AC__"
+        const val SET_GESTURE = "__SET_GESTURE__"
         const val SET_AUTOCAP = "__SET_CAP__"
         const val SET_LANGIND = "__SET_LANGIND__"
         const val SET_KBHEIGHT = "__SET_KBH__"
@@ -111,9 +112,10 @@ class LightKeyboardView @JvmOverloads constructor(
 
     // The quick-settings panel: one full-width tappable row per setting, then a Done / All-settings row.
     private fun settingsRows(): List<List<String>> {
-        val rows = ArrayList<List<String>>(7)
+        val rows = ArrayList<List<String>>(8)
         rows.add(listOf(Key.SET_HAPTIC))
         rows.add(listOf(Key.SET_AUTOCORRECT))
+        rows.add(listOf(Key.SET_GESTURE))
         rows.add(listOf(Key.SET_AUTOCAP))
         rows.add(listOf(Key.SET_LANGIND))
         rows.add(listOf(Key.SET_KBHEIGHT))
@@ -840,6 +842,7 @@ class LightKeyboardView @JvmOverloads constructor(
             Key.SET_HAPTIC ->
                 "Haptics" to listOf("Off", "Light", "Medium", "Strong")[Prefs.hapticLevel(context).coerceIn(0, 3)]
             Key.SET_AUTOCORRECT -> "Autocorrect" to onOff(Prefs.autocorrect(context))
+            Key.SET_GESTURE -> "Glide typing" to onOff(Prefs.gestureTyping(context))
             Key.SET_AUTOCAP -> "Auto-capitalize" to onOff(Prefs.autoCap(context))
             Key.SET_LANGIND -> "Language label" to onOff(Prefs.languageIndicator(context))
             Key.SET_KBHEIGHT ->
@@ -1433,6 +1436,11 @@ class LightKeyboardView @JvmOverloads constructor(
                 Prefs.setHapticLevel(context, next); previewHaptic(next); invalidate()
             }
             Key.SET_AUTOCORRECT -> { Prefs.setAutocorrect(context, !Prefs.autocorrect(context)); invalidate() }
+            Key.SET_GESTURE -> {
+                Prefs.setGestureTyping(context, !Prefs.gestureTyping(context))
+                gestureEnabled = Prefs.gestureTyping(context)   // take effect this session immediately
+                invalidate()
+            }
             Key.SET_AUTOCAP -> { Prefs.setAutoCap(context, !Prefs.autoCap(context)); invalidate() }
             Key.SET_LANGIND -> { Prefs.setLanguageIndicator(context, !Prefs.languageIndicator(context)); rebuild() }
             Key.SET_KBHEIGHT -> {

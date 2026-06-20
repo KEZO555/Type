@@ -15,6 +15,10 @@ object WordPredict {
     private const val COST_INDEL = 2     // insertion / deletion (a missed or doubled key)
     private const val COST_SUB = 3       // substitution of a non-adjacent key (least likely)
 
+    /** A fix at or below this edit cost is "confident" (a plausible slip); a costlier one — a non-adjacent
+     *  substitution — is a wild guess, fine to *offer* but not to auto-apply. See [bestCorrection]'s costOut. */
+    const val CONFIDENT_MAX_COST = COST_INDEL
+
     // Distance-2 fallback only kicks in for words at least this long: shorter words have too many real
     // words two edits away, so a "fix" there is as likely to be wrong as right.
     private const val MIN_LEN_DIST2 = 6
@@ -43,6 +47,7 @@ object WordPredict {
         isTarget: (String) -> Boolean = isKnown,
         subCost: (Int, Char, Char) -> Int? = { _, _, _ -> null },
         cheapIndel: Set<Char> = emptySet(),
+        costOut: IntArray? = null,        // [0] receives the winning fix's edit cost (for confidence gating)
     ): String? {
         if (isKnown(word)) return null
         var best: String? = null
@@ -85,8 +90,11 @@ object WordPredict {
             }
             for (c in alphabet) consider(l + c + r, if (c in cheapIndel) COST_ADJACENT else COST_INDEL)  // insert
         }
-        if (best != null) return best
-        return bestCorrectionDist2(word, sortedDict, freqOf, contextOf)
+        if (best != null) { costOut?.set(0, bestCost); return best }
+        // The distance-2 fallback already matches both ends, so it's conservative → treat as confident.
+        val d2 = bestCorrectionDist2(word, sortedDict, freqOf, contextOf)
+        if (d2 != null) costOut?.set(0, COST_INDEL)
+        return d2
     }
 
     /** Conservative distance-2 fallback (see [bestCorrection]); null unless a confident long-word fix. */

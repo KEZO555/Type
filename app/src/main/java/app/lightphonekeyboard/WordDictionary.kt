@@ -213,6 +213,7 @@ class WordDictionary(
         word: String,
         prevWord: String? = null,
         subCost: ((Int, Char, Char) -> Int?)? = null,
+        confidentOnly: Boolean = false,   // the auto-apply path passes true: only commit a confident fix
     ): String? {
         if (!ready) return null
         val w = word.lowercase()
@@ -224,16 +225,19 @@ class WordDictionary(
         // it's computed fresh (still only when a word finishes / the bar updates, not in a tight loop).
         val pw = prevWord?.lowercase()
         val hasCtx = pw != null && (bigrams[pw]?.isNotEmpty() == true || pretrained[pw]?.isNotEmpty() == true)
-        val memoable = !hasCtx && subCost == null
+        val memoable = !hasCtx && subCost == null && !confidentOnly
         if (memoable && memo.containsKey(w)) return memo[w]
         val contextOf: (String) -> Long = if (!hasCtx) NO_CONTEXT else { cand -> pairCount(pw!!, cand) }
         // sortedWords() enables the conservative distance-2 fallback (longer words only) at no per-key cost.
         // isWord stays permissive (so a correctly-typed prefixed word is left alone), but we only ever
         // correct *to* a real listed word via isDictWord — never to an invented proclitic+stem form.
+        val cost = IntArray(1) { Int.MAX_VALUE }
         val fix = WordPredict.bestCorrection(
             w, alphabet, adj, ::isWord, { effectiveFreq(it) }, sortedWords(), contextOf,
-            isTarget = ::isDictWord, subCost = subCost ?: NO_SUBCOST, cheapIndel = cheapIndel,
+            isTarget = ::isDictWord, subCost = subCost ?: NO_SUBCOST, cheapIndel = cheapIndel, costOut = cost,
         )
+        // Auto-apply only confident fixes; a wild-guess substitution is left for the bar to offer, not forced.
+        if (confidentOnly && fix != null && cost[0] > WordPredict.CONFIDENT_MAX_COST) return null
         if (memoable) { if (memo.size > 4000) memo.clear(); memo[w] = fix }
         return fix
     }

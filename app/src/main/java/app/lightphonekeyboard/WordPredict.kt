@@ -42,6 +42,7 @@ object WordPredict {
         contextOf: (String) -> Long = { 0L },
         isTarget: (String) -> Boolean = isKnown,
         subCost: (Int, Char, Char) -> Int? = { _, _, _ -> null },
+        cheapIndel: Set<Char> = emptySet(),
     ): String? {
         if (isKnown(word)) return null
         var best: String? = null
@@ -67,7 +68,9 @@ object WordPredict {
             val l = word.substring(0, i)
             val r = word.substring(i)
             if (r.isNotEmpty()) {
-                consider(l + r.substring(1), COST_INDEL)                               // delete
+                // Deleting/inserting an optional letter (Hebrew matres lectionis ו/י) is a cheap edit, so a
+                // ktiv-male/haser variant resolves to the listed spelling instead of looking like a typo.
+                consider(l + r.substring(1), if (r[0] in cheapIndel) COST_ADJACENT else COST_INDEL)  // delete
                 if (r.length > 1) consider(l + r[1] + r[0] + r.substring(2), COST_TRANSPOSE)
                 val typed = r[0]
                 val near = adjacency[typed].orEmpty()
@@ -80,7 +83,7 @@ object WordPredict {
                     consider(l + c + r.substring(1), cost)
                 }
             }
-            for (c in alphabet) consider(l + c + r, COST_INDEL)                         // insert
+            for (c in alphabet) consider(l + c + r, if (c in cheapIndel) COST_ADJACENT else COST_INDEL)  // insert
         }
         if (best != null) return best
         return bestCorrectionDist2(word, sortedDict, freqOf, contextOf)

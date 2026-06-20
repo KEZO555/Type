@@ -126,6 +126,9 @@ class WordDictionary(
     }
 
     private val hebrew = code == "he"
+    // Hebrew matres lectionis: ו/י are written optionally (ktiv male/haser), so inserting or dropping one
+    // is treated as a cheap edit — e.g. היתה ↔ הייתה, אתך ↔ איתך — not a full typo.
+    private val cheapIndel: Set<Char> = if (hebrew) setOf('ו', 'י') else emptySet()
 
     /** Is [w] a real word? Directly in the dictionary/learned, or — for Hebrew — a known stem with one or
      *  more glued-on proclitics (ו/ה/ש/ב/כ/ל/מ), e.g. "ושלום" = ו + שלום. */
@@ -181,7 +184,7 @@ class WordDictionary(
         // correct *to* a real listed word via isDictWord — never to an invented proclitic+stem form.
         val fix = WordPredict.bestCorrection(
             w, alphabet, adj, ::isWord, { effectiveFreq(it) }, sortedWords(), contextOf,
-            isTarget = ::isDictWord, subCost = subCost ?: NO_SUBCOST,
+            isTarget = ::isDictWord, subCost = subCost ?: NO_SUBCOST, cheapIndel = cheapIndel,
         )
         if (memoable) { if (memo.size > 4000) memo.clear(); memo[w] = fix }
         return fix
@@ -203,7 +206,9 @@ class WordDictionary(
             isWord = ::isWord,
             // a part isn't a real word → its best *distance-1* fix to a listed word (no dist-2, stay tight)
             fixPart = { p ->
-                WordPredict.bestCorrection(p, alphabet, adj, ::isWord, { effectiveFreq(it) }, isTarget = ::isDictWord)
+                WordPredict.bestCorrection(
+                    p, alphabet, adj, ::isWord, { effectiveFreq(it) }, isTarget = ::isDictWord, cheapIndel = cheapIndel,
+                )
             },
             freqOf = { effectiveFreq(it) },
             // a learned previous→a (first half) pairing, then a→b, gently favour seen sequences

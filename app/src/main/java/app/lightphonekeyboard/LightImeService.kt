@@ -568,7 +568,13 @@ class LightImeService : InputMethodService(), LightKeyboardView.Listener {
         val prevWord = TextOps.precedingWord(before)
         // Just after a space (no word yet): predict the likely next word from what usually follows it.
         if (word.isEmpty()) {
-            val next = if (prevWord.isNotEmpty()) dict.nextWords(prevWord, 3) else emptyList()
+            // Two words of context when available (trigram, backing off to bigram), else one.
+            val ctx = TextOps.trailingWords(before, 2)
+            val next = when {
+                ctx.size >= 2 -> dict.nextWords(ctx[0], ctx[1], 3)
+                ctx.size == 1 -> dict.nextWords(ctx[0], 3)
+                else -> emptyList()
+            }
             barWords = next; barLiteralIndex = -1
             kb.setSuggestions(next)
             return
@@ -688,9 +694,9 @@ class LightImeService : InputMethodService(), LightKeyboardView.Listener {
         while (end > 0 && !TextOps.isWordChar(before[end - 1])) end--   // drop the trailing terminator(s)
         if (end == 0) return
         val core = before.subSequence(0, end)
-        val last = TextOps.trailingWord(core)
-        val prev = TextOps.precedingWord(core)
-        if (prev.isNotEmpty() && last.isNotEmpty()) dict.learnBigram(this, prev, last)
+        val w = TextOps.trailingWords(core, 3)
+        if (w.size >= 2) dict.learnBigram(this, w[w.size - 2], w.last())
+        if (w.size >= 3) dict.learnTrigram(this, w[w.size - 3], w[w.size - 2], w.last())
     }
 
     // How many times an unfamiliar word has been typed this session (cleared if it grows large). Lets us

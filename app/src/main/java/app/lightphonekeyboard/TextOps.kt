@@ -48,6 +48,22 @@ object TextOps {
         return before.subSequence(i, end).toString()
     }
 
+    /** The last [k] whole words in [before], in reading order (fewer if there aren't that many). Used for
+     *  two-word (trigram) context. */
+    fun trailingWords(before: CharSequence, k: Int): List<String> {
+        val out = ArrayList<String>(k)
+        var i = before.length
+        while (out.size < k && i > 0) {
+            while (i > 0 && !isWordChar(before[i - 1])) i--    // skip separators
+            if (i == 0) break
+            val end = i
+            while (i > 0 && isWordChar(before[i - 1])) i--      // the word
+            out.add(before.subSequence(i, end).toString())
+        }
+        out.reverse()
+        return out
+    }
+
     /**
      * Length (in UTF-16 units) of the last grapheme cluster in [before], so backspace deletes a whole
      * user-perceived character — an emoji built from surrogate pairs, ZWJ sequences or variation

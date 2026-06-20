@@ -44,6 +44,10 @@ class WordDictionary(
     // suggestion bar after a space, and biases completions of a partly-typed word toward what usually
     // follows the previous word.
     private val bigrams = HashMap<String, HashMap<String, Long>>()
+    // Learned trigrams: "prev2 prev1" -> next -> times seen. Sharpens prediction when two words of context
+    // are known; backs off to bigrams otherwise. Learned-only (no pre-trained trigram corpus is available).
+    private val trigrams = HashMap<String, HashMap<String, Long>>()
+    private val trigramFile = "${code}_trigrams.txt"
     // Pre-trained next-word model (prev -> next -> corpus count): gives prediction & context out of the box,
     // before you've typed anything. Bundled (English) or downloaded ([PRE_BIGRAM_FILE]); read-only, never
     // persisted, kept separate from the learned [bigrams] so saving stays small.
@@ -81,6 +85,7 @@ class WordDictionary(
                 }
                 loadLearned(app)
                 loadBigrams(app)
+                loadTrigrams(app)
                 if (pretrained.isEmpty()) loadPretrainedBigrams(app)   // load once; survives reload()
                 main.post { ready = true; loading = false; Log.i(tag, "loaded ${freq.size}+${learned.size}") }
             } catch (e: Throwable) {
@@ -96,7 +101,7 @@ class WordDictionary(
     fun reload(context: Context) {
         if (loading) return
         ready = false
-        freq.clear(); learned.clear(); bigrams.clear(); memo.clear()
+        freq.clear(); learned.clear(); bigrams.clear(); trigrams.clear(); memo.clear()
         sorted = null; learnedSorted = null
         prepare(context)
     }
@@ -123,6 +128,20 @@ class WordDictionary(
         val f = File(context.filesDir, bigramFile)
         if (!f.exists()) return
         readBigramLines(f.bufferedReader(Charsets.UTF_8), bigrams)
+    }
+
+    private fun loadTrigrams(context: Context) {
+        val f = File(context.filesDir, trigramFile)
+        if (!f.exists()) return
+        f.bufferedReader(Charsets.UTF_8).useLines { lines ->
+            lines.forEach { line ->                                  // "prev2 prev1 next count"
+                val a = line.indexOf(' '); if (a <= 0) return@forEach
+                val b = line.indexOf(' ', a + 1); if (b <= a + 1) return@forEach
+                val c = line.indexOf(' ', b + 1); if (c <= b + 1) return@forEach
+                val cnt = line.substring(c + 1).toLongOrNull() ?: return@forEach
+                trigrams.getOrPut(line.substring(0, b)) { HashMap() }[line.substring(b + 1, c)] = cnt
+            }
+        }
     }
 
     /** Load the pre-trained model into [pretrained]: a bundled asset (English) or a downloaded file. */
@@ -352,6 +371,36 @@ class WordDictionary(
         return WordPredict.topNext(m, limit)
     }
 
+    /** Next-word prediction from two words of context: the learned trigram if it has data, backfilled from
+     *  (and otherwise backing off to) the bigram model. */
+    fun nextWords(prev2: String, prev1: String, limit: Int = 3): List<String> {
+        if (!ready) return emptyList()
+        val tri = trigrams["${prev2.lowercase()} ${prev1.lowercase()}"]
+        if (tri.isNullOrEmpty()) return nextWords(prev1, limit)
+        val out = LinkedHashSet(WordPredict.topNext(tri, limit))
+        if (out.size < limit) nextAfter(prev1.lowercase())?.let {
+            for (w in WordPredict.topNext(it, limit)) { if (out.size >= limit) break; out.add(w) }
+        }
+        return out.toList()
+    }
+
+    /** Record that [next] followed the pair [prev2] [prev1], to grow the trigram model. */
+    fun learnTrigram(context: Context, prev2: String, prev1: String, next: String) {
+        if (!ready) return
+        val p2 = prev2.lowercase(); val p1 = prev1.lowercase(); val n = next.lowercase()
+        if (!validForLearn(p2) || !validForLearn(p1) || !validForLearn(n)) return
+        appContext = context.applicationContext
+        val key = "$p2 $p1"
+        val m = trigrams[key]
+        if (m == null) {
+            if (trigrams.size >= MAX_BIGRAM_PREV) return
+            trigrams[key] = HashMap<String, Long>().apply { put(n, 1L) }
+        } else {
+            m[n] = (m[n] ?: 0L) + 1L
+        }
+        scheduleTrigramSave()
+    }
+
     /** Record that [next] was typed right after [prev] (a word pair), to grow the next-word model. */
     fun learnBigram(context: Context, prev: String, next: String) {
         if (!ready) return
@@ -432,6 +481,28 @@ class WordDictionary(
     private fun scheduleBigramSave() {
         main.removeCallbacks(bigramSaveRunnable)
         main.postDelayed(bigramSaveRunnable, 5000)   // coalesce bursts of typing into one write
+    }
+
+    private val trigramSaveRunnable = Runnable { writeTrigrams() }
+    private fun scheduleTrigramSave() {
+        main.removeCallbacks(trigramSaveRunnable)
+        main.postDelayed(trigramSaveRunnable, 5000)
+    }
+
+    private fun writeTrigrams() {
+        val ctx = appContext ?: return
+        val snapshot = ArrayList<Triple<String, String, Long>>()
+        for ((k, m) in trigrams) for ((n, c) in m) snapshot.add(Triple(k, n, c))   // k = "prev2 prev1"
+        Thread {
+            try {
+                val top = snapshot.sortedByDescending { it.third }.take(MAX_BIGRAM_LINES)
+                val sb = StringBuilder(top.size * 20)
+                for (t in top) sb.append(t.first).append(' ').append(t.second).append(' ').append(t.third).append('\n')
+                File(ctx.filesDir, trigramFile).writeText(sb.toString(), Charsets.UTF_8)
+            } catch (e: Throwable) {
+                Log.e(tag, "save trigrams failed", e)
+            }
+        }.start()
     }
 
     private fun writeBigrams() {

@@ -599,7 +599,11 @@ class LightImeService : InputMethodService(), LightKeyboardView.Listener {
         // The word just before this one (the cursor still sits right after `word`) gives correction its
         // context, so the fix can be biased toward what usually follows that previous word.
         val prev = TextOps.precedingWord(currentInputConnection?.getTextBeforeCursor(48, 0) ?: "")
-        return dict()?.correct(word, prev.ifEmpty { null }, keyboard?.spatialSubCost(word))
+        val d = dict() ?: return null
+        val p = prev.ifEmpty { null }
+        // Single-word fix first; if there's none, try splitting a run-on into two words ("לארקובלתי" → "לא
+        // קיבלתי"). The commit path handles a fix that contains a space exactly like any other.
+        return d.correct(word, p, keyboard?.spatialSubCost(word)) ?: d.correctRunOn(word, p)
     }
 
     // The active language's dictionary, cached so the per-keystroke paths don't re-scan Languages.ALL +

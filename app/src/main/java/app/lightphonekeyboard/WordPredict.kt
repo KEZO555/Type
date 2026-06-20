@@ -113,6 +113,51 @@ object WordPredict {
         return best
     }
 
+    /**
+     * Run-on correction: split [word] into two words, each either a real word ([isWord]) or a confident
+     * single-edit fix ([fixPart]) — e.g. "thisis" → "this is", or (with a typo in each half) "לארקובלתי"
+     * → "לא קיבלתי". Returns "a b" or null. Conservative: every part is at least [minPart] long, a part
+     * that needs an edit must be at least 3 long (short fragments have too many neighbours), and so total
+     * edits are capped at 2. Among valid splits it prefers the fewest edits, then the previous→next pairing
+     * ([bigramOf]), then the rarer half's frequency. The caller must first ensure [word] is not itself a
+     * real word, so genuine words are never chopped up.
+     */
+    fun splitCorrection(
+        word: String,
+        isWord: (String) -> Boolean,
+        fixPart: (String) -> String?,
+        freqOf: (String) -> Long,
+        bigramOf: (String, String) -> Long = { _, _ -> 0L },
+        minPart: Int = 2,
+    ): String? {
+        if (word.length < minPart * 2) return null
+        var best: String? = null
+        var bestEdits = Int.MAX_VALUE
+        var bestCtx = -1L
+        var bestFreq = -1L
+        for (i in minPart..word.length - minPart) {
+            val aRaw = word.substring(0, i)
+            val bRaw = word.substring(i)
+            val a: String; val ea: Int
+            if (isWord(aRaw)) { a = aRaw; ea = 0 } else {
+                if (aRaw.length < 3) continue
+                a = fixPart(aRaw) ?: continue; ea = 1
+            }
+            val b: String; val eb: Int
+            if (isWord(bRaw)) { b = bRaw; eb = 0 } else {
+                if (bRaw.length < 3) continue
+                b = fixPart(bRaw) ?: continue; eb = 1
+            }
+            val edits = ea + eb
+            val ctx = bigramOf(a, b)
+            val f = minOf(freqOf(a), freqOf(b))
+            if (edits < bestEdits || (edits == bestEdits && (ctx > bestCtx || (ctx == bestCtx && f > bestFreq)))) {
+                bestEdits = edits; bestCtx = ctx; bestFreq = f; best = "$a $b"
+            }
+        }
+        return best
+    }
+
     /** Levenshtein distance between [a] and [b], computed only up to [max] (returns max+1 if it exceeds). */
     private fun levAtMost(a: String, b: String, max: Int): Int {
         val la = a.length; val lb = b.length

@@ -68,9 +68,22 @@ class LightKeyboardView @JvmOverloads constructor(
         /** The suggestion-bar slot at [index] was tapped — the host decides what it means (insert a
          *  completion/correction, or keep the literal word). */
         fun onSuggestionPicked(index: Int)
+
+        /** A finished swipe-typing gesture: decode [xs]/[ys] (a finger path) against [keys] (letter key
+         *  centres, pitch [keyWidth]) and commit the word. */
+        fun onGesture(keys: List<GestureTyping.Key>, xs: FloatArray, ys: FloatArray, keyWidth: Float)
     }
 
     var listener: Listener? = null
+
+    /** Whether swipe typing is on (mirrored from Prefs by the service). */
+    var gestureEnabled = false
+
+    // Swipe-typing capture for the first pointer.
+    private var gestureDownOnLetter = false
+    private var gesturing = false
+    private val gestureXs = ArrayList<Float>(64)
+    private val gestureYs = ArrayList<Float>(64)
 
     private object Key {
         const val SHIFT = "__SHIFT__"
@@ -895,6 +908,9 @@ class LightKeyboardView @JvmOverloads constructor(
                 dismissedThisGesture = false
                 firstPointerId = ev.getPointerId(0)
                 firstKeyRetractable = pressDown(firstPointerId, ev.x, ev.y)
+                gesturing = false
+                gestureDownOnLetter = gestureEnabled && layer == Layer.LETTERS &&
+                    (findKey(ev.x, ev.y)?.let { isLetterKey(it.id) } == true)
             }
 
             MotionEvent.ACTION_POINTER_DOWN -> {
@@ -913,6 +929,11 @@ class LightKeyboardView @JvmOverloads constructor(
                 if (spacePointerId != -1) {
                     val sidx = ev.findPointerIndex(spacePointerId)
                     if (sidx >= 0 && handleSpaceSwipe(ev.getX(sidx), ev.getY(sidx))) return true
+                }
+                // 2b) Swipe typing: a glide from a letter key collects a path; the first tap is retracted.
+                if (gestureDownOnLetter && !dismissedThisGesture) {
+                    val idx = ev.findPointerIndex(firstPointerId)
+                    if (idx >= 0 && handleGestureMove(ev.getX(idx), ev.getY(idx))) return true
                 }
                 // 3) Otherwise, the first pointer's downward swipe dismisses the keyboard.
                 if (!dismissedThisGesture) {
@@ -948,6 +969,11 @@ class LightKeyboardView @JvmOverloads constructor(
 
             MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                 val up = ev.actionMasked == MotionEvent.ACTION_UP
+                if (gesturing) {
+                    if (up) finishGesture() else { gesturing = false; gestureXs.clear(); gestureYs.clear() }
+                    pressed.clear(); invalidate()
+                    return true
+                }
                 if (up) commitPopupAndReset() else endAltLongPress()
                 // A quick tap (no long-press fired) runs the key's action on release.
                 if (pendingReleasePointer != -1) { if (up && !dismissedThisGesture) onKey(pendingReleaseId); pendingReleasePointer = -1 }
@@ -958,6 +984,42 @@ class LightKeyboardView @JvmOverloads constructor(
             }
         }
         return true
+    }
+
+    /** Swipe typing: collect the finger path. Returns true once a glide has started (consuming the move).
+     *  The first letter, typed on touch-down, is retracted when the glide begins. */
+    private fun handleGestureMove(x: Float, y: Float): Boolean {
+        if (!gesturing) {
+            val dx = x - downX; val dy = y - downY
+            if (abs(dx) < dpf(16) && abs(dy) < dpf(16)) return false
+            if (dy > 0 && dy > abs(dx) * 1.5f) return false   // a steep downward swipe → leave it to dismiss
+            gesturing = true
+            endAltLongPress(); stopBackspaceRepeat()
+            clearTapLattice()
+            if (firstKeyRetractable) { listener?.onBackspace(); firstKeyRetractable = false }
+            pressed.clear()
+            gestureXs.clear(); gestureYs.clear()
+            gestureXs.add(downX); gestureYs.add(downY)
+            invalidate()
+        }
+        val n = gestureXs.size
+        if (n == 0 || abs(x - gestureXs[n - 1]) + abs(y - gestureYs[n - 1]) >= dpf(6)) {
+            if (gestureXs.size < 96) { gestureXs.add(x); gestureYs.add(y) }   // resample + cap
+        }
+        return true
+    }
+
+    /** Finish a gesture: hand the path + letter-key geometry to the host to decode and commit. */
+    private fun finishGesture() {
+        gesturing = false
+        val n = gestureXs.size
+        if (n >= 2 && letterKeys.isNotEmpty()) {
+            val keys = ArrayList<GestureTyping.Key>(letterKeys.size)
+            for (k in letterKeys) keys.add(GestureTyping.Key(k.id[0], k.cx, k.cy))
+            val kw = letterKeys[0].vis.width().coerceAtLeast(1f)
+            listener?.onGesture(keys, gestureXs.toFloatArray(), gestureYs.toFloatArray(), kw)
+        }
+        gestureXs.clear(); gestureYs.clear()
     }
 
     /** Space-bar drag → caret moves like an iPhone trackpad: left/right by characters, up/down by

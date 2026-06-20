@@ -79,6 +79,7 @@ class LightImeService : InputMethodService(), LightKeyboardView.Listener {
     override fun onStartInputView(info: EditorInfo?, restarting: Boolean) {
         super.onStartInputView(info, restarting)
         keyboard?.reset()
+        keyboard?.gestureEnabled = Prefs.gestureTyping(this)
         // Number / phone / datetime fields open straight on the numeric layer (the ABC key still
         // switches to letters) — like most keyboards, so you don't have to tap 123 every time.
         if (isNumericField(info)) keyboard?.showNumbers()
@@ -618,6 +619,21 @@ class LightImeService : InputMethodService(), LightKeyboardView.Listener {
         ic.endBatchEdit()
         learnTyped(barWords[index])      // tapping a word counts as using it
         // onUpdateSelection fires from the commit and refreshes the bar (now empty — the word is done).
+    }
+
+    /** A finished swipe gesture: decode it against the dictionary and commit the word (auto-spaced). */
+    override fun onGesture(keys: List<GestureTyping.Key>, xs: FloatArray, ys: FloatArray, keyWidth: Float) {
+        val ic = currentInputConnection ?: return
+        val d = dict()?.takeIf { it.ready } ?: return
+        val before = ic.getTextBeforeCursor(48, 0) ?: ""
+        val prev = TextOps.precedingWord(before.toString())
+        val word = d.gestureWord(keys, xs, ys, keyWidth, prev.ifEmpty { null }) ?: return
+        clearUndo()
+        val lead = if (before.isNotEmpty() && !before.last().isWhitespace()) " " else ""
+        ic.commitText("$lead$word ", 1)
+        learnTyped(word)
+        if (prev.isNotEmpty()) d.learnBigram(this, prev, word)
+        updateSuggestions()
     }
 
     /**

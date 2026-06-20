@@ -6,6 +6,7 @@ import android.content.Context
 object Prefs {
     private const val FILE = "light_keyboard_prefs"
     private const val KEY_AUTOCORRECT = "autocorrect"
+    private const val KEY_GESTURE = "gesture_typing"
     private const val KEY_SUGGESTIONS = "suggestion_bar"
     private const val KEY_VOICE = "voice_enabled"
     private const val KEY_NUMBER_ROW = "number_row"
@@ -42,6 +43,12 @@ object Prefs {
 
     fun setAutocorrect(c: Context, value: Boolean) =
         prefs(c).edit().putBoolean(KEY_AUTOCORRECT, value).apply()
+
+    /** Gesture (swipe) typing: glide across letters to type a word. Off by default. */
+    fun gestureTyping(c: Context): Boolean = prefs(c).getBoolean(KEY_GESTURE, false)
+
+    fun setGestureTyping(c: Context, value: Boolean) =
+        prefs(c).edit().putBoolean(KEY_GESTURE, value).apply()
 
     /** Suggestion bar: a strip of tap-able word completions above the keys. Off by default (keeps the
      *  default keyboard minimal). */

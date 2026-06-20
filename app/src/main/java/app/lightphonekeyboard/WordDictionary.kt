@@ -206,6 +206,14 @@ class WordDictionary(
      * Lowercased for lookup; the caller reapplies the original case. (Hebrew is caseless, so lowercasing
      * is a no-op there.)
      */
+    /** Best word for a swipe-typing path, biased by the previous word; null if nothing. */
+    fun gestureWord(keys: List<GestureTyping.Key>, xs: FloatArray, ys: FloatArray, keyWidth: Float, prevWord: String?): String? {
+        if (!ready) return null
+        val ctx = prevWord?.lowercase()
+        val contextOf: (String) -> Long = if (ctx == null) NO_CONTEXT else { w -> pairCount(ctx, w) }
+        return GestureTyping.decode(xs, ys, keys, sortedWords(), { effectiveFreq(it) }, keyWidth, contextOf, 1).firstOrNull()
+    }
+
     /** The real contraction for an apostrophe-less English form ("dont" → "don't"), or null. */
     fun contractionOf(word: String): String? = if (english) CONTRACTIONS[word.lowercase()] else null
 

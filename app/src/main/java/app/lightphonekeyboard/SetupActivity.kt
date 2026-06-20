@@ -41,6 +41,8 @@ class SetupActivity : AppCompatActivity() {
             // Autocorrect + suggestion bar.
             toggleItem(c, R.string.setup_autocorrect, R.string.setup_autocorrect_sub,
                 { Prefs.autocorrect(this) }, { Prefs.setAutocorrect(this, it) })
+            toggleItem(c, R.string.setup_gesture, R.string.setup_gesture_sub,
+                { Prefs.gestureTyping(this) }, { Prefs.setGestureTyping(this, it) })
             toggleItem(c, R.string.setup_suggestions, R.string.setup_suggestions_sub,
                 { Prefs.suggestions(this) }, { Prefs.setSuggestions(this, it) })
             LightUi.navItem(c, getString(R.string.setup_vocab), getString(R.string.setup_vocab_sub)) {

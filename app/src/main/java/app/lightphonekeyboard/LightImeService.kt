@@ -122,9 +122,11 @@ class LightImeService : InputMethodService(), LightKeyboardView.Listener {
     private fun prepareDict(code: String) {
         val dict = Dictionaries.get(code) ?: return
         dict.prepare(this)
-        // If the bundled dictionary data has been improved since this phone last downloaded it, quietly
-        // fetch the new copy in the background and hot-reload it (no user action needed).
-        DictModel.refreshIfStale(this, Languages.byCode(code)) { dict.reload(this) }
+        val def = Languages.byCode(code)
+        // First use of a downloadable language with no dictionary yet → fetch it automatically so autocorrect
+        // just works (no trip to the Languages screen). Otherwise, refresh it if the bundled data improved.
+        DictModel.ensureInstalled(this, def) { dict.reload(this) }
+        DictModel.refreshIfStale(this, def) { dict.reload(this) }
     }
 
     override fun onDestroy() {
@@ -582,10 +584,12 @@ class LightImeService : InputMethodService(), LightKeyboardView.Listener {
         if (word.length < 2) { barWords = emptyList(); barLiteralIndex = -1; kb.setSuggestions(emptyList()); return }
 
         // The correction space would auto-apply (only when autocorrect is on and it actually differs). Falls
-        // back to the run-on split so it previews in the bar too ("לארקובלתי" → "לא קיבלתי").
+        // back to the run-on split so it previews in the bar too ("לארקובלתי" → "לא קיבלתי") — but only for
+        // longer words, since the split search runs every keystroke and a real run-on is never short.
         val correction = if (autocorrectOn())
             (dict.correct(word, prevWord.ifEmpty { null }, keyboard?.spatialSubCost(word))
-                ?: dict.correctRunOn(word, prevWord.ifEmpty { null }))?.takeIf { !it.equals(word, ignoreCase = true) }
+                ?: (if (word.length >= 5) dict.correctRunOn(word, prevWord.ifEmpty { null }) else null))
+                ?.takeIf { !it.equals(word, ignoreCase = true) }
         else null
         val completions = dict.completions(word, 3, prevWord)
         val words = ArrayList<String>(3)

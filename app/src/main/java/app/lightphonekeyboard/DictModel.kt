@@ -27,7 +27,7 @@ object DictModel {
     // Data version per downloadable dictionary. Bump a language's number whenever dicts/<code>.txt is
     // improved, so phones that already downloaded an older copy refresh themselves (see [refreshIfStale]).
     // Absent = version 1, the original baseline — so only languages listed here ever re-download.
-    private val DICT_VERSIONS = mapOf("he" to 3)
+    private val DICT_VERSIONS = mapOf("he" to 4)   // v4: pull the pre-trained next-word model too
     private const val META = "dict_meta"
 
     private val main = Handler(Looper.getMainLooper())
@@ -72,6 +72,7 @@ object DictModel {
                 out.delete()
                 if (!tmp.renameTo(out)) { tmp.copyTo(out, overwrite = true); tmp.delete() }
                 stampVersion(app, def.code)
+                fetchBigrams(app, def)   // best-effort pre-trained next-word model
                 Log.i(TAG, "dictionary installed: ${out.name} (${out.length()} bytes)")
                 main.post { onDone() }
             } catch (e: Exception) {
@@ -102,6 +103,7 @@ object DictModel {
                 out.delete()
                 if (!tmp.renameTo(out)) { tmp.copyTo(out, overwrite = true); tmp.delete() }
                 stampVersion(app, code)
+                fetchBigrams(app, def)
                 Log.i(TAG, "dictionary refreshed: $code -> v${currentVersion(code)}")
                 main.post { onUpdated() }
             } catch (e: Exception) {
@@ -113,6 +115,31 @@ object DictModel {
 
     /** How many words to keep on device for [def] — its own cap if set, else the default. */
     private fun capFor(def: LangDef): Int = def.dictMaxWords.takeIf { it > 0 } ?: MAX_WORDS
+
+    /** Best-effort download of the pre-trained next-word model (small, already filtered) into internal
+     *  storage where [WordDictionary] loads it. A failure just leaves next-word as learned-only. */
+    private fun fetchBigrams(app: Context, def: LangDef) {
+        val url = def.bigramUrl ?: return
+        val dest = File(app.filesDir, "${def.code}_bigrams_pre.txt")
+        val tmp = File(app.cacheDir, "${def.code}_bi.dl")
+        try {
+            val conn = (URL(url).openConnection() as HttpURLConnection).apply {
+                connectTimeout = 20_000; readTimeout = 60_000; instanceFollowRedirects = true
+            }
+            try {
+                if (conn.responseCode !in 200..299) throw RuntimeException("HTTP ${conn.responseCode}")
+                conn.inputStream.use { ins -> tmp.outputStream().use { ins.copyTo(it) } }
+            } finally {
+                conn.disconnect()
+            }
+            dest.delete()
+            if (!tmp.renameTo(dest)) { tmp.copyTo(dest, overwrite = true); tmp.delete() }
+            Log.i(TAG, "bigrams installed: ${dest.name} (${dest.length()} bytes)")
+        } catch (e: Exception) {
+            Log.w(TAG, "bigram download failed (next-word stays learned-only)", e)
+            tmp.delete()
+        }
+    }
 
     /** Stream [url] line by line, keeping "<word> <count>" rows whose word is made only of [letters]
      *  (lowercased) and is [MIN_LEN]..[MAX_LEN] long, up to [maxWords]. Progress is reported by bytes. */

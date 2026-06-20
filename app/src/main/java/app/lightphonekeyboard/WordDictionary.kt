@@ -165,6 +165,7 @@ class WordDictionary(
         (bigrams[prev]?.get(next) ?: 0L) + (pretrained[prev]?.get(next) ?: 0L)
 
     private val hebrew = code == "he"
+    private val english = code == "en"
     // Hebrew matres lectionis: ו/י are written optionally (ktiv male/haser), so inserting or dropping one
     // is treated as a cheap edit — e.g. היתה ↔ הייתה, אתך ↔ איתך — not a full typo.
     private val cheapIndel: Set<Char> = if (hebrew) setOf('ו', 'י') else emptySet()
@@ -205,13 +206,20 @@ class WordDictionary(
      * Lowercased for lookup; the caller reapplies the original case. (Hebrew is caseless, so lowercasing
      * is a no-op there.)
      */
+    /** The real contraction for an apostrophe-less English form ("dont" → "don't"), or null. */
+    fun contractionOf(word: String): String? = if (english) CONTRACTIONS[word.lowercase()] else null
+
     fun correct(
         word: String,
         prevWord: String? = null,
         subCost: ((Int, Char, Char) -> Int?)? = null,
     ): String? {
-        if (!ready || word.length < 3) return null
+        if (!ready) return null
         val w = word.lowercase()
+        // Apostrophe-less contractions → the real contraction (English). Checked before the length gate so
+        // short ones like "im" are caught, and before correction so we don't mangle them into a near-word.
+        if (english) CONTRACTIONS[w]?.let { return it }
+        if (word.length < 3) return null
         // The plain result is memoized; a context- or touch-aware one depends on this typing instance, so
         // it's computed fresh (still only when a word finishes / the bar updates, not in a tight loop).
         val pw = prevWord?.lowercase()
@@ -430,6 +438,22 @@ class WordDictionary(
         const val MAX_BIGRAM_LINES = 6000    // cap pairs persisted to disk (most-used kept)
         val NO_CONTEXT: (String) -> Long = { 0L }   // shared no-op so correct() allocates nothing
         val NO_SUBCOST: (Int, Char, Char) -> Int? = { _, _, _ -> null }   // no spatial info → grid costs
+
+        // Apostrophe-less → real contraction. Deliberately excludes forms that collide with common words
+        // (its, were, well, ill, hell, shell, wed, shed, lets, id) so we never rewrite a word you meant.
+        val CONTRACTIONS: Map<String, String> = mapOf(
+            "dont" to "don't", "doesnt" to "doesn't", "didnt" to "didn't", "isnt" to "isn't",
+            "arent" to "aren't", "wasnt" to "wasn't", "werent" to "weren't", "wont" to "won't",
+            "cant" to "can't", "couldnt" to "couldn't", "wouldnt" to "wouldn't", "shouldnt" to "shouldn't",
+            "havent" to "haven't", "hasnt" to "hasn't", "hadnt" to "hadn't", "mustnt" to "mustn't",
+            "im" to "I'm", "ive" to "I've",
+            "youre" to "you're", "youve" to "you've", "youll" to "you'll", "youd" to "you'd",
+            "theyre" to "they're", "theyve" to "they've", "theyll" to "they'll", "theyd" to "they'd",
+            "weve" to "we've", "hes" to "he's", "shes" to "she's", "hed" to "he'd",
+            "whats" to "what's", "thats" to "that's", "theres" to "there's", "whos" to "who's",
+            "hows" to "how's", "wheres" to "where's", "whens" to "when's",
+            "aint" to "ain't", "yall" to "y'all", "cmon" to "c'mon",
+        )
     }
 }
 

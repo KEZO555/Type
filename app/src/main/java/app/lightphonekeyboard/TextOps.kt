@@ -100,7 +100,12 @@ object TextOps {
     fun hebrewProcliticSplits(word: String, maxStrip: Int = 3, minStem: Int = 2): List<Pair<String, String>> {
         val out = ArrayList<Pair<String, String>>(maxStrip)
         var i = 0
-        while (i < maxStrip && i < word.length && word[i] in HEBREW_PROCLITICS && word.length - (i + 1) >= minStem) {
+        // A second (or third) prefix must leave a 3-letter stem: one prefix + a 2-letter stem is plausible
+        // (ש+לא = שלא, ו+כש+אמר), but two prefixes + a 2-letter stem (לו+דה) is too weak — that false
+        // "valid word" is what stopped לודה from correcting to תודה.
+        while (i < maxStrip && i < word.length && word[i] in HEBREW_PROCLITICS &&
+            word.length - (i + 1) >= minStem + minOf(i, 1)
+        ) {
             i++
             out.add(word.substring(0, i) to word.substring(i))
         }

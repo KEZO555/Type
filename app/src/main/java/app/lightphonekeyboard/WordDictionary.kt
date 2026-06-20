@@ -233,6 +233,25 @@ class WordDictionary(
         return GestureTyping.decode(xs, ys, keys, sortedWords(), { effectiveFreq(it) }, keyWidth, contextOf, 1).firstOrNull()
     }
 
+    /**
+     * Tap-typing hybrid: decode the tap path of a typed non-word as if it were a swipe, and return a real
+     * word only if it fits the finger path about as well as what was typed (so a deliberate, confident word
+     * is never overridden). Catches multi-tap fat-finger errors the edit-distance corrector misses.
+     */
+    fun tapCorrect(typed: String, keys: List<GestureTyping.Key>, xs: FloatArray, ys: FloatArray, keyWidth: Float, prevWord: String?): String? {
+        if (!ready) return null
+        val w = typed.lowercase()
+        if (isWord(w)) return null
+        val ctx = prevWord?.lowercase()
+        val contextOf: (String) -> Long = if (ctx == null) NO_CONTEXT else { x -> pairCount(ctx, x) }
+        val best = GestureTyping.decode(xs, ys, keys, sortedWords(), { effectiveFreq(it) }, keyWidth, contextOf, 1)
+            .firstOrNull() ?: return null
+        if (best == w || !isDictWord(best)) return null
+        val cb = GestureTyping.costOf(best, keys, xs, ys, keyWidth) ?: return null
+        val ct = GestureTyping.costOf(w, keys, xs, ys, keyWidth) ?: return null
+        return if (cb <= ct + TAP_HYBRID_MARGIN) best else null   // fits the taps about as well → trust the real word
+    }
+
     /** The real contraction for an apostrophe-less English form ("dont" → "don't"), or null. */
     fun contractionOf(word: String): String? = if (english) CONTRACTIONS[word.lowercase()] else null
 
@@ -528,6 +547,7 @@ class WordDictionary(
         const val MAX_BIGRAM_LINES = 6000    // cap pairs persisted to disk (most-used kept)
         val NO_CONTEXT: (String) -> Long = { 0L }   // shared no-op so correct() allocates nothing
         val NO_SUBCOST: (Int, Char, Char) -> Int? = { _, _, _ -> null }   // no spatial info → grid costs
+        const val TAP_HYBRID_MARGIN = 0.22   // how much worse a real word may fit the taps and still win (tune on device)
 
         // Apostrophe-less → real contraction. Deliberately excludes forms that collide with common words
         // (its, were, well, ill, hell, shell, wed, shed, lets, id) so we never rewrite a word you meant.

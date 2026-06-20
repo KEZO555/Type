@@ -267,7 +267,22 @@ class LightKeyboardView @JvmOverloads constructor(
     // where the finger actually landed, not just the static key grid.
     private val tapLattice = ArrayList<HashMap<Char, Float>?>()
     private val tapChars = StringBuilder()             // committed letters this set covers, for alignment
+    private val tapPxs = ArrayList<Float>(24)          // raw tap point per committed letter (tap-typing hybrid)
+    private val tapPys = ArrayList<Float>(24)
     private var tapPrevWasLetter = false
+
+    /** The word being typed, as a tap path (one point per letter) + key geometry — for the tap-typing
+     *  hybrid (decode the taps as if they were a swipe). Null if the lattice no longer lines up with [word]. */
+    class TapPath(val keys: List<GestureTyping.Key>, val xs: FloatArray, val ys: FloatArray, val keyWidth: Float)
+
+    fun tapPath(word: String): TapPath? {
+        if (word.isEmpty() || tapChars.length != word.length || tapPxs.size != word.length || letterKeys.isEmpty()) return null
+        for (i in word.indices) if (tapChars[i].lowercaseChar() != word[i].lowercaseChar()) return null
+        val keys = ArrayList<GestureTyping.Key>(letterKeys.size)
+        for (k in letterKeys) keys.add(GestureTyping.Key(k.id[0], k.cx, k.cy))
+        val kw = letterKeys[0].vis.width().coerceAtLeast(1f)
+        return TapPath(keys, tapPxs.toFloatArray(), tapPys.toFloatArray(), kw)
+    }
 
     // --- metrics (px) ---
     private val padTop = dpf(3)
@@ -1072,6 +1087,7 @@ class LightKeyboardView @JvmOverloads constructor(
             if (!tapPrevWasLetter) clearTapLattice()      // a new word starts
             tapLattice.add(tapCandidates(x, y, raw))
             tapChars.append(key.id[0])
+            tapPxs.add(x); tapPys.add(y)
             tapPrevWasLetter = true
         }
         if (key.id == Key.SYMBOLS || key.id == Key.LETTERS || key.id == Key.GLOBE || key.id == Key.ENTER) {
@@ -1323,7 +1339,7 @@ class LightKeyboardView @JvmOverloads constructor(
     }
 
     private fun clearTapLattice() {
-        tapLattice.clear(); tapChars.setLength(0); tapPrevWasLetter = false
+        tapLattice.clear(); tapChars.setLength(0); tapPxs.clear(); tapPys.clear(); tapPrevWasLetter = false
     }
 
     /**

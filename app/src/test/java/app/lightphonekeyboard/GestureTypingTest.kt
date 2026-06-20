@@ -35,6 +35,14 @@ class GestureTypingTest {
         assertEquals("cot", decode(xs, ys).first())
     }
 
+    @Test fun costOfRewardsPathAlignment() {
+        // Straight path c→a→t along the row: "cat" hugs it, "cot" must detour to the lifted 'o'.
+        val xs = floatArrayOf(0f, 10f, 20f); val ys = floatArrayOf(0f, 0f, 0f)
+        val catCost = GestureTyping.costOf("cat", keys, xs, ys, keyWidth)!!
+        val cotCost = GestureTyping.costOf("cot", keys, xs, ys, keyWidth)!!
+        assertTrue(catCost < cotCost)   // the tap-hybrid trusts the word that fits the taps better
+    }
+
     @Test fun requiresMatchingStartAndEndKeys() {
         // A path that starts at 'a' (x=10) can't produce any of these words (all start with c) → empty.
         val xs = floatArrayOf(10f, 15f, 20f)

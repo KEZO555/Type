@@ -289,8 +289,10 @@ class WordDictionary(
             w, alphabet, adj, ::isWord, { effectiveFreq(it) }, sortedWords(), contextOf,
             isTarget = ::isDictWord, subCost = subCost ?: NO_SUBCOST, cheapIndel = cheapIndel, costOut = cost,
         )
-        // Auto-apply only confident fixes; a wild-guess substitution is left for the bar to offer, not forced.
-        if (confidentOnly && fix != null && cost[0] > WordPredict.CONFIDENT_MAX_COST) return null
+        // Auto-apply only confident fixes; a wild-guess substitution is left for the bar to offer, not
+        // forced. Gated on having had tap geometry (subCost) to justify the call — without it (pasted /
+        // edited text, misaligned lattice) we can't tell a wild guess from a real typo, so don't suppress.
+        if (confidentOnly && subCost != null && fix != null && cost[0] > WordPredict.CONFIDENT_MAX_COST) return null
         if (memoable) { if (memo.size > 4000) memo.clear(); memo[w] = fix }
         return fix
     }

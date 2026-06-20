@@ -19,6 +19,11 @@ object WordPredict {
      *  substitution — is a wild guess, fine to *offer* but not to auto-apply. See [bestCorrection]'s costOut. */
     const val CONFIDENT_MAX_COST = COST_INDEL
 
+    // Noisy-channel promotion: a candidate one edit costlier than the cheapest may still win if it's at
+    // least this many times more frequent — so "נרעה" fixes to the far commoner "נראה" (substitution)
+    // rather than the rarer "נערה" (transposition). High enough that it only flips lopsided cases.
+    private const val FREQ_PROMOTE_RATIO = 25L
+
     // Distance-2 fallback only kicks in for words at least this long: shorter words have too many real
     // words two edits away, so a "fix" there is as likely to be wrong as right.
     private const val MIN_LEN_DIST2 = 6
@@ -54,6 +59,10 @@ object WordPredict {
         var bestCost = Int.MAX_VALUE
         var bestCtx = -1L
         var bestFreq = -1L
+        // Also track the single most-frequent candidate, for the noisy-channel promotion below.
+        var freqBest: String? = null
+        var freqBestCost = Int.MAX_VALUE
+        var freqBestFreq = -1L
         // Within the same (most plausible) edit cost, a candidate that the previous word is known to be
         // followed by (contextOf > 0) wins; ties then fall back to raw frequency. With no context
         // (contextOf == 0 everywhere) this reduces exactly to the frequency ranking.
@@ -68,6 +77,7 @@ object WordPredict {
             if (cost < bestCost || (cost == bestCost && (ctx > bestCtx || (ctx == bestCtx && f > bestFreq)))) {
                 bestCost = cost; bestCtx = ctx; bestFreq = f; best = cand
             }
+            if (f > freqBestFreq) { freqBestFreq = f; freqBestCost = cost; freqBest = cand }
         }
         for (i in 0..word.length) {
             val l = word.substring(0, i)
@@ -90,7 +100,19 @@ object WordPredict {
             }
             for (c in alphabet) consider(l + c + r, if (c in cheapIndel) COST_ADJACENT else COST_INDEL)  // insert
         }
-        if (best != null) { costOut?.set(0, bestCost); return best }
+        if (best != null) {
+            // Noisy-channel promotion: prefer a much more frequent word that's only one edit costlier —
+            // but only when the best wasn't chosen by context, and the gap is large — so normal fixes,
+            // context, and matres handling are untouched.
+            if (freqBest != null && freqBest != best && bestCtx == 0L && bestFreq > 0L &&
+                freqBestCost <= bestCost + 1 && freqBestFreq >= bestFreq * FREQ_PROMOTE_RATIO
+            ) {
+                costOut?.set(0, freqBestCost)
+                return freqBest
+            }
+            costOut?.set(0, bestCost)
+            return best
+        }
         // The distance-2 fallback already matches both ends, so it's conservative → treat as confident.
         val d2 = bestCorrectionDist2(word, sortedDict, freqOf, contextOf)
         if (d2 != null) costOut?.set(0, COST_INDEL)

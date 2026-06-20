@@ -27,6 +27,7 @@ class WordDictionary(
     private val alphabet: String,            // letters used to generate edit candidates
     adjacencyRows: List<String>,             // layout letter rows, for keyboard-aware edit costs
     private val assetName: String? = null,   // bundled source; null → downloaded file in filesDir
+    private val bigramAsset: String? = null, // bundled pre-trained next-word model (English); null otherwise
     private val maxLearnLen: Int = 20,       // longest word we'll learn (Hebrew caps lower)
     freqSizeHint: Int = 32_000,
 ) {
@@ -43,6 +44,11 @@ class WordDictionary(
     // suggestion bar after a space, and biases completions of a partly-typed word toward what usually
     // follows the previous word.
     private val bigrams = HashMap<String, HashMap<String, Long>>()
+    // Pre-trained next-word model (prev -> next -> corpus count): gives prediction & context out of the box,
+    // before you've typed anything. Bundled (English) or downloaded ([PRE_BIGRAM_FILE]); read-only, never
+    // persisted, kept separate from the learned [bigrams] so saving stays small.
+    private val pretrained = HashMap<String, HashMap<String, Long>>()
+    private val preBigramFile = "${code}_bigrams_pre.txt"
     private val memo = HashMap<String, String?>()   // word -> fix (null = checked, no correction)
     private var appContext: Context? = null
 
@@ -75,6 +81,7 @@ class WordDictionary(
                 }
                 loadLearned(app)
                 loadBigrams(app)
+                if (pretrained.isEmpty()) loadPretrainedBigrams(app)   // load once; survives reload()
                 main.post { ready = true; loading = false; Log.i(tag, "loaded ${freq.size}+${learned.size}") }
             } catch (e: Throwable) {
                 main.post { loading = false }
@@ -115,15 +122,47 @@ class WordDictionary(
     private fun loadBigrams(context: Context) {
         val f = File(context.filesDir, bigramFile)
         if (!f.exists()) return
-        f.bufferedReader(Charsets.UTF_8).useLines { lines ->
+        readBigramLines(f.bufferedReader(Charsets.UTF_8), bigrams)
+    }
+
+    /** Load the pre-trained model into [pretrained]: a bundled asset (English) or a downloaded file. */
+    private fun loadPretrainedBigrams(context: Context) {
+        runCatching {
+            when {
+                bigramAsset != null -> readBigramLines(context.assets.open(bigramAsset).bufferedReader(Charsets.UTF_8), pretrained)
+                else -> File(context.filesDir, preBigramFile).takeIf { it.exists() }
+                    ?.let { readBigramLines(it.bufferedReader(Charsets.UTF_8), pretrained) }
+            }
+        }.onFailure { Log.e(tag, "load pretrained bigrams failed", it) }
+    }
+
+    /** Parse "prev next count" lines into [into]. */
+    private fun readBigramLines(reader: java.io.BufferedReader, into: HashMap<String, HashMap<String, Long>>) {
+        reader.useLines { lines ->
             lines.forEach { line ->
                 val a = line.indexOf(' '); if (a <= 0) return@forEach
                 val b = line.indexOf(' ', a + 1); if (b <= a + 1) return@forEach
                 val c = line.substring(b + 1).toLongOrNull() ?: return@forEach
-                bigrams.getOrPut(line.substring(0, a)) { HashMap() }[line.substring(a + 1, b)] = c
+                into.getOrPut(line.substring(0, a)) { HashMap() }[line.substring(a + 1, b)] = c
             }
         }
     }
+
+    /** Combined next-word counts after [prev]: pre-trained model + what you've typed. Null if neither. */
+    private fun nextAfter(prev: String): Map<String, Long>? {
+        val a = bigrams[prev]; val b = pretrained[prev]
+        return when {
+            b == null -> a
+            a == null -> b
+            else -> HashMap<String, Long>(a.size + b.size).also {
+                it.putAll(b); for ((k, v) in a) it[k] = (it[k] ?: 0L) + v
+            }
+        }
+    }
+
+    /** Count of the pair [prev]→[next] across both models. */
+    private fun pairCount(prev: String, next: String): Long =
+        (bigrams[prev]?.get(next) ?: 0L) + (pretrained[prev]?.get(next) ?: 0L)
 
     private val hebrew = code == "he"
     // Hebrew matres lectionis: ו/י are written optionally (ktiv male/haser), so inserting or dropping one
@@ -175,10 +214,11 @@ class WordDictionary(
         val w = word.lowercase()
         // The plain result is memoized; a context- or touch-aware one depends on this typing instance, so
         // it's computed fresh (still only when a word finishes / the bar updates, not in a tight loop).
-        val ctx = prevWord?.lowercase()?.let { bigrams[it] }?.takeIf { it.isNotEmpty() }
-        val memoable = ctx == null && subCost == null
+        val pw = prevWord?.lowercase()
+        val hasCtx = pw != null && (bigrams[pw]?.isNotEmpty() == true || pretrained[pw]?.isNotEmpty() == true)
+        val memoable = !hasCtx && subCost == null
         if (memoable && memo.containsKey(w)) return memo[w]
-        val contextOf: (String) -> Long = if (ctx == null) NO_CONTEXT else { cand -> ctx[cand] ?: 0L }
+        val contextOf: (String) -> Long = if (!hasCtx) NO_CONTEXT else { cand -> pairCount(pw!!, cand) }
         // sortedWords() enables the conservative distance-2 fallback (longer words only) at no per-key cost.
         // isWord stays permissive (so a correctly-typed prefixed word is left alone), but we only ever
         // correct *to* a real listed word via isDictWord — never to an invented proclitic+stem form.
@@ -212,7 +252,7 @@ class WordDictionary(
             },
             freqOf = { effectiveFreq(it) },
             // a learned previous→a (first half) pairing, then a→b, gently favour seen sequences
-            bigramOf = { a, b -> (bigrams[a]?.get(b) ?: 0L) + (ctx?.let { bigrams[it]?.get(a) } ?: 0L) },
+            bigramOf = { a, b -> pairCount(a, b) + (ctx?.let { pairCount(it, a) } ?: 0L) },
         )
     }
 
@@ -268,7 +308,7 @@ class WordDictionary(
             }
         }
         val base = WordPredict.completions(sortedWords(), p, limit, { freq[it] ?: 0L }, extra ?: emptyMap())
-        val ctxMap = prevWord?.lowercase()?.let { bigrams[it] } ?: return base
+        val ctxMap = prevWord?.lowercase()?.let { nextAfter(it) } ?: return base
         val ctx = WordPredict.topNext(ctxMap, limit, p).filter { it.length > p.length }
         if (ctx.isEmpty()) return base
         // Lead with the context predictions, then fill from the frequency-ranked completions.
@@ -281,7 +321,7 @@ class WordDictionary(
     /** Up to [limit] words that usually follow [prevWord] (learned next-word predictions), most-used first. */
     fun nextWords(prevWord: String, limit: Int = 3): List<String> {
         if (!ready) return emptyList()
-        val m = bigrams[prevWord.lowercase()] ?: return emptyList()
+        val m = nextAfter(prevWord.lowercase()) ?: return emptyList()
         return WordPredict.topNext(m, limit)
     }
 
@@ -427,6 +467,7 @@ object Dictionaries {
             alphabet = "abcdefghijklmnopqrstuvwxyz",
             adjacencyRows = def.letterRows,
             assetName = def.dictAsset,
+            bigramAsset = "en_bigrams.txt",   // pre-trained next-word model, bundled
             freqSizeHint = 34_000,
         )
         else -> WordDictionary(

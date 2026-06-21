@@ -59,10 +59,14 @@ object WordPredict {
         var bestCost = Int.MAX_VALUE
         var bestCtx = -1L
         var bestFreq = -1L
-        // Also track the single most-frequent candidate, for the noisy-channel promotion below.
+        // Also track the single most-frequent candidate and the most context-supported one, for the
+        // noisy-channel promotions below.
         var freqBest: String? = null
         var freqBestCost = Int.MAX_VALUE
         var freqBestFreq = -1L
+        var ctxBest: String? = null
+        var ctxBestCost = Int.MAX_VALUE
+        var ctxBestCtx = 0L
         // Within the same (most plausible) edit cost, a candidate that the previous word is known to be
         // followed by (contextOf > 0) wins; ties then fall back to raw frequency. With no context
         // (contextOf == 0 everywhere) this reduces exactly to the frequency ranking.
@@ -78,6 +82,10 @@ object WordPredict {
                 bestCost = cost; bestCtx = ctx; bestFreq = f; best = cand
             }
             if (f > freqBestFreq) { freqBestFreq = f; freqBestCost = cost; freqBest = cand }
+            // Cheapest context-supported candidate (ties on context broken by lower cost, then frequency).
+            if (ctx > 0L && (ctx > ctxBestCtx || (ctx == ctxBestCtx && cost < ctxBestCost))) {
+                ctxBestCtx = ctx; ctxBestCost = cost; ctxBest = cand
+            }
         }
         for (i in 0..word.length) {
             val l = word.substring(0, i)
@@ -101,6 +109,16 @@ object WordPredict {
             for (c in alphabet) consider(l + c + r, if (c in cheapIndel) COST_ADJACENT else COST_INDEL)  // insert
         }
         if (best != null) {
+            // Context promotion: when the cheapest fix has no next-word support but a candidate only one
+            // edit costlier *is* expected after the previous word, prefer it — so context can win even
+            // across an edit-cost step, not just as a same-cost tiebreaker. Only fires when there's real
+            // bigram data (ctxBestCtx > 0) and the best itself lacked context (bestCtx == 0).
+            if (ctxBest != null && ctxBest != best && bestCtx == 0L && ctxBestCtx > 0L &&
+                ctxBestCost <= bestCost + 1
+            ) {
+                costOut?.set(0, ctxBestCost)
+                return ctxBest
+            }
             // Noisy-channel promotion: prefer a much more frequent word that's only one edit costlier —
             // but only when the best wasn't chosen by context, and the gap is large — so normal fixes,
             // context, and matres handling are untouched.

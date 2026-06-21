@@ -215,6 +215,20 @@ class WordPredictTest {
         assertNull(WordPredict.mergeCorrection("key", "board", { it in dict }, { it in dict }))
     }
 
+    // ---- context-correction of a valid word (תודה כבה → תודה רבה) ----
+
+    @Test fun contextNeighborPicksAStronglyPrecededRealWord() {
+        // "ted" is a word, but the previous word precedes "red" (one adjacent slip away), not "ted".
+        val known = setOf("red", "ted")
+        val ctx = mapOf("red" to 5L)
+        assertEquals("red" to 5L, WordPredict.bestContextNeighbor("ted", adj, { it in known }, { ctx[it] ?: 0L }))
+    }
+
+    @Test fun contextNeighborIsNullWithoutContext() {
+        val known = setOf("red", "ted")
+        assertNull(WordPredict.bestContextNeighbor("ted", adj, { it in known }, { 0L }))
+    }
+
     // ---- completions ----
 
     private val sorted = arrayOf("the", "they", "there", "them", "then", "their", "cat").also { it.sort() }

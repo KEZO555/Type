@@ -246,6 +246,32 @@ object WordPredict {
     }
 
     /**
+     * The 1-edit neighbour of [word] — an adjacent-key substitution or a transposition (the likely motor
+     * slips) — that is a real word ([isWord]) and most strongly preceded by the previous word ([contextOf]),
+     * paired with its context count; null if none has any context. Lets a *valid* word that doesn't fit the
+     * context be switched to one that does — "תודה כבה" → "תודה רבה". Deliberately narrow (only cheap edits).
+     */
+    fun bestContextNeighbor(
+        word: String,
+        adjacency: Map<Char, String>,
+        isWord: (String) -> Boolean,
+        contextOf: (String) -> Long,
+    ): Pair<String, Long>? {
+        var best: String? = null
+        var bestCtx = 0L
+        fun consider(cand: String) {
+            if (cand == word || !isWord(cand)) return
+            val c = contextOf(cand)
+            if (c > bestCtx) { bestCtx = c; best = cand }
+        }
+        for (i in word.indices) {
+            for (c in adjacency[word[i]].orEmpty()) consider(word.substring(0, i) + c + word.substring(i + 1))
+            if (i < word.length - 1) consider(word.substring(0, i) + word[i + 1] + word[i] + word.substring(i + 2))
+        }
+        return best?.let { it to bestCtx }
+    }
+
+    /**
      * Up to [limit] completions of [prefix], most-frequent first. [sortedWords] must be lexically sorted
      * (so the matches form a contiguous range found by binary search); [freqOf] ranks them. [extra] adds
      * out-of-dictionary candidates (e.g. learned words) that aren't in [sortedWords]. The prefix itself

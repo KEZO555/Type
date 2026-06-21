@@ -671,7 +671,9 @@ class LightImeService : InputMethodService(), LightKeyboardView.Listener {
         // errors the edit-distance corrector misses. The commit path handles a space in the fix like any other.
         d.correct(word, p, keyboard?.spatialSubCost(word), confidentOnly = true)?.let { return it }
         d.correctRunOn(word, p)?.let { return it }
-        keyboard?.tapPath(word)?.let { tp -> return d.tapCorrect(word, tp.keys, tp.xs, tp.ys, tp.keyWidth, p) }
+        keyboard?.tapPath(word)?.let { tp -> d.tapCorrect(word, tp.keys, tp.xs, tp.ys, tp.keyWidth, p)?.let { return it } }
+        // Last: even a *valid* word can be the wrong one for this context ("תודה כבה" → "תודה רבה").
+        prev.takeIf { it.isNotEmpty() }?.let { d.contextCorrect(word, it)?.let { c -> return c } }
         return null
     }
 

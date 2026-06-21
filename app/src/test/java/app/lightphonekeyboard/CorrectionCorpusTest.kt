@@ -37,6 +37,28 @@ class CorrectionCorpusTest {
                 isTarget = ::isDictWord, cheapIndel = cheapIndel,
             )
         }
+
+        var bigrams: Map<String, Map<String, Long>> = emptyMap()
+        private fun pairCount(p: String, n: String) = bigrams[p]?.get(n) ?: 0L
+        fun contextCorrect(word: String, prev: String): String? {
+            if (pairCount(prev, word) > 0) return null
+            val (cand, ctx) = WordPredict.bestContextNeighbor(word, adj, ::isDictWord) { pairCount(prev, it) } ?: return null
+            return if (ctx >= 2L) cand else null
+        }
+    }
+
+    private fun loadBigrams(vararg candidates: String): Map<String, Map<String, Long>> {
+        val file = candidates.map { File(it) }.firstOrNull { it.exists() } ?: return emptyMap()
+        val m = HashMap<String, HashMap<String, Long>>()
+        file.bufferedReader(Charsets.UTF_8).useLines { lines ->
+            lines.forEach { line ->
+                val a = line.indexOf(' '); if (a <= 0) return@forEach
+                val b = line.indexOf(' ', a + 1); if (b <= a + 1) return@forEach
+                val c = line.substring(b + 1).trim().toLongOrNull() ?: return@forEach
+                m.getOrPut(line.substring(0, a)) { HashMap() }[line.substring(a + 1, b)] = c
+            }
+        }
+        return m
     }
 
     private fun loadFreq(vararg candidates: String): LinkedHashMap<String, Long> {
@@ -59,7 +81,7 @@ class CorrectionCorpusTest {
             "אבגדהוזחטיךכלםמןנסעףפץצקרשת",
             listOf("׳־קראטוןםפ", "שדגכעיחלךף", "זסבהנמצתץ"),
             setOf('ו', 'י'), hebrew = true,
-        )
+        ).also { it.bigrams = loadBigrams("../dicts/he_bigrams.txt", "dicts/he_bigrams.txt") }
     }
     private val english by lazy {
         Lang(
@@ -111,5 +133,11 @@ class CorrectionCorpusTest {
         assertEquals("עכשיו", hebrew.correct("עכשיט"))  // plain adjacent-key fix
         assertEquals("the", english.correct("teh"))      // transposition
         assertEquals("receive", english.correct("recieve"))
+    }
+
+    @Test fun contextCorrectsAValidWordFromTheRealModel() {
+        // כבה is a real word ("went out"), but after תודה the model strongly expects רבה ("thank you very
+        // much"). Drives a valid → valid fix purely from the next-word model.
+        assertEquals("רבה", hebrew.contextCorrect("כבה", "תודה"))
     }
 }

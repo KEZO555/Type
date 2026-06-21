@@ -100,6 +100,29 @@ class WordPredictTest {
         assertEquals("cot", correctCtx("ct") { if (it == "cot") 1L else 0L })
     }
 
+    // ---- autocorrect: context promotes across an edit-cost step (not just same-cost ties) ----
+
+    @Test fun contextPromotesACostlierButExpectedWord() {
+        // "ot": the cheapest fix is the transposition → "to" (cost 0, no context). "it" is one step
+        // costlier (o→i is an adjacent-key slip, cost 1) but is what the previous word expects, so it wins.
+        val known = setOf("to", "it")
+        val freq = mapOf("to" to 100L, "it" to 50L)
+        fun corr(ctx: (String) -> Long) =
+            WordPredict.bestCorrection("ot", alphabet, adj, { it in known }, { freq[it] ?: 0L }, contextOf = ctx)
+        assertEquals("to", corr { 0L })                                 // no context → cheapest edit wins
+        assertEquals("it", corr { if (it == "it") 3L else 0L })         // context floats the costlier fit
+    }
+
+    @Test fun contextPromotionStaysWithinOneEditStep() {
+        // A context-supported word two edit-steps costlier is too far — the cheap, context-free fix holds.
+        // "ot": "to" is the cost-0 transposition; "at" needs the far substitution o→a (cost 3 > 0 + 1),
+        // so context can't pull it across that gap.
+        val known = setOf("to", "at")
+        val freq = mapOf("to" to 100L, "at" to 50L)
+        assertEquals("to", WordPredict.bestCorrection(
+            "ot", alphabet, adj, { it in known }, { freq[it] ?: 0L }, contextOf = { if (it == "at") 9L else 0L }))
+    }
+
     // ---- autocorrect: never invent a non-dictionary target (the Hebrew proclitic bug) ----
 
     @Test fun doesNotCorrectToAKnownButNonDictionaryForm() {
@@ -213,6 +236,20 @@ class WordPredictTest {
         val dict = setOf("key", "board", "keyboard")
         // "board" is a real word, so "key board" must stay two words, not become "keyboard".
         assertNull(WordPredict.mergeCorrection("key", "board", { it in dict }, { it in dict }))
+    }
+
+    // ---- context-correction of a valid word (תודה כבה → תודה רבה) ----
+
+    @Test fun contextNeighborPicksAStronglyPrecededRealWord() {
+        // "ted" is a word, but the previous word precedes "red" (one adjacent slip away), not "ted".
+        val known = setOf("red", "ted")
+        val ctx = mapOf("red" to 5L)
+        assertEquals("red" to 5L, WordPredict.bestContextNeighbor("ted", adj, { it in known }, { ctx[it] ?: 0L }))
+    }
+
+    @Test fun contextNeighborIsNullWithoutContext() {
+        val known = setOf("red", "ted")
+        assertNull(WordPredict.bestContextNeighbor("ted", adj, { it in known }, { 0L }))
     }
 
     // ---- completions ----

@@ -59,10 +59,14 @@ object WordPredict {
         var bestCost = Int.MAX_VALUE
         var bestCtx = -1L
         var bestFreq = -1L
-        // Also track the single most-frequent candidate, for the noisy-channel promotion below.
+        // Also track the single most-frequent candidate and the most context-supported one, for the
+        // noisy-channel promotions below.
         var freqBest: String? = null
         var freqBestCost = Int.MAX_VALUE
         var freqBestFreq = -1L
+        var ctxBest: String? = null
+        var ctxBestCost = Int.MAX_VALUE
+        var ctxBestCtx = 0L
         // Within the same (most plausible) edit cost, a candidate that the previous word is known to be
         // followed by (contextOf > 0) wins; ties then fall back to raw frequency. With no context
         // (contextOf == 0 everywhere) this reduces exactly to the frequency ranking.
@@ -78,6 +82,10 @@ object WordPredict {
                 bestCost = cost; bestCtx = ctx; bestFreq = f; best = cand
             }
             if (f > freqBestFreq) { freqBestFreq = f; freqBestCost = cost; freqBest = cand }
+            // Cheapest context-supported candidate (ties on context broken by lower cost, then frequency).
+            if (ctx > 0L && (ctx > ctxBestCtx || (ctx == ctxBestCtx && cost < ctxBestCost))) {
+                ctxBestCtx = ctx; ctxBestCost = cost; ctxBest = cand
+            }
         }
         for (i in 0..word.length) {
             val l = word.substring(0, i)
@@ -101,6 +109,16 @@ object WordPredict {
             for (c in alphabet) consider(l + c + r, if (c in cheapIndel) COST_ADJACENT else COST_INDEL)  // insert
         }
         if (best != null) {
+            // Context promotion: when the cheapest fix has no next-word support but a candidate only one
+            // edit costlier *is* expected after the previous word, prefer it — so context can win even
+            // across an edit-cost step, not just as a same-cost tiebreaker. Only fires when there's real
+            // bigram data (ctxBestCtx > 0) and the best itself lacked context (bestCtx == 0).
+            if (ctxBest != null && ctxBest != best && bestCtx == 0L && ctxBestCtx > 0L &&
+                ctxBestCost <= bestCost + 1
+            ) {
+                costOut?.set(0, ctxBestCost)
+                return ctxBest
+            }
             // Noisy-channel promotion: prefer a much more frequent word that's only one edit costlier —
             // but only when the best wasn't chosen by context, and the gap is large — so normal fixes,
             // context, and matres handling are untouched.
@@ -243,6 +261,32 @@ object WordPredict {
             out[ch] = sb.toString()
         }
         return out
+    }
+
+    /**
+     * The 1-edit neighbour of [word] — an adjacent-key substitution or a transposition (the likely motor
+     * slips) — that is a real word ([isWord]) and most strongly preceded by the previous word ([contextOf]),
+     * paired with its context count; null if none has any context. Lets a *valid* word that doesn't fit the
+     * context be switched to one that does — "תודה כבה" → "תודה רבה". Deliberately narrow (only cheap edits).
+     */
+    fun bestContextNeighbor(
+        word: String,
+        adjacency: Map<Char, String>,
+        isWord: (String) -> Boolean,
+        contextOf: (String) -> Long,
+    ): Pair<String, Long>? {
+        var best: String? = null
+        var bestCtx = 0L
+        fun consider(cand: String) {
+            if (cand == word || !isWord(cand)) return
+            val c = contextOf(cand)
+            if (c > bestCtx) { bestCtx = c; best = cand }
+        }
+        for (i in word.indices) {
+            for (c in adjacency[word[i]].orEmpty()) consider(word.substring(0, i) + c + word.substring(i + 1))
+            if (i < word.length - 1) consider(word.substring(0, i) + word[i + 1] + word[i] + word.substring(i + 2))
+        }
+        return best?.let { it to bestCtx }
     }
 
     /**

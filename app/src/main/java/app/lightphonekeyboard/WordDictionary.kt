@@ -252,6 +252,19 @@ class WordDictionary(
         return if (cb <= ct + TAP_HYBRID_MARGIN) best else null   // fits the taps about as well → trust the real word
     }
 
+    /**
+     * Context-correct a *valid* word: if [word] doesn't follow [prevWord] in the next-word model but an
+     * adjacent-key/transposition neighbour does (strongly), switch to it — "תודה כבה" → "תודה רבה".
+     * Conservative: only when the typed word has no context support and the neighbour's is real.
+     */
+    fun contextCorrect(word: String, prevWord: String): String? {
+        if (!ready || prevWord.isEmpty() || word.length < 2) return null
+        val p = prevWord.lowercase(); val w = word.lowercase()
+        if (pairCount(p, w) > 0) return null    // the typed word already fits the context → leave it
+        val (cand, ctx) = WordPredict.bestContextNeighbor(w, adj, ::isDictWord) { pairCount(p, it) } ?: return null
+        return if (ctx >= CONTEXT_CORRECT_MIN) cand else null
+    }
+
     /** The real contraction for an apostrophe-less English form ("dont" → "don't"), or null. */
     fun contractionOf(word: String): String? = if (english) CONTRACTIONS[word.lowercase()] else null
 
@@ -545,6 +558,7 @@ class WordDictionary(
         val NO_CONTEXT: (String) -> Long = { 0L }   // shared no-op so correct() allocates nothing
         val NO_SUBCOST: (Int, Char, Char) -> Int? = { _, _, _ -> null }   // no spatial info → grid costs
         const val TAP_HYBRID_MARGIN = 0.22   // how much worse a real word may fit the taps and still win (tune on device)
+        const val CONTEXT_CORRECT_MIN = 2L   // min previous→neighbour count to override a valid typed word
 
         // Apostrophe-less → real contraction. Deliberately excludes forms that collide with common words
         // (its, were, well, ill, hell, shell, wed, shed, lets, id) so we never rewrite a word you meant.

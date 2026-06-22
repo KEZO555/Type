@@ -100,27 +100,16 @@ class WordPredictTest {
         assertEquals("cot", correctCtx("ct") { if (it == "cot") 1L else 0L })
     }
 
-    // ---- autocorrect: context promotes across an edit-cost step (not just same-cost ties) ----
+    // ---- autocorrect: context stays a same-cost tiebreaker, never overrides a cheaper edit ----
 
-    @Test fun contextPromotesACostlierButExpectedWord() {
-        // "ot": the cheapest fix is the transposition → "to" (cost 0, no context). "it" is one step
-        // costlier (o→i is an adjacent-key slip, cost 1) but is what the previous word expects, so it wins.
+    @Test fun contextDoesNotOverrideACheaperEdit() {
+        // "ot": the cost-0 transposition → "to" must win even when a costlier neighbour ("it", an
+        // adjacent-key slip) is strongly expected by context. Context only breaks *same-cost* ties, so a
+        // single bigram hit can never flip a confident cheaper fix to a rarer, costlier word.
         val known = setOf("to", "it")
-        val freq = mapOf("to" to 100L, "it" to 50L)
-        fun corr(ctx: (String) -> Long) =
-            WordPredict.bestCorrection("ot", alphabet, adj, { it in known }, { freq[it] ?: 0L }, contextOf = ctx)
-        assertEquals("to", corr { 0L })                                 // no context → cheapest edit wins
-        assertEquals("it", corr { if (it == "it") 3L else 0L })         // context floats the costlier fit
-    }
-
-    @Test fun contextPromotionStaysWithinOneEditStep() {
-        // A context-supported word two edit-steps costlier is too far — the cheap, context-free fix holds.
-        // "ot": "to" is the cost-0 transposition; "at" needs the far substitution o→a (cost 3 > 0 + 1),
-        // so context can't pull it across that gap.
-        val known = setOf("to", "at")
-        val freq = mapOf("to" to 100L, "at" to 50L)
+        val freq = mapOf("to" to 99000L, "it" to 100L)
         assertEquals("to", WordPredict.bestCorrection(
-            "ot", alphabet, adj, { it in known }, { freq[it] ?: 0L }, contextOf = { if (it == "at") 9L else 0L }))
+            "ot", alphabet, adj, { it in known }, { freq[it] ?: 0L }, contextOf = { if (it == "it") 5L else 0L }))
     }
 
     // ---- autocorrect: never invent a non-dictionary target (the Hebrew proclitic bug) ----

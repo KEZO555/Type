@@ -188,6 +188,10 @@ class WordDictionary(
     // Hebrew matres lectionis: ו/י are written optionally (ktiv male/haser), so inserting or dropping one
     // is treated as a cheap edit — e.g. היתה ↔ הייתה, אתך ↔ איתך — not a full typo.
     private val cheapIndel: Set<Char> = if (hebrew) setOf('ו', 'י') else emptySet()
+    // Shortest word we'll autocorrect. English 2-letter tokens (of/or/on/in/it/is/…) are a dense, ambiguous
+    // cloud, so we leave them at 3; Hebrew 2-letter words (מה/זה/כן/לא/…) are common and all in the
+    // dictionary, so a 2-letter non-word like "צה" can be safely fixed to "מה" without touching real ones.
+    val minCorrectLen = if (hebrew) 2 else 3
 
     /** Is [w] a real word? Directly in the dictionary/learned, or — for Hebrew — a known stem with one or
      *  more glued-on proclitics (ו/ה/ש/ב/כ/ל/מ), e.g. "ושלום" = ו + שלום. */
@@ -286,7 +290,7 @@ class WordDictionary(
         // Apostrophe-less contractions → the real contraction (English). Checked before the length gate so
         // short ones like "im" are caught, and before correction so we don't mangle them into a near-word.
         if (english) CONTRACTIONS[w]?.let { return it }
-        if (word.length < 3) return null
+        if (word.length < minCorrectLen) return null
         // The plain result is memoized; a context- or touch-aware one depends on this typing instance, so
         // it's computed fresh (still only when a word finishes / the bar updates, not in a tight loop).
         val pw = prevWord?.lowercase()
@@ -294,13 +298,17 @@ class WordDictionary(
         val memoable = !hasCtx && subCost == null && !confidentOnly
         if (memoable && memo.containsKey(w)) return memo[w]
         val contextOf: (String) -> Long = if (!hasCtx) NO_CONTEXT else { cand -> pairCount(pw!!, cand) }
+        // For a 2-letter word the neighbourhood is tiny and ambiguous, so only trust a *confident* slip — a
+        // transposition or adjacent-key fix (e.g. צה→מה) — never an insert/delete or a far substitution.
+        val costOut = if (word.length < 3) IntArray(1) else null
         // sortedWords() enables the conservative distance-2 fallback (longer words only) at no per-key cost.
         // isWord stays permissive (so a correctly-typed prefixed word is left alone), but we only ever
         // correct *to* a real listed word via isDictWord — never to an invented proclitic+stem form.
-        val fix = WordPredict.bestCorrection(
+        var fix = WordPredict.bestCorrection(
             w, alphabet, adj, ::isWord, { effectiveFreq(it) }, sortedWords(), contextOf,
-            isTarget = ::isDictWord, subCost = subCost ?: NO_SUBCOST, cheapIndel = cheapIndel,
+            isTarget = ::isDictWord, subCost = subCost ?: NO_SUBCOST, cheapIndel = cheapIndel, costOut = costOut,
         )
+        if (fix != null && costOut != null && costOut[0] > WordPredict.SHORT_WORD_MAX_COST) fix = null
         if (memoable) { if (memo.size > 4000) memo.clear(); memo[w] = fix }
         return fix
     }

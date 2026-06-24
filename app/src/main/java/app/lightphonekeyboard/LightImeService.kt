@@ -660,11 +660,12 @@ class LightImeService : InputMethodService(), LightKeyboardView.Listener {
     }
 
     private fun autocorrectFix(word: String): String? {
-        if (!autocorrectOn() || word.length < 3) return null
+        if (!autocorrectOn()) return null
+        val d = dict() ?: return null
+        if (word.length < d.minCorrectLen) return null
         // The word just before this one (the cursor still sits right after `word`) gives correction its
         // context, so the fix can be biased toward what usually follows that previous word.
         val prev = TextOps.precedingWord(currentInputConnection?.getTextBeforeCursor(48, 0) ?: "")
-        val d = dict() ?: return null
         val p = prev.ifEmpty { null }
         // Single-word fix first (auto-apply only confident ones); then a run-on split ("לארקובלתי" → "לא
         // קיבלתי"); then the tap-typing hybrid — decode the whole tap path, catching multi-tap fat-finger

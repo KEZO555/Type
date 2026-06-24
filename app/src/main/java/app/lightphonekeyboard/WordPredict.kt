@@ -19,6 +19,10 @@ object WordPredict {
      *  substitution — is a wild guess, fine to *offer* but not to auto-apply. See [bestCorrection]'s costOut. */
     const val CONFIDENT_MAX_COST = COST_INDEL
 
+    /** The strictest bar, for tiny (2-letter) words: only a transposition or an adjacent-key slip is a
+     *  trustworthy fix there — an insert/delete or far substitution is too likely to invent a wrong word. */
+    const val SHORT_WORD_MAX_COST = COST_ADJACENT
+
     // Noisy-channel promotion: a candidate one edit costlier than the cheapest may still win if it's at
     // least this many times more frequent — so "נרעה" fixes to the far commoner "נראה" (substitution)
     // rather than the rarer "נערה" (transposition). High enough that it only flips lopsided cases.
@@ -59,10 +63,12 @@ object WordPredict {
         var bestCost = Int.MAX_VALUE
         var bestCtx = -1L
         var bestFreq = -1L
-        // Also track the single most-frequent candidate, for the noisy-channel promotion below.
-        var freqBest: String? = null
-        var freqBestCost = Int.MAX_VALUE
-        var freqBestFreq = -1L
+        // For the noisy-channel promotion below, track the most frequent candidate *at each edit cost*
+        // (cost is a small int: transpose 0 … substitution 3). Tracking per cost — instead of one global
+        // maximum — means a very common but far-off word (e.g. a one-letter deletion) can't crowd out the
+        // genuinely promotable candidate that sits just one step costlier than the cheapest fix.
+        val freqByCost = arrayOfNulls<String>(COST_SUB + 2)
+        val freqAtCost = LongArray(COST_SUB + 2) { -1L }
         // Within the same (most plausible) edit cost, a candidate that the previous word is known to be
         // followed by (contextOf > 0) wins; ties then fall back to raw frequency. With no context
         // (contextOf == 0 everywhere) this reduces exactly to the frequency ranking.
@@ -77,7 +83,8 @@ object WordPredict {
             if (cost < bestCost || (cost == bestCost && (ctx > bestCtx || (ctx == bestCtx && f > bestFreq)))) {
                 bestCost = cost; bestCtx = ctx; bestFreq = f; best = cand
             }
-            if (f > freqBestFreq) { freqBestFreq = f; freqBestCost = cost; freqBest = cand }
+            val ci = cost.coerceIn(0, freqAtCost.size - 1)
+            if (f > freqAtCost[ci]) { freqAtCost[ci] = f; freqByCost[ci] = cand }
         }
         for (i in 0..word.length) {
             val l = word.substring(0, i)
@@ -103,12 +110,17 @@ object WordPredict {
         if (best != null) {
             // Noisy-channel promotion: prefer a much more frequent word that's only one edit costlier —
             // but only when the best wasn't chosen by context, and the gap is large — so normal fixes,
-            // context, and matres handling are untouched.
-            if (freqBest != null && freqBest != best && bestCtx == 0L && bestFreq > 0L &&
-                freqBestCost <= bestCost + 1 && freqBestFreq >= bestFreq * FREQ_PROMOTE_RATIO
+            // context, and matres handling are untouched. We look at the most frequent candidate within
+            // one step of the cheapest fix (e.g. "צה": the cost-0 transposition "הצ" (freq 7k) loses to the
+            // cost-1 "מה" (freq 2.1M), which is >25x more common).
+            val cap = (bestCost + 1).coerceAtMost(freqAtCost.size - 1)
+            var promo: String? = null; var promoFreq = -1L; var promoCost = 0
+            for (c in 0..cap) if (freqAtCost[c] > promoFreq) { promoFreq = freqAtCost[c]; promo = freqByCost[c]; promoCost = c }
+            if (promo != null && promo != best && bestCtx == 0L && bestFreq > 0L &&
+                promoFreq >= bestFreq * FREQ_PROMOTE_RATIO
             ) {
-                costOut?.set(0, freqBestCost)
-                return freqBest
+                costOut?.set(0, promoCost)
+                return promo
             }
             costOut?.set(0, bestCost)
             return best

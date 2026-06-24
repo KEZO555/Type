@@ -1,6 +1,7 @@
 package app.lightphonekeyboard
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
@@ -30,12 +31,16 @@ class CorrectionCorpusTest {
             if (hebrew) for ((_, stem) in TextOps.hebrewProcliticSplits(w)) if (freq.containsKey(stem)) return true
             return false
         }
+        val minCorrectLen = if (hebrew) 2 else 3
         fun correct(word: String): String? {
-            if (isWord(word) || word.length < 3) return null
-            return WordPredict.bestCorrection(
+            if (isWord(word) || word.length < minCorrectLen) return null
+            val costOut = if (word.length < 3) IntArray(1) else null
+            var fix = WordPredict.bestCorrection(
                 word, alphabet, adj, ::isWord, { freq[it] ?: 0L }, sorted,
-                isTarget = ::isDictWord, cheapIndel = cheapIndel,
+                isTarget = ::isDictWord, cheapIndel = cheapIndel, costOut = costOut,
             )
+            if (fix != null && costOut != null && costOut[0] > WordPredict.SHORT_WORD_MAX_COST) fix = null
+            return fix
         }
 
         var bigrams: Map<String, Map<String, Long>> = emptyMap()
@@ -133,6 +138,14 @@ class CorrectionCorpusTest {
         assertEquals("עכשיו", hebrew.correct("עכשיט"))  // plain adjacent-key fix
         assertEquals("the", english.correct("teh"))      // transposition
         assertEquals("receive", english.correct("recieve"))
+    }
+
+    @Test fun shortHebrewWordsAreCorrectedButRealOnesAreLeftAlone() {
+        // צה is a 2-letter non-word; מה ("what") is the cost-1 adjacent-key fix. It must beat the junk
+        // cost-0 transposition הצ purely on frequency (מה is ~290x commoner). Real 2-letter words stay.
+        assertEquals("מה", hebrew.correct("צה"))
+        for (w in listOf("מה", "זה", "כן", "לא", "עם", "הם", "יש", "גם", "כי", "אל", "על", "מי"))
+            assertNull("real 2-letter word $w must not be corrected", hebrew.correct(w))
     }
 
     @Test fun contextCorrectsAValidWordFromTheRealModel() {

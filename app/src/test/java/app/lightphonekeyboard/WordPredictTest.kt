@@ -170,6 +170,16 @@ class WordPredictTest {
         assertEquals("on", WordPredict.bestCorrection("no", alphabet, adj, { it in known }, { freq[it] ?: 0L }))
     }
 
+    @Test fun promotionPicksTheEligibleCandidateNotTheGlobalFrequencyMax() {
+        // "ot": cost-0 transposition → "to" (rare). The promotable fix is the cost-1 adjacent slip "it"
+        // (25x+ commoner). A far-off cost-2 word ("got", hugely frequent) must NOT crowd it out — the
+        // promotion looks per edit cost, within one step of the cheapest fix, not at the global maximum.
+        // Mirrors the real "צה": the junk transposition "הצ" lost to the cost-1 "מה".
+        val known = setOf("to", "it", "got")
+        val freq = mapOf("to" to 100L, "it" to 5000L, "got" to 999999L)
+        assertEquals("it", WordPredict.bestCorrection("ot", alphabet, adj, { it in known }, { freq[it] ?: 0L }))
+    }
+
     // ---- cheap matres-lectionis indel (Hebrew ktiv male/haser) ----
 
     @Test fun cheapMatresIndelBeatsAMoreFrequentPlainInsertion() {

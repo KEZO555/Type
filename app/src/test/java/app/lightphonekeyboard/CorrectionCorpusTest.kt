@@ -140,6 +140,18 @@ class CorrectionCorpusTest {
         assertEquals("receive", english.correct("recieve"))
     }
 
+    @Test fun doubledLetterMisspellingsRecover() {
+        // Classic doubled-key slips (an extra or a missed double) — a known weak spot now priced as a
+        // cheap edit. These are among the most common real English misspellings.
+        assertEquals("home", english.correct("homee"))
+        assertEquals("address", english.correct("adress"))
+        assertEquals("committee", english.correct("comitee"))
+        assertEquals("tomorrow", english.correct("tomorow"))
+        assertEquals("occurred", english.correct("occured"))
+        assertEquals("beginning", english.correct("begining"))
+        assertEquals("necessary", english.correct("necesary"))
+    }
+
     @Test fun shortHebrewWordsAreCorrectedButRealOnesAreLeftAlone() {
         // צה is a 2-letter non-word; מה ("what") is the cost-1 adjacent-key fix. It must beat the junk
         // cost-0 transposition הצ purely on frequency (מה is ~290x commoner). Real 2-letter words stay.

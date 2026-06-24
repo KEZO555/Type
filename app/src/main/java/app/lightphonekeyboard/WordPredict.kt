@@ -14,6 +14,11 @@ object WordPredict {
     private const val COST_ADJACENT = 1
     private const val COST_INDEL = 2     // insertion / deletion (a missed or doubled key)
     private const val COST_SUB = 3       // substitution of a non-adjacent key (least likely)
+    // Inserting or deleting a letter that *duplicates its neighbour* is a doubled-key slip ("homee"→"home",
+    // "adress"→"address") — far commoner than an arbitrary indel, so it's priced like an adjacent-key error.
+    // (Empirically the sweet spot: at this cost the doubled-key recovery jumps to ~0.99 with almost no cost
+    // to adjacent-substitution recovery; cheaper than this starts over-deleting real letters.)
+    private const val COST_DOUBLE = COST_ADJACENT
 
     /** A fix at or below this edit cost is "confident" (a plausible slip); a costlier one — a non-adjacent
      *  substitution — is a wild guess, fine to *offer* but not to auto-apply. See [bestCorrection]'s costOut. */
@@ -91,8 +96,12 @@ object WordPredict {
             val r = word.substring(i)
             if (r.isNotEmpty()) {
                 // Deleting/inserting an optional letter (Hebrew matres lectionis ו/י) is a cheap edit, so a
-                // ktiv-male/haser variant resolves to the listed spelling instead of looking like a typo.
-                consider(l + r.substring(1), if (r[0] in cheapIndel) COST_ADJACENT else COST_INDEL)  // delete
+                // ktiv-male/haser variant resolves to the listed spelling instead of looking like a typo; a
+                // letter that duplicates its neighbour is a doubled-key slip, also cheap.
+                val dblDel = (l.isNotEmpty() && l.last() == r[0]) || (r.length > 1 && r[1] == r[0])
+                consider(l + r.substring(1), when {
+                    r[0] in cheapIndel -> COST_ADJACENT; dblDel -> COST_DOUBLE; else -> COST_INDEL
+                })  // delete
                 if (r.length > 1) consider(l + r[1] + r[0] + r.substring(2), COST_TRANSPOSE)
                 val typed = r[0]
                 val near = adjacency[typed].orEmpty()
@@ -105,7 +114,12 @@ object WordPredict {
                     consider(l + c + r.substring(1), cost)
                 }
             }
-            for (c in alphabet) consider(l + c + r, if (c in cheapIndel) COST_ADJACENT else COST_INDEL)  // insert
+            for (c in alphabet) {  // insert
+                val dblIns = (l.isNotEmpty() && l.last() == c) || (r.isNotEmpty() && r[0] == c)
+                consider(l + c + r, when {
+                    c in cheapIndel -> COST_ADJACENT; dblIns -> COST_DOUBLE; else -> COST_INDEL
+                })
+            }
         }
         if (best != null) {
             // Noisy-channel promotion: prefer a much more frequent word that's only one edit costlier —

@@ -180,6 +180,32 @@ class WordPredictTest {
         assertEquals("it", WordPredict.bestCorrection("ot", alphabet, adj, { it in known }, { freq[it] ?: 0L }))
     }
 
+    // ---- doubled-key slips (a repeated or missed double letter) ----
+
+    @Test fun deletingADoubledLetterBeatsAnAdjacentSubstitution() {
+        // "homee": deleting the doubled 'e' → "home" should beat substituting it (e→s, an adjacent slip) →
+        // "homes". A doubled key is the likelier intent, so the delete is priced like an adjacent edit.
+        val known = setOf("home", "homes")
+        val freq = mapOf("home" to 100L, "homes" to 100L)
+        assertEquals("home", WordPredict.bestCorrection("homee", alphabet, adj, { it in known }, { freq[it] ?: 0L }))
+    }
+
+    @Test fun insertingAMissedDoubleLetterIsCheap() {
+        // "adress" → "address": the missed second 'd' is a doubled-key slip, cheaper than an arbitrary
+        // insertion, so it's recovered over a same-length far guess.
+        val known = setOf("address", "adverts")
+        val freq = mapOf("address" to 100L, "adverts" to 5L)
+        assertEquals("address", WordPredict.bestCorrection("adress", alphabet, adj, { it in known }, { freq[it] ?: 0L }))
+    }
+
+    @Test fun aDoubledKeyDeleteStaysConfident() {
+        // The doubled-letter delete is confident (≤ CONFIDENT_MAX_COST), so it auto-applies.
+        val known = setOf("home")
+        val c = IntArray(1)
+        assertEquals("home", WordPredict.bestCorrection("homee", alphabet, adj, { it in known }, { 0L }, costOut = c))
+        assertTrue(c[0] <= WordPredict.CONFIDENT_MAX_COST)
+    }
+
     // ---- cheap matres-lectionis indel (Hebrew ktiv male/haser) ----
 
     @Test fun cheapMatresIndelBeatsAMoreFrequentPlainInsertion() {

@@ -27,7 +27,7 @@ object DictModel {
     // Data version per downloadable dictionary. Bump a language's number whenever dicts/<code>.txt is
     // improved, so phones that already downloaded an older copy refresh themselves (see [refreshIfStale]).
     // Absent = version 1, the original baseline — so only languages listed here ever re-download.
-    private val DICT_VERSIONS = mapOf("he" to 4)   // v4: pull the pre-trained next-word model too
+    private val DICT_VERSIONS = mapOf("he" to 5)   // v5: bigger next-word model (+IAHLTwiki treebank, ~13k pairs)
     private const val META = "dict_meta"
 
     private val main = Handler(Looper.getMainLooper())

@@ -5,15 +5,16 @@ Build dicts/he_bigrams.txt — the downloadable Hebrew pre-trained next-word (bi
 Hebrew word and biases autocorrect by context out of the box.
 
 Source: Universal Dependencies Hebrew treebanks (modern Hebrew, license-clean, reachable on GitHub):
-  - UD_Hebrew-HTB           he_htb-ud-train.conllu        (newswire)
-  - UD_Hebrew-IAHLTKnesset  he_iahltknesset-ud-train.conllu (parliamentary speech)
+  - UD_Hebrew-HTB           he_htb-ud-{train,dev,test}.conllu         (newswire)
+  - UD_Hebrew-IAHLTknesset  he_iahltknesset-ud-{train,dev,test}.conllu (parliamentary speech)
+  - UD_Hebrew-IAHLTwiki     he_iahltwiki-ud-{train,dev,test}.conllu    (encyclopedic / Wikipedia)
 The treebanks are morphologically segmented, so we read the GLUED surface forms from the multiword-token
 ranges (so "בבית"/"ושלום" stay whole, matching what people type, not the split "ב בית"/"ו שלום").
 
 Kept: bigrams of Hebrew-letter surface words that are both in the unigram dictionary (dicts/he.txt),
 seen at least MIN_COUNT times, top MAX_PAIRS by count.
 
-Usage:  python3 gen_bigrams_he.py [conllu ...]   (defaults: /tmp/he_htb.conllu /tmp/he_knesset.conllu)
+Usage:  python3 gen_bigrams_he.py [conllu ...]   (defaults: the nine /tmp/*.conllu below)
 """
 import re, sys, os
 from collections import Counter
@@ -25,8 +26,9 @@ HE = re.compile(r"^[א-ת]+$")
 here = os.path.dirname(os.path.abspath(__file__))
 repo = os.path.dirname(here)
 srcs = sys.argv[1:] or [
-    "/tmp/he_htb.conllu", "/tmp/he_htb_dev.conllu", "/tmp/he_htb_test.conllu",
-    "/tmp/he_knesset.conllu", "/tmp/he_kns_dev.conllu", "/tmp/he_kns_test.conllu",
+    "/tmp/he_htb_train.conllu", "/tmp/he_htb_dev.conllu", "/tmp/he_htb_test.conllu",
+    "/tmp/he_kns_train.conllu", "/tmp/he_kns_dev.conllu", "/tmp/he_kns_test.conllu",
+    "/tmp/he_wiki_train.conllu", "/tmp/he_wiki_dev.conllu", "/tmp/he_wiki_test.conllu",
 ]
 words_path = os.path.join(repo, "dicts/he.txt")
 out = os.path.join(repo, "dicts/he_bigrams.txt")

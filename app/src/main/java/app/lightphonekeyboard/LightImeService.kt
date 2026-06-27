@@ -236,10 +236,14 @@ class LightImeService : InputMethodService(), LightKeyboardView.Listener {
             }
         }
         val fix = if (autocorrectOn()) autocorrectFix(original) else null
-        // A non-null fix means `original` is unfamiliar (sits one edit from a real word). The first time
-        // we offer the correction in case it's a typo; once you've used the same unfamiliar word again,
-        // we trust it — learn it and leave it alone from now on.
-        val correct = fix != null && !fix.equals(original, ignoreCase = true) && !registerUnknownUse(original)
+        // Use-count any *unfamiliar* word — whether or not it has a correction. We leave it (or offer the
+        // fix) the first few times in case it's a typo, and only trust it — learning it — once it's been
+        // typed enough. Crucially this counts no-fix words too: a one-off typo with no correction (e.g.
+        // מאציו, two edits from מאמין) is committed but never saved to your words on the first keystroke,
+        // so it can't silently become "known" and then a correction target. Known words are left as-is.
+        val known = dict()?.takeIf { it.ready }?.isWord(original.lowercase()) == true
+        val usedEnough = !known && registerUnknownUse(original)
+        val correct = fix != null && !fix.equals(original, ignoreCase = true) && !usedEnough
         if (correct) {
             val cased = applyCase(original, fix!!)
             ic.beginBatchEdit()
@@ -253,7 +257,8 @@ class LightImeService : InputMethodService(), LightKeyboardView.Listener {
             undoKeepMedial = null
         } else {
             ic.commitText(s, 1)
-            learnTyped(original)    // user typed this word and kept it — remember it
+            // No immediate learning here: a known word needs none, and an unfamiliar one is learned by
+            // registerUnknownUse above only after enough repeats (or instantly via an undo of a fix).
             if (finalizedMedial != null) {
                 // Arm a revert: backspace restores the medial ending AND remembers to keep it medial.
                 val finWord = finalizedMedial.dropLast(1) + medialToFinal[finalizedMedial.last()]
@@ -318,15 +323,17 @@ class LightImeService : InputMethodService(), LightKeyboardView.Listener {
         // Fix the last word before firing the action / newline.
         val original = trailingWord()
         val fix = if (autocorrectOn()) autocorrectFix(original) else null
-        val correct = fix != null && !fix.equals(original, ignoreCase = true) && !registerUnknownUse(original)
+        // Same use-counting as onText: an unfamiliar word is learned only after enough repeats, never on
+        // the first keystroke — so a one-off typo with no fix isn't silently saved as a word.
+        val known = dict()?.takeIf { it.ready }?.isWord(original.lowercase()) == true
+        val usedEnough = !known && registerUnknownUse(original)
+        val correct = fix != null && !fix.equals(original, ignoreCase = true) && !usedEnough
         if (correct) {
             val cased = applyCase(original, fix!!)
             ic.beginBatchEdit()
             ic.deleteSurroundingText(original.length, 0)
             ic.commitText(cased, 1)
             ic.endBatchEdit()
-        } else {
-            learnTyped(original)   // user kept this word — remember it
         }
         recordContext()   // record the word pair before the line breaks the context
         clearUndo()

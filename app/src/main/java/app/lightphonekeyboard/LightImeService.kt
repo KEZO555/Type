@@ -558,6 +558,11 @@ class LightImeService : InputMethodService(), LightKeyboardView.Listener {
     // it as typed). Rebuilt by [updateSuggestions]; read by [onSuggestionPicked].
     private var barWords: List<String> = emptyList()
     private var barLiteralIndex = -1
+    // When a bar slot offers the dictionary fix for a word you previously taught the keyboard, tapping it
+    // both replaces the text and forgets the learned typo. [barForgetWord] is that word; [barForgetIndex]
+    // the slot. Both reset every rebuild (set only when such a fix is offered).
+    private var barForgetWord: String? = null
+    private var barForgetIndex = -1
 
     /**
      * Recompute the suggestion bar for the word being typed and push it. When autocorrect would change
@@ -567,6 +572,7 @@ class LightImeService : InputMethodService(), LightKeyboardView.Listener {
      */
     private fun updateSuggestions() {
         val kb = keyboard ?: return
+        barForgetWord = null; barForgetIndex = -1   // reset; set only when an unlearn fix is offered below
         if (!Prefs.suggestions(this)) { barWords = emptyList(); barLiteralIndex = -1; kb.setSuggestions(emptyList()); return }
         val dict = dict()
         dict?.prepare(this)   // warm on demand (idempotent) so enabling the bar mid-session works too
@@ -611,7 +617,20 @@ class LightImeService : InputMethodService(), LightKeyboardView.Listener {
                 if (words.none { it.equals(cased, ignoreCase = true) }) words.add(cased)
             }
         } else {
-            for (c in completions) words.add(applyCase(word, c))
+            // No auto-correction. If this is a word you taught the keyboard (learned, not a dictionary
+            // word) and it has a real-dictionary fix, offer it as a one-tap "replace and forget" so a
+            // mistakenly-learned typo can be undone in context. Shown as a normal chip (space won't change
+            // a learned word), ahead of the completions.
+            val unlearn = if (autocorrectOn())
+                dict.learnedTypoFix(word, prevWord.ifEmpty { null }, keyboard?.spatialSubCost(word)) else null
+            if (unlearn != null && !unlearn.equals(word, ignoreCase = true)) {
+                words.add(applyCase(word, unlearn)); barForgetWord = word; barForgetIndex = 0
+            }
+            for (c in completions) {
+                if (words.size >= 3) break
+                val cased = applyCase(word, c)
+                if (words.none { it.equals(cased, ignoreCase = true) }) words.add(cased)
+            }
         }
         barWords = words
         barLiteralIndex = literal
@@ -634,7 +653,11 @@ class LightImeService : InputMethodService(), LightKeyboardView.Listener {
         if (original.isNotEmpty()) ic.deleteSurroundingText(original.length, 0)
         ic.commitText("${barWords[index]} ", 1)
         ic.endBatchEdit()
-        learnTyped(barWords[index])      // tapping a word counts as using it
+        if (index == barForgetIndex && barForgetWord != null) {
+            dict()?.forget(this, barForgetWord!!)   // this slot was "replace + forget the learned typo"
+        } else {
+            learnTyped(barWords[index])             // tapping a word counts as using it
+        }
         // onUpdateSelection fires from the commit and refreshes the bar (now empty — the word is done).
     }
 

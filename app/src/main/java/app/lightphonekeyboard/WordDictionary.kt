@@ -121,7 +121,25 @@ class WordDictionary(
                 learned[line.substring(0, sp)] = c
             }
         }
+        pruneRedundantLearned()
         learnedSorted = null   // rebuild the prefix index on first use after loading
+    }
+
+    /** Drop learned entries the base dictionary already recognises — an exact word, or (Hebrew) a glued
+     *  proclitic+stem form. Older over-eager learning saved every word you typed, so "my words" filled with
+     *  ordinary dictionary words; these are pure noise (the word stays known regardless). Words you genuinely
+     *  taught (not in the dictionary) are kept. Runs once at load, after [freq] is populated. */
+    private fun pruneRedundantLearned() {
+        if (freq.isEmpty() || learned.isEmpty()) return
+        val iter = learned.keys.iterator()
+        var removed = 0
+        while (iter.hasNext()) {
+            val w = iter.next()
+            val redundant = freq.containsKey(w) ||
+                (hebrew && TextOps.hebrewProcliticSplits(w).any { (_, stem) -> freq.containsKey(stem) })
+            if (redundant) { iter.remove(); removed++ }
+        }
+        if (removed > 0) { memo.clear(); scheduleSave() }   // persist the cleaned list
     }
 
     private fun loadBigrams(context: Context) {
@@ -267,6 +285,32 @@ class WordDictionary(
         if (pairCount(p, w) > 0) return null    // the typed word already fits the context → leave it
         val (cand, ctx) = WordPredict.bestContextNeighbor(w, adj, ::isDictWord) { pairCount(p, it) } ?: return null
         return if (ctx >= CONTEXT_CORRECT_MIN) cand else null
+    }
+
+    /**
+     * If [word] is one you taught the keyboard (a *learned* word that isn't in the base dictionary) and the
+     * corrector would otherwise fix it to a real dictionary word, return that word — so the bar can offer a
+     * one-tap "replace and forget" to undo a mistakenly-learned typo in context. Computes the fix as if
+     * [word] were *not* learned (a learned word is otherwise treated as known and never corrected). Returns
+     * null for genuine words, dictionary words, or when there's no real-dictionary fix within reach.
+     */
+    fun learnedTypoFix(word: String, prevWord: String? = null, subCost: ((Int, Char, Char) -> Int?)? = null): String? {
+        if (!ready) return null
+        val w = word.lowercase()
+        if (!learned.containsKey(w) || freq.containsKey(w) || w.length < minCorrectLen) return null
+        // Recognised without its learned entry (e.g. a Hebrew proclitic+stem form)? Then it isn't a stray typo.
+        if (hebrew && TextOps.hebrewProcliticSplits(w).any { (_, stem) -> freq.containsKey(stem) }) return null
+        val pw = prevWord?.lowercase()
+        val hasCtx = pw != null && (bigrams[pw]?.isNotEmpty() == true || pretrained[pw]?.isNotEmpty() == true)
+        val contextOf: (String) -> Long = if (!hasCtx) NO_CONTEXT else { c -> pairCount(pw!!, c) }
+        // Treat w as unknown (isKnown/isTarget exclude it); correct only *to* a real base-dictionary word.
+        return WordPredict.bestCorrection(
+            w, alphabet, adj,
+            isKnown = { x -> x != w && isWord(x) },
+            freqOf = { effectiveFreq(it) }, sortedDict = sortedWords(), contextOf = contextOf,
+            isTarget = { x -> x != w && freq.containsKey(x) },
+            subCost = subCost ?: NO_SUBCOST, cheapIndel = cheapIndel,
+        )
     }
 
     /** The real contraction for an apostrophe-less English form ("dont" → "don't"), or null. */

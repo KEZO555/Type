@@ -1,6 +1,7 @@
 package app.lightphonekeyboard
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -32,8 +33,11 @@ class CorrectionCorpusTest {
             return false
         }
         val minCorrectLen = if (hebrew) 2 else 3
+        var confusions: Map<String, String> = emptyMap()
         fun correct(word: String): String? {
-            if (isWord(word) || word.length < minCorrectLen) return null
+            if (isWord(word)) return null
+            confusions[word]?.let { return it }              // curated hard-case override, before edit-distance
+            if (word.length < minCorrectLen) return null
             val costOut = if (word.length < 3) IntArray(1) else null
             var fix = WordPredict.bestCorrection(
                 word, alphabet, adj, ::isWord, { freq[it] ?: 0L }, sorted,
@@ -86,7 +90,10 @@ class CorrectionCorpusTest {
             "אבגדהוזחטיךכלםמןנסעףפץצקרשת",
             listOf("׳־קראטוןםפ", "שדגכעיחלךף", "זסבהנמצתץ"),
             setOf('ו', 'י'), hebrew = true,
-        ).also { it.bigrams = loadBigrams("../dicts/he_bigrams.txt", "dicts/he_bigrams.txt") }
+        ).also {
+            it.bigrams = loadBigrams("../dicts/he_bigrams.txt", "dicts/he_bigrams.txt")
+            it.confusions = loadConfusions("src/main/assets/confusions_he.txt", "app/src/main/assets/confusions_he.txt")
+        }
     }
     private val english by lazy {
         Lang(
@@ -94,7 +101,19 @@ class CorrectionCorpusTest {
             "abcdefghijklmnopqrstuvwxyz",
             listOf("qwertyuiop", "asdfghjkl", "zxcvbnm"),
             emptySet(), hebrew = false,
-        )
+        ).also {
+            it.confusions = loadConfusions("src/main/assets/confusions_en.txt", "app/src/main/assets/confusions_en.txt")
+        }
+    }
+
+    private fun loadConfusions(vararg candidates: String): Map<String, String> {
+        val file = candidates.map { File(it) }.firstOrNull { it.exists() } ?: return emptyMap()
+        val m = HashMap<String, String>()
+        file.forEachLine { line ->
+            val sp = line.indexOf(' '); if (sp <= 0) return@forEachLine
+            m[line.substring(0, sp)] = line.substring(sp + 1).trim()
+        }
+        return m
     }
 
     /** Every realistic single-slip typo of [w]: each adjacent-key substitution, each transposition, and
@@ -158,6 +177,34 @@ class CorrectionCorpusTest {
         assertEquals("מה", hebrew.correct("צה"))
         for (w in listOf("מה", "זה", "כן", "לא", "עם", "הם", "יש", "גם", "כי", "אל", "על", "מי"))
             assertNull("real 2-letter word $w must not be corrected", hebrew.correct(w))
+    }
+
+    @Test fun curatedConfusionEntriesAreValid() {
+        // Guards the bundled confusion files: every typo key must NOT be a real word (else we'd remap a
+        // genuine word), and every word of the correction must be a real dictionary word (so the fix is
+        // valid). This lets the files be grown safely from bug reports — a bad line fails CI here.
+        for ((lang, name) in listOf(english to "confusions_en.txt", hebrew to "confusions_he.txt")) {
+            val file = listOf(File("src/main/assets/$name"), File("app/src/main/assets/$name"))
+                .firstOrNull { it.exists() } ?: continue
+            var checked = 0
+            file.forEachLine { line ->
+                val sp = line.indexOf(' '); if (sp <= 0) return@forEachLine
+                val key = line.substring(0, sp)
+                val correction = line.substring(sp + 1).trim()
+                assertFalse("confusion key '$key' must not be a real word", lang.isWord(key))
+                for (w in correction.split(" "))
+                    assertTrue("confusion target '$w' (for '$key') must be a dictionary word", lang.isDictWord(w))
+                checked++
+            }
+            assertTrue("no confusion entries checked for $name", checked > 0)
+        }
+    }
+
+    @Test fun curatedConfusionsResolveToTheRightWord() {
+        // The overrides fire for slips edit-distance can't reach on its own.
+        assertEquals("which", english.correct("wich"))     // edit-distance alone picks "wish"
+        assertEquals("a lot", english.correct("alot"))      // a split it wouldn't otherwise make
+        assertEquals("מאמין", hebrew.correct("מאציו"))       // two adjacent-key slips — no edit-1 fix exists
     }
 
     @Test fun contextCorrectsAValidWordFromTheRealModel() {

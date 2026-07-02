@@ -40,6 +40,10 @@ class WordDictionary(
     private val main = Handler(Looper.getMainLooper())
     private val freq = HashMap<String, Long>(freqSizeHint)
     private val learned = HashMap<String, Long>()
+    // Curated exact typo→word overrides for the few hard cases edit-distance can't reach (multi-edit slips,
+    // or where it confidently picks the wrong real word): "wich"→"which", "מאציו"→"מאמין". Bundled per
+    // language in assets/confusions_<code>.txt; applied only to a word that isn't itself real.
+    private val confusions = HashMap<String, String>()
     // Next-word model: prev word -> (next word -> times seen), learned from your own typing. Powers the
     // suggestion bar after a space, and biases completions of a partly-typed word toward what usually
     // follows the previous word.
@@ -83,6 +87,7 @@ class WordDictionary(
                         freq[line.substring(0, sp)] = c
                     }
                 }
+                loadConfusions(app)
                 loadLearned(app)
                 loadBigrams(app)
                 loadTrigrams(app)
@@ -140,6 +145,20 @@ class WordDictionary(
             if (redundant) { iter.remove(); removed++ }
         }
         if (removed > 0) { memo.clear(); scheduleSave() }   // persist the cleaned list
+    }
+
+    /** Load the curated typo→word overrides bundled at assets/confusions_<code>.txt (absent for most
+     *  languages, which is fine — the map just stays empty). One "typo correction" per line; the
+     *  correction may be two words (a split, e.g. "alot" → "a lot"). */
+    private fun loadConfusions(context: Context) {
+        runCatching {
+            context.assets.open("confusions_$code.txt").bufferedReader(Charsets.UTF_8).useLines { lines ->
+                lines.forEach { line ->
+                    val sp = line.indexOf(' ')
+                    if (sp > 0) confusions[line.substring(0, sp)] = line.substring(sp + 1).trim()
+                }
+            }
+        }
     }
 
     private fun loadBigrams(context: Context) {
@@ -334,6 +353,9 @@ class WordDictionary(
         // Apostrophe-less contractions → the real contraction (English). Checked before the length gate so
         // short ones like "im" are caught, and before correction so we don't mangle them into a near-word.
         if (english) CONTRACTIONS[w]?.let { return it }
+        // Curated hard-case overrides (see [confusions]): an exact typo→word fix for slips edit-distance
+        // can't reach. Only when the typed form isn't itself a real word, so a genuine word is never remapped.
+        if (!isWord(w)) confusions[w]?.let { return it }
         if (word.length < minCorrectLen) return null
         // The plain result is memoized; a context- or touch-aware one depends on this typing instance, so
         // it's computed fresh (still only when a word finishes / the bar updates, not in a tight loop).

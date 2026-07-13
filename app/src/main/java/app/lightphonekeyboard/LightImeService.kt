@@ -339,12 +339,15 @@ class LightImeService : InputMethodService(), LightKeyboardView.Listener {
         clearUndo()
         // Enter inserts a real newline by default. Only fields that ask to submit/advance on Enter
         // (Go / Search / Send / Next) get their action — and not if the field opts out with
-        // IME_FLAG_NO_ENTER_ACTION. A plain "Done" action used to just dismiss the keyboard; we now
-        // treat that as a newline so Enter never closes the keyboard. (Long-press Enter hides it.)
+        // IME_FLAG_NO_ENTER_ACTION. A plain "Done" action on a text field used to just dismiss the
+        // keyboard, so we treat that as a newline (Enter never closes the keyboard). But a *numeric* field
+        // is single-line — a newline is meaningless there — so its Done/OK action should submit like the
+        // rest, so Enter acts as the "OK" the field shows. (Long-press Enter still hides the keyboard.)
         val opts = currentInputEditorInfo?.imeOptions ?: 0
         val action = opts and EditorInfo.IME_MASK_ACTION
         val submits = action == EditorInfo.IME_ACTION_GO || action == EditorInfo.IME_ACTION_SEARCH ||
-            action == EditorInfo.IME_ACTION_SEND || action == EditorInfo.IME_ACTION_NEXT
+            action == EditorInfo.IME_ACTION_SEND || action == EditorInfo.IME_ACTION_NEXT ||
+            (action == EditorInfo.IME_ACTION_DONE && isNumericField(currentInputEditorInfo))
         if (submits && (opts and EditorInfo.IME_FLAG_NO_ENTER_ACTION) == 0) {
             ic.performEditorAction(action)
         } else {

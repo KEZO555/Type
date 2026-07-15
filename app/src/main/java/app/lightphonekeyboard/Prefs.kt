@@ -24,12 +24,23 @@ object Prefs {
     private const val KEY_LP_DELAY = "longpress_delay"
     private const val KEY_SWIPE_SENS = "swipe_sensitivity"
     private const val KEY_KB_HEIGHT = "keyboard_height"
+    private const val KEY_COLOR_APPS = "color_apps"
+    private const val KEY_WE_DISABLED = "color_we_disabled_filter"
+    private const val KEY_COLOR_KEYMAP = "color_keymap"
+    private const val KEY_CLOSE_ON_LOCK = "close_apps_on_lock"
 
     /** Haptic strength levels. */
     const val HAPTIC_OFF = 0
     const val HAPTIC_LIGHT = 1
     const val HAPTIC_MEDIUM = 2
     const val HAPTIC_STRONG = 3
+
+    /** Colour-filter keymap gestures, in the order the setting cycles through them. */
+    const val COLOR_KEYMAP_NONE = 0
+    const val COLOR_KEYMAP_CAMERA = 1
+    const val COLOR_KEYMAP_VOLUME_CHORD = 2
+    const val COLOR_KEYMAP_DOUBLE_VOLUME_UP = 3
+    const val COLOR_KEYMAP_DOUBLE_VOLUME_DOWN = 4
 
     /** Three-step levels shared by long-press delay, swipe sensitivity, and keyboard height. */
     const val LEVEL_LOW = 0
@@ -163,4 +174,32 @@ object Prefs {
         while (list.size > RECENT_EMOJI_MAX) list.removeAt(list.size - 1)
         prefs(c).edit().putString(KEY_RECENT_EMOJI, list.joinToString("\n")).apply()
     }
+
+    // --- Colour filter (grayscale) settings, used by ColorFilterService ---
+
+    /** Packages that always open in full colour (grayscale pauses while they're foregrounded). */
+    fun colorApps(c: Context): Set<String> =
+        prefs(c).getStringSet(KEY_COLOR_APPS, emptySet()) ?: emptySet()
+
+    fun setColorApps(c: Context, value: Set<String>) =
+        prefs(c).edit().putStringSet(KEY_COLOR_APPS, value).apply()
+
+    /** True while the service has paused grayscale and still owes the system a restore. Persisted
+     *  so grayscale comes back even if the process dies in between. */
+    fun weDisabledFilter(c: Context): Boolean = prefs(c).getBoolean(KEY_WE_DISABLED, false)
+
+    fun setWeDisabledFilter(c: Context, value: Boolean) =
+        prefs(c).edit().putBoolean(KEY_WE_DISABLED, value).apply()
+
+    /** Hardware key gesture that toggles colour for the current app, one of COLOR_KEYMAP_*. */
+    fun colorKeymap(c: Context): Int = prefs(c).getInt(KEY_COLOR_KEYMAP, COLOR_KEYMAP_NONE)
+
+    fun setColorKeymap(c: Context, value: Int) =
+        prefs(c).edit().putInt(KEY_COLOR_KEYMAP, value).apply()
+
+    /** Kill the apps used since the last lock whenever the screen locks. Off by default. */
+    fun closeAppsOnLock(c: Context): Boolean = prefs(c).getBoolean(KEY_CLOSE_ON_LOCK, false)
+
+    fun setCloseAppsOnLock(c: Context, value: Boolean) =
+        prefs(c).edit().putBoolean(KEY_CLOSE_ON_LOCK, value).apply()
 }

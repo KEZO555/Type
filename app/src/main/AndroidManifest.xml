@@ -1,11 +1,24 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <!-- Voice dictation (optional): download the offline model, then record for on-device STT. -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <!-- Light, crisp key/cursor haptics. -->
     <uses-permission android:name="android.permission.VIBRATE" />
+
+    <!-- Colour filter: writes the daltonizer keys. Granted once via adb:
+         adb shell pm grant app.lightphonekeyboard android.permission.WRITE_SECURE_SETTINGS -->
+    <uses-permission
+        android:name="android.permission.WRITE_SECURE_SETTINGS"
+        tools:ignore="ProtectedPermissions" />
+    <!-- Colour apps picker needs the full launchable-app list. -->
+    <uses-permission
+        android:name="android.permission.QUERY_ALL_PACKAGES"
+        tools:ignore="QueryAllPackagesPermission" />
+    <!-- Close apps on lock: kill background processes of recently used apps. -->
+    <uses-permission android:name="android.permission.KILL_BACKGROUND_PROCESSES" />
 
     <!-- Package visibility (Android 11+) for speech recognizer components. -->
     <queries>
@@ -73,5 +86,27 @@
             android:exported="false"
             android:label="@string/setup_vocab"
             android:screenOrientation="portrait" />
+
+        <!-- Colour apps: choose which apps pause the phone's grayscale while open. -->
+        <activity
+            android:name=".ColorAppsActivity"
+            android:exported="false"
+            android:label="@string/setup_color_apps"
+            android:screenOrientation="portrait" />
+
+        <!-- Colour filter service: watches the foreground app to pause/restore grayscale, handles
+             the colour keymap keys, and (optionally) closes recent apps when the screen locks. -->
+        <service
+            android:name=".ColorFilterService"
+            android:exported="false"
+            android:label="@string/color_service_label"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/color_filter_service_config" />
+        </service>
     </application>
 </manifest>

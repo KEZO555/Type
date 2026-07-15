@@ -6,6 +6,13 @@ on:
   push:
     tags:
       - 'v*'
+  # Manual fallback for environments that can't push tags: the release action
+  # creates the tag itself at the dispatched ref.
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version tag to release, e.g. v2.4.0'
+        required: true
 
 permissions:
   contents: write
@@ -39,12 +46,15 @@ jobs:
         run: ./gradlew :app:assembleRelease
 
       - name: Stage APK
+        env:
+          VERSION: ${{ inputs.version || github.ref_name }}
         run: |
           mkdir -p dist
-          cp app/build/outputs/apk/release/app-release.apk "dist/light-keyboard-${GITHUB_REF_NAME}.apk"
+          cp app/build/outputs/apk/release/app-release.apk "dist/light-keyboard-${VERSION}.apk"
 
       - name: Publish release
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ inputs.version || github.ref_name }}
           files: dist/light-keyboard-*.apk
           generate_release_notes: true

@@ -52,4 +52,21 @@
     <!-- IME subtype labels (system language switcher). -->
     <string name="subtype_en">English</string>
     <string name="subtype_he">עברית</string>
+
+    <!-- Colour filter (grayscale) settings -->
+    <string name="setup_color_blurb">Colour filter: the phone stays in grayscale; the options below pause it per app. Requires the colour service.</string>
+    <string name="setup_color_permission">One-time setup over adb: adb shell pm grant app.lightphonekeyboard android.permission.WRITE_SECURE_SETTINGS</string>
+    <string name="setup_color_service">Colour service</string>
+    <string name="setup_color_service_sub">Enable the "Type colour filter" accessibility service. It only watches which app is in front — it never reads screen content.</string>
+    <string name="setup_color_apps">Colour apps</string>
+    <string name="setup_color_apps_sub">Apps that always open in full colour. Grayscale returns the moment you leave them.</string>
+    <string name="setup_color_keymap_sub">Give the current app colour from a hardware key; grayscale returns when you leave it. Inactive on the home screen. Camera long-press keeps short-press opening the camera.</string>
+    <string name="setup_close_on_lock">Close apps on lock</string>
+    <string name="setup_close_on_lock_sub">When the screen locks, close the apps used since the last lock. Apps with active playback or calls survive.</string>
+
+    <string name="color_service_label">Type colour filter</string>
+    <string name="color_service_description">Detects which app is in the foreground so the grayscale filter can be paused for your chosen colour apps and restored afterwards, and listens for the colour keymap keys. It does not read any screen content.</string>
+    <string name="color_toast_gray">Grayscale on</string>
+    <string name="color_toast_color">Colour on until you leave this app</string>
+    <string name="color_toast_no_permission">Missing WRITE_SECURE_SETTINGS — see Settings for the adb command</string>
 </resources>

@@ -75,6 +75,24 @@ class SetupActivity : AppCompatActivity() {
             // in Settings → Languages (Hebrew uses the phone's recognizer, if it has one).
             toggleItem(c, R.string.setup_voice, R.string.setup_voice_sub,
                 { Prefs.voiceEnabled(this) }, { Prefs.setVoiceEnabled(this, it) })
+
+            // Colour filter — pauses the phone's always-on grayscale per app (see ColorFilterService).
+            LightUi.hint(c, getString(R.string.setup_color_blurb))
+            if (!ColorFilter.hasPermission(this)) {
+                LightUi.hint(c, getString(R.string.setup_color_permission))
+            }
+            LightUi.navItem(c, getString(R.string.setup_color_service), getString(R.string.setup_color_service_sub)) {
+                startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+            }
+            LightUi.navItem(c, getString(R.string.setup_color_apps), getString(R.string.setup_color_apps_sub)) {
+                startActivity(Intent(this, ColorAppsActivity::class.java))
+            }
+            cycleItem(c, "Colour keymap", R.string.setup_color_keymap_sub,
+                listOf("Off", "Camera long-press", "Volume up + down", "Double volume up", "Double volume down"),
+                { Prefs.colorKeymap(this) }, { Prefs.setColorKeymap(this, it) })
+            toggleItem(c, R.string.setup_close_on_lock, R.string.setup_close_on_lock_sub,
+                { Prefs.closeAppsOnLock(this) }, { Prefs.setCloseAppsOnLock(this, it) })
+
             LightUi.hint(c, getString(R.string.setup_tip))
         })
     }

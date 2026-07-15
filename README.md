@@ -127,6 +127,28 @@ respect the device's haptic-feedback setting.
 Hebrew also snaps a letter to its **final form** at the end of a word automatically (e.g. typing מ as
 the last letter becomes ם), and back when the word continues.
 
+## Colour filter (Light Phone utilities)
+
+Type also bundles the colour-filter utilities from the standalone
+[Lightson](https://github.com/KEZO555/Lightson) app, so one app covers both. The phone stays in its
+always-on grayscale; Type only pauses it per app:
+
+- **Colour apps** (Settings → Colour apps) — chosen apps open in full colour; grayscale returns the
+  moment you leave them.
+- **Colour keymap** — give the *current* app colour from a hardware key (long-press the LP3's camera
+  button, volume up + down together, or double-press a volume key); grayscale returns when you leave
+  the app or press again. Inactive on the home screen, and camera short-press still opens the camera.
+- **Close apps on lock** — when the screen locks, the apps used since the last lock are closed (apps
+  with active playback or calls survive) and grayscale is restored immediately.
+
+One-time setup: enable the **Type colour filter** accessibility service (Settings → Colour service;
+it only watches which app is in front — it can't read screen content), and grant the secure-settings
+permission over adb:
+
+```bash
+adb shell pm grant app.lightphonekeyboard android.permission.WRITE_SECURE_SETTINGS
+```
+
 ## Build it yourself
 
 ```sh

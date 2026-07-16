@@ -29,6 +29,7 @@ object Prefs {
     private const val KEY_COLOR_KEYMAP = "color_keymap"
     private const val KEY_RECENTS_KEYMAP = "recents_keymap"
     private const val KEY_CLOSE_ON_LOCK = "close_apps_on_lock"
+    private const val KEY_WHEEL_BRIGHTNESS = "wheel_brightness"
 
     /** Haptic strength levels. */
     const val HAPTIC_OFF = 0
@@ -203,6 +204,12 @@ object Prefs {
 
     fun setRecentsKeymap(c: Context, value: Int) =
         prefs(c).edit().putInt(KEY_RECENTS_KEYMAP, value).apply()
+
+    /** Inside apps, the side wheel (volume keys) adjusts screen brightness instead of volume. */
+    fun wheelBrightness(c: Context): Boolean = prefs(c).getBoolean(KEY_WHEEL_BRIGHTNESS, false)
+
+    fun setWheelBrightness(c: Context, value: Boolean) =
+        prefs(c).edit().putBoolean(KEY_WHEEL_BRIGHTNESS, value).apply()
 
     /** Kill the apps used since the last lock whenever the screen locks. Off by default. */
     fun closeAppsOnLock(c: Context): Boolean = prefs(c).getBoolean(KEY_CLOSE_ON_LOCK, false)

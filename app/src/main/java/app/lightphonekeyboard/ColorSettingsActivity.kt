@@ -1,12 +1,14 @@
 package app.lightphonekeyboard
 
 import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
 import android.provider.Settings
 
 /**
- * Colour filter screen: the Light Phone utilities that pause the phone's always-on grayscale per
- * app (see [ColorFilterService]). LightOS template style (see [LightUi]).
+ * Key shortcuts & more: the Light Phone utilities — pausing the always-on grayscale per app,
+ * hardware keymaps, wheel brightness and close-on-lock (see [ColorFilterService]). LightOS
+ * template style (see [LightUi]).
  */
 class ColorSettingsActivity : SettingsScreen() {
 
@@ -29,6 +31,17 @@ class ColorSettingsActivity : SettingsScreen() {
             cycleItem(c, "Recents keymap", R.string.setup_recents_keymap_sub,
                 listOf("Off", "Camera long-press", "Volume up + down", "Double volume up", "Double volume down"),
                 { Prefs.recentsKeymap(this) }, { Prefs.setRecentsKeymap(this, it) })
+            toggleItem(c, R.string.setup_wheel_brightness, R.string.setup_wheel_brightness_sub,
+                { Prefs.wheelBrightness(this) },
+                {
+                    Prefs.setWheelBrightness(this, it)
+                    // Brightness writes need the user-grantable "Modify system settings" appop.
+                    if (it && !Settings.System.canWrite(this)) {
+                        startActivity(
+                            Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS, Uri.parse("package:$packageName"))
+                        )
+                    }
+                })
             toggleItem(c, R.string.setup_close_on_lock, R.string.setup_close_on_lock_sub,
                 { Prefs.closeAppsOnLock(this) }, { Prefs.setCloseAppsOnLock(this, it) })
         })

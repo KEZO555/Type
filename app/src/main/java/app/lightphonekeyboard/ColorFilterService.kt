@@ -11,6 +11,7 @@ import android.content.pm.PackageManager
 import android.os.Handler
 import android.os.Looper
 import android.provider.MediaStore
+import android.provider.Settings
 import android.view.KeyEvent
 import android.view.accessibility.AccessibilityEvent
 import android.view.inputmethod.InputMethodManager
@@ -91,7 +92,10 @@ class ColorFilterService : AccessibilityService() {
     override fun onKeyEvent(event: KeyEvent): Boolean {
         val colorMap = Prefs.colorKeymap(this)
         val recentsMap = Prefs.recentsKeymap(this)
-        if (colorMap == Prefs.COLOR_KEYMAP_NONE && recentsMap == Prefs.COLOR_KEYMAP_NONE) return false
+        val wheelBrightness = Prefs.wheelBrightness(this)
+        if (colorMap == Prefs.COLOR_KEYMAP_NONE && recentsMap == Prefs.COLOR_KEYMAP_NONE && !wheelBrightness) {
+            return false
+        }
         // Keymaps only apply inside apps — on the home screen (LightOS) the keys keep their stock
         // behaviour. Unknown foreground (e.g. right after a service restart) counts as home.
         if (isHomeForeground()) return false
@@ -106,31 +110,57 @@ class ColorFilterService : AccessibilityService() {
 
         when (event.action) {
             KeyEvent.ACTION_DOWN -> {
-                if (event.repeatCount > 0) return false
-                val now = event.eventTime
-                if (code == KeyEvent.KEYCODE_VOLUME_UP) volumeUpHeld = true else volumeDownHeld = true
+                if (event.repeatCount == 0) {
+                    val now = event.eventTime
+                    if (code == KeyEvent.KEYCODE_VOLUME_UP) volumeUpHeld = true else volumeDownHeld = true
 
-                if (volumeUpHeld && volumeDownHeld && fireGesture(Prefs.COLOR_KEYMAP_VOLUME_CHORD)) {
-                    // Swallow the completing key so it doesn't also change the volume.
-                    return true
+                    if (volumeUpHeld && volumeDownHeld && fireGesture(Prefs.COLOR_KEYMAP_VOLUME_CHORD)) {
+                        // Swallow the completing key so it doesn't also change the volume.
+                        return true
+                    }
+                    if (code == KeyEvent.KEYCODE_VOLUME_UP) {
+                        if (now - lastVolumeUpPress < DOUBLE_PRESS_WINDOW_MS) {
+                            fireGesture(Prefs.COLOR_KEYMAP_DOUBLE_VOLUME_UP)
+                        }
+                        lastVolumeUpPress = now
+                    } else {
+                        if (now - lastVolumeDownPress < DOUBLE_PRESS_WINDOW_MS) {
+                            fireGesture(Prefs.COLOR_KEYMAP_DOUBLE_VOLUME_DOWN)
+                        }
+                        lastVolumeDownPress = now
+                    }
                 }
-                if (code == KeyEvent.KEYCODE_VOLUME_UP) {
-                    if (now - lastVolumeUpPress < DOUBLE_PRESS_WINDOW_MS) {
-                        fireGesture(Prefs.COLOR_KEYMAP_DOUBLE_VOLUME_UP)
-                    }
-                    lastVolumeUpPress = now
-                } else {
-                    if (now - lastVolumeDownPress < DOUBLE_PRESS_WINDOW_MS) {
-                        fireGesture(Prefs.COLOR_KEYMAP_DOUBLE_VOLUME_DOWN)
-                    }
-                    lastVolumeDownPress = now
+                // The LP3's side wheel arrives as volume keys: inside apps, turn it into brightness
+                // steps (repeats included, so rolling the wheel keeps stepping) and swallow the key.
+                if (wheelBrightness) {
+                    adjustBrightness(if (code == KeyEvent.KEYCODE_VOLUME_UP) 1 else -1)
+                    return true
                 }
             }
             KeyEvent.ACTION_UP -> {
                 if (code == KeyEvent.KEYCODE_VOLUME_UP) volumeUpHeld = false else volumeDownHeld = false
+                if (wheelBrightness) return true
             }
         }
         return false
+    }
+
+    /** One wheel click = one brightness step. Needs the user-grantable "Modify system settings". */
+    private fun adjustBrightness(direction: Int) {
+        if (!Settings.System.canWrite(this)) {
+            Toast.makeText(this, R.string.wheel_toast_no_permission, Toast.LENGTH_SHORT).show()
+            return
+        }
+        runCatching {
+            val cur = Settings.System.getInt(contentResolver, Settings.System.SCREEN_BRIGHTNESS, 128)
+            val next = (cur + direction * BRIGHTNESS_STEP).coerceIn(BRIGHTNESS_MIN, 255)
+            Settings.System.putInt(
+                contentResolver,
+                Settings.System.SCREEN_BRIGHTNESS_MODE,
+                Settings.System.SCREEN_BRIGHTNESS_MODE_MANUAL
+            )
+            Settings.System.putInt(contentResolver, Settings.System.SCREEN_BRIGHTNESS, next)
+        }
     }
 
     /**
@@ -253,5 +283,7 @@ class ColorFilterService : AccessibilityService() {
         private const val TOGGLE_DEBOUNCE_MS = 500L
         private const val LONG_PRESS_MS = 500L
         private const val KILL_DELAY_MS = 3000L
+        private const val BRIGHTNESS_STEP = 13
+        private const val BRIGHTNESS_MIN = 4
     }
 }

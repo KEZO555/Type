@@ -58,8 +58,8 @@
     <string name="section_typing_sub">Autocorrect, suggestions, gesture typing, my words, voice dictation.</string>
     <string name="section_keys">Keys &amp; feel</string>
     <string name="section_keys_sub">Haptics, sound, key timing, cursor swipe, keyboard size.</string>
-    <string name="section_color">Colour filter</string>
-    <string name="section_color_sub">Colour apps, hardware keymaps and close-on-lock for the phone\'s grayscale.</string>
+    <string name="section_color">Key shortcuts &amp; more</string>
+    <string name="section_color_sub">Colour apps, hardware keymaps, wheel brightness and close-on-lock.</string>
     <string name="setup_languages_menu_sub">Choose your languages and download their dictionaries and voice models.</string>
 
     <!-- Colour filter (grayscale) settings -->
@@ -71,6 +71,9 @@
     <string name="setup_color_apps_sub">Apps that always open in full colour. Grayscale returns the moment you leave them.</string>
     <string name="setup_color_keymap_sub">Give the current app colour from a hardware key; grayscale returns when you leave it. Inactive on the home screen. Camera long-press keeps short-press opening the camera.</string>
     <string name="setup_recents_keymap_sub">Open the system recent-apps screen from a hardware key. Inactive on the home screen. If it shares a gesture with the colour keymap, colour wins.</string>
+    <string name="setup_wheel_brightness">Wheel brightness</string>
+    <string name="setup_wheel_brightness_sub">Inside apps, the side wheel adjusts screen brightness instead of volume (on the home screen it keeps its stock behaviour). Avoid combining with volume-key keymaps. Needs "Modify system settings", asked for when you turn this on.</string>
+    <string name="wheel_toast_no_permission">Allow "Modify system settings" for Type to control brightness</string>
     <string name="setup_close_on_lock">Close apps on lock</string>
     <string name="setup_close_on_lock_sub">When the screen locks, close the apps used since the last lock. Apps with active playback or calls survive.</string>
 

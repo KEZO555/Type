@@ -19,6 +19,11 @@
         tools:ignore="QueryAllPackagesPermission" />
     <!-- Close apps on lock: kill background processes of recently used apps. -->
     <uses-permission android:name="android.permission.KILL_BACKGROUND_PROCESSES" />
+    <!-- Wheel brightness: write Settings.System.SCREEN_BRIGHTNESS. User grants the appop via the
+         "Modify system settings" screen, opened when the setting is turned on. -->
+    <uses-permission
+        android:name="android.permission.WRITE_SETTINGS"
+        tools:ignore="ProtectedPermissions" />
 
     <!-- Package visibility (Android 11+) for speech recognizer components. -->
     <queries>

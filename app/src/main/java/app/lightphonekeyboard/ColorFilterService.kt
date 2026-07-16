@@ -40,7 +40,7 @@ class ColorFilterService : AccessibilityService() {
     private var cameraLongPressFired = false
     private val cameraLongPressRunnable = Runnable {
         cameraLongPressFired = true
-        toggleFilter()
+        fireGesture(Prefs.COLOR_KEYMAP_CAMERA)
     }
 
     /** Packages that handle the camera intent — the shutter key is theirs. */
@@ -89,15 +89,17 @@ class ColorFilterService : AccessibilityService() {
     }
 
     override fun onKeyEvent(event: KeyEvent): Boolean {
-        val keymap = Prefs.colorKeymap(this)
-        if (keymap == Prefs.COLOR_KEYMAP_NONE) return false
+        val colorMap = Prefs.colorKeymap(this)
+        val recentsMap = Prefs.recentsKeymap(this)
+        if (colorMap == Prefs.COLOR_KEYMAP_NONE && recentsMap == Prefs.COLOR_KEYMAP_NONE) return false
         // Keymaps only apply inside apps — on the home screen (LightOS) the keys keep their stock
         // behaviour. Unknown foreground (e.g. right after a service restart) counts as home.
         if (isHomeForeground()) return false
         val code = event.keyCode
 
-        if (keymap == Prefs.COLOR_KEYMAP_CAMERA) {
-            if (code != KeyEvent.KEYCODE_CAMERA) return false
+        if (code == KeyEvent.KEYCODE_CAMERA) {
+            val cameraBound = colorMap == Prefs.COLOR_KEYMAP_CAMERA || recentsMap == Prefs.COLOR_KEYMAP_CAMERA
+            if (!cameraBound) return false
             return onCameraKey(event)
         }
         if (code != KeyEvent.KEYCODE_VOLUME_UP && code != KeyEvent.KEYCODE_VOLUME_DOWN) return false
@@ -107,23 +109,21 @@ class ColorFilterService : AccessibilityService() {
                 if (event.repeatCount > 0) return false
                 val now = event.eventTime
                 if (code == KeyEvent.KEYCODE_VOLUME_UP) volumeUpHeld = true else volumeDownHeld = true
-                when (keymap) {
-                    Prefs.COLOR_KEYMAP_VOLUME_CHORD ->
-                        if (volumeUpHeld && volumeDownHeld) {
-                            toggleFilter()
-                            // Swallow the completing key so it doesn't also change the volume.
-                            return true
-                        }
-                    Prefs.COLOR_KEYMAP_DOUBLE_VOLUME_UP ->
-                        if (code == KeyEvent.KEYCODE_VOLUME_UP) {
-                            if (now - lastVolumeUpPress < DOUBLE_PRESS_WINDOW_MS) toggleFilter()
-                            lastVolumeUpPress = now
-                        }
-                    Prefs.COLOR_KEYMAP_DOUBLE_VOLUME_DOWN ->
-                        if (code == KeyEvent.KEYCODE_VOLUME_DOWN) {
-                            if (now - lastVolumeDownPress < DOUBLE_PRESS_WINDOW_MS) toggleFilter()
-                            lastVolumeDownPress = now
-                        }
+
+                if (volumeUpHeld && volumeDownHeld && fireGesture(Prefs.COLOR_KEYMAP_VOLUME_CHORD)) {
+                    // Swallow the completing key so it doesn't also change the volume.
+                    return true
+                }
+                if (code == KeyEvent.KEYCODE_VOLUME_UP) {
+                    if (now - lastVolumeUpPress < DOUBLE_PRESS_WINDOW_MS) {
+                        fireGesture(Prefs.COLOR_KEYMAP_DOUBLE_VOLUME_UP)
+                    }
+                    lastVolumeUpPress = now
+                } else {
+                    if (now - lastVolumeDownPress < DOUBLE_PRESS_WINDOW_MS) {
+                        fireGesture(Prefs.COLOR_KEYMAP_DOUBLE_VOLUME_DOWN)
+                    }
+                    lastVolumeDownPress = now
                 }
             }
             KeyEvent.ACTION_UP -> {
@@ -134,9 +134,22 @@ class ColorFilterService : AccessibilityService() {
     }
 
     /**
-     * Long-press toggles colour; a short press keeps its usual meaning by launching the camera
-     * ourselves, since a consumed key can't be re-injected. While a camera app is in the foreground
-     * the key is left alone entirely so the shutter keeps working.
+     * Runs whichever action [gesture] is bound to (colour toggle wins if both settings share the
+     * same gesture). Returns true if an action ran.
+     */
+    private fun fireGesture(gesture: Int): Boolean {
+        when (gesture) {
+            Prefs.colorKeymap(this) -> toggleFilter()
+            Prefs.recentsKeymap(this) -> performGlobalAction(GLOBAL_ACTION_RECENTS)
+            else -> return false
+        }
+        return true
+    }
+
+    /**
+     * Long-press runs the bound action (colour toggle or recents); a short press keeps its usual
+     * meaning by launching the camera ourselves, since a consumed key can't be re-injected. While a
+     * camera app is in the foreground the key is left alone entirely so the shutter keeps working.
      */
     private fun onCameraKey(event: KeyEvent): Boolean {
         if (foregroundPackage in cameraPackages) return false

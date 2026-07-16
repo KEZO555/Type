@@ -27,6 +27,7 @@ object Prefs {
     private const val KEY_COLOR_APPS = "color_apps"
     private const val KEY_WE_DISABLED = "color_we_disabled_filter"
     private const val KEY_COLOR_KEYMAP = "color_keymap"
+    private const val KEY_RECENTS_KEYMAP = "recents_keymap"
     private const val KEY_CLOSE_ON_LOCK = "close_apps_on_lock"
 
     /** Haptic strength levels. */
@@ -196,6 +197,12 @@ object Prefs {
 
     fun setColorKeymap(c: Context, value: Int) =
         prefs(c).edit().putInt(KEY_COLOR_KEYMAP, value).apply()
+
+    /** Hardware key gesture that opens the system recents screen, one of COLOR_KEYMAP_*. */
+    fun recentsKeymap(c: Context): Int = prefs(c).getInt(KEY_RECENTS_KEYMAP, COLOR_KEYMAP_NONE)
+
+    fun setRecentsKeymap(c: Context, value: Int) =
+        prefs(c).edit().putInt(KEY_RECENTS_KEYMAP, value).apply()
 
     /** Kill the apps used since the last lock whenever the screen locks. Off by default. */
     fun closeAppsOnLock(c: Context): Boolean = prefs(c).getBoolean(KEY_CLOSE_ON_LOCK, false)

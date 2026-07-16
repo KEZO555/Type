@@ -61,6 +61,7 @@
     <string name="setup_color_apps">Colour apps</string>
     <string name="setup_color_apps_sub">Apps that always open in full colour. Grayscale returns the moment you leave them.</string>
     <string name="setup_color_keymap_sub">Give the current app colour from a hardware key; grayscale returns when you leave it. Inactive on the home screen. Camera long-press keeps short-press opening the camera.</string>
+    <string name="setup_recents_keymap_sub">Open the system recent-apps screen from a hardware key. Inactive on the home screen. If it shares a gesture with the colour keymap, colour wins.</string>
     <string name="setup_close_on_lock">Close apps on lock</string>
     <string name="setup_close_on_lock_sub">When the screen locks, close the apps used since the last lock. Apps with active playback or calls survive.</string>
 

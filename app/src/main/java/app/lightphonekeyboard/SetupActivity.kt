@@ -90,6 +90,9 @@ class SetupActivity : AppCompatActivity() {
             cycleItem(c, "Colour keymap", R.string.setup_color_keymap_sub,
                 listOf("Off", "Camera long-press", "Volume up + down", "Double volume up", "Double volume down"),
                 { Prefs.colorKeymap(this) }, { Prefs.setColorKeymap(this, it) })
+            cycleItem(c, "Recents keymap", R.string.setup_recents_keymap_sub,
+                listOf("Off", "Camera long-press", "Volume up + down", "Double volume up", "Double volume down"),
+                { Prefs.recentsKeymap(this) }, { Prefs.setRecentsKeymap(this, it) })
             toggleItem(c, R.string.setup_close_on_lock, R.string.setup_close_on_lock_sub,
                 { Prefs.closeAppsOnLock(this) }, { Prefs.setCloseAppsOnLock(this, it) })
 

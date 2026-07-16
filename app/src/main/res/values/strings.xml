@@ -74,6 +74,8 @@
     <string name="setup_wheel_brightness">Wheel brightness</string>
     <string name="setup_wheel_brightness_sub">Inside apps, rolling the side wheel adjusts screen brightness (on the home screen it keeps its stock behaviour). Needs "Modify system settings", asked for when you turn this on.</string>
     <string name="wheel_toast_no_permission">Allow "Modify system settings" for Type to control brightness</string>
+    <string name="setup_wheel_back">Wheel long-press goes back</string>
+    <string name="setup_wheel_back_sub">Inside apps, hold the wheel\'s press to trigger Back. A short press is swallowed. On the home screen the press keeps its stock behaviour.</string>
     <string name="setup_key_test">Key test</string>
     <string name="setup_key_test_menu_sub">See what a hardware button or the wheel actually sends, for troubleshooting keymaps.</string>
     <string name="setup_key_test_sub">Press hardware buttons or roll the wheel. Every key event the service can see appears below, newest first. If an input shows nothing here, it doesn\'t reach the service and can\'t be remapped. Requires the colour service to be enabled.</string>

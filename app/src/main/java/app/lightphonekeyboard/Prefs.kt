@@ -30,6 +30,7 @@ object Prefs {
     private const val KEY_RECENTS_KEYMAP = "recents_keymap"
     private const val KEY_CLOSE_ON_LOCK = "close_apps_on_lock"
     private const val KEY_WHEEL_BRIGHTNESS = "wheel_brightness"
+    private const val KEY_WHEEL_PRESS_BACK = "wheel_press_back"
 
     /** Haptic strength levels. */
     const val HAPTIC_OFF = 0
@@ -210,6 +211,12 @@ object Prefs {
 
     fun setWheelBrightness(c: Context, value: Boolean) =
         prefs(c).edit().putBoolean(KEY_WHEEL_BRIGHTNESS, value).apply()
+
+    /** Inside apps, long-pressing the wheel triggers the system Back action. */
+    fun wheelPressBack(c: Context): Boolean = prefs(c).getBoolean(KEY_WHEEL_PRESS_BACK, false)
+
+    fun setWheelPressBack(c: Context, value: Boolean) =
+        prefs(c).edit().putBoolean(KEY_WHEEL_PRESS_BACK, value).apply()
 
     /** Kill the apps used since the last lock whenever the screen locks. Off by default. */
     fun closeAppsOnLock(c: Context): Boolean = prefs(c).getBoolean(KEY_CLOSE_ON_LOCK, false)

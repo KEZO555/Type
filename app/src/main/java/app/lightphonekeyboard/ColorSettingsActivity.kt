@@ -42,6 +42,8 @@ class ColorSettingsActivity : SettingsScreen() {
                         )
                     }
                 })
+            toggleItem(c, R.string.setup_wheel_back, R.string.setup_wheel_back_sub,
+                { Prefs.wheelPressBack(this) }, { Prefs.setWheelPressBack(this, it) })
             toggleItem(c, R.string.setup_close_on_lock, R.string.setup_close_on_lock_sub,
                 { Prefs.closeAppsOnLock(this) }, { Prefs.setCloseAppsOnLock(this, it) })
             LightUi.navItem(c, getString(R.string.setup_key_test), getString(R.string.setup_key_test_menu_sub)) {

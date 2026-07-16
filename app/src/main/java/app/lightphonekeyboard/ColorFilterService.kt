@@ -44,6 +44,10 @@ class ColorFilterService : AccessibilityService() {
         fireGesture(Prefs.COLOR_KEYMAP_CAMERA)
     }
 
+    private val wheelLongPressRunnable = Runnable {
+        performGlobalAction(GLOBAL_ACTION_BACK)
+    }
+
     /** Packages that handle the camera intent — the shutter key is theirs. */
     private val cameraPackages: Set<String> by lazy {
         packageManager
@@ -102,7 +106,10 @@ class ColorFilterService : AccessibilityService() {
         val colorMap = Prefs.colorKeymap(this)
         val recentsMap = Prefs.recentsKeymap(this)
         val wheelBrightness = Prefs.wheelBrightness(this)
-        if (colorMap == Prefs.COLOR_KEYMAP_NONE && recentsMap == Prefs.COLOR_KEYMAP_NONE && !wheelBrightness) {
+        val wheelPressBack = Prefs.wheelPressBack(this)
+        if (colorMap == Prefs.COLOR_KEYMAP_NONE && recentsMap == Prefs.COLOR_KEYMAP_NONE &&
+            !wheelBrightness && !wheelPressBack
+        ) {
             return false
         }
         // Keymaps only apply inside apps — on the home screen (LightOS) the keys keep their stock
@@ -123,6 +130,19 @@ class ColorFilterService : AccessibilityService() {
             if (!wheelBrightness) return false
             if (event.action == KeyEvent.ACTION_DOWN) {
                 adjustBrightness(if (code == KeyEvent.KEYCODE_EMOJI_PICKER) 1 else -1)
+            }
+            return true
+        }
+
+        // The wheel's press: holding it triggers Back. A consumed key can't be re-injected, so a
+        // short press is simply swallowed (it has no function inside apps anyway).
+        if (code == KEYCODE_WHEEL_PRESS) {
+            if (!wheelPressBack) return false
+            when (event.action) {
+                KeyEvent.ACTION_DOWN ->
+                    if (event.repeatCount == 0) handler.postDelayed(wheelLongPressRunnable, LONG_PRESS_MS)
+                KeyEvent.ACTION_UP ->
+                    handler.removeCallbacks(wheelLongPressRunnable)
             }
             return true
         }
@@ -298,5 +318,8 @@ class ColorFilterService : AccessibilityService() {
         private const val KILL_DELAY_MS = 3000L
         private const val BRIGHTNESS_STEP = 13
         private const val BRIGHTNESS_MIN = 4
+
+        /** The LP3 wheel's press (KEYCODE_DICTATE on SDKs that name it; shown as 319 in Key test). */
+        private const val KEYCODE_WHEEL_PRESS = 319
     }
 }

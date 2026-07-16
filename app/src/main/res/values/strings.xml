@@ -53,6 +53,15 @@
     <string name="subtype_en">English</string>
     <string name="subtype_he">עברית</string>
 
+    <!-- Settings menu sections -->
+    <string name="section_typing">Typing</string>
+    <string name="section_typing_sub">Autocorrect, suggestions, gesture typing, my words, voice dictation.</string>
+    <string name="section_keys">Keys &amp; feel</string>
+    <string name="section_keys_sub">Haptics, sound, key timing, cursor swipe, keyboard size.</string>
+    <string name="section_color">Colour filter</string>
+    <string name="section_color_sub">Colour apps, hardware keymaps and close-on-lock for the phone\'s grayscale.</string>
+    <string name="setup_languages_menu_sub">Choose your languages and download their dictionaries and voice models.</string>
+
     <!-- Colour filter (grayscale) settings -->
     <string name="setup_color_blurb">Colour filter: the phone stays in grayscale; the options below pause it per app. Requires the colour service.</string>
     <string name="setup_color_permission">One-time setup over adb: adb shell pm grant app.lightphonekeyboard android.permission.WRITE_SECURE_SETTINGS</string>

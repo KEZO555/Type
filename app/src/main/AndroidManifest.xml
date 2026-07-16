@@ -87,6 +87,23 @@
             android:label="@string/setup_vocab"
             android:screenOrientation="portrait" />
 
+        <!-- Settings sections (opened from the SetupActivity menu). -->
+        <activity
+            android:name=".TypingSettingsActivity"
+            android:exported="false"
+            android:label="@string/section_typing"
+            android:screenOrientation="portrait" />
+        <activity
+            android:name=".KeyboardSettingsActivity"
+            android:exported="false"
+            android:label="@string/section_keys"
+            android:screenOrientation="portrait" />
+        <activity
+            android:name=".ColorSettingsActivity"
+            android:exported="false"
+            android:label="@string/section_color"
+            android:screenOrientation="portrait" />
+
         <!-- Colour apps: choose which apps pause the phone's grayscale while open. -->
         <activity
             android:name=".ColorAppsActivity"

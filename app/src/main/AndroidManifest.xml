@@ -109,6 +109,12 @@
             android:label="@string/section_color"
             android:screenOrientation="portrait" />
 
+        <activity
+            android:name=".KeyTestActivity"
+            android:exported="false"
+            android:label="@string/setup_key_test"
+            android:screenOrientation="portrait" />
+
         <!-- Colour apps: choose which apps pause the phone's grayscale while open. -->
         <activity
             android:name=".ColorAppsActivity"

@@ -44,6 +44,9 @@ class ColorSettingsActivity : SettingsScreen() {
                 })
             toggleItem(c, R.string.setup_close_on_lock, R.string.setup_close_on_lock_sub,
                 { Prefs.closeAppsOnLock(this) }, { Prefs.setCloseAppsOnLock(this, it) })
+            LightUi.navItem(c, getString(R.string.setup_key_test), getString(R.string.setup_key_test_menu_sub)) {
+                startActivity(Intent(this, KeyTestActivity::class.java))
+            }
         })
     }
 }

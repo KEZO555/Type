@@ -90,6 +90,15 @@ class ColorFilterService : AccessibilityService() {
     }
 
     override fun onKeyEvent(event: KeyEvent): Boolean {
+        if (KeyEventLog.active) {
+            val action = when (event.action) {
+                KeyEvent.ACTION_DOWN -> "down"
+                KeyEvent.ACTION_UP -> "up"
+                else -> "action ${event.action}"
+            }
+            KeyEventLog.push("${KeyEvent.keyCodeToString(event.keyCode)}  $action  repeat=${event.repeatCount}")
+        }
+
         val colorMap = Prefs.colorKeymap(this)
         val recentsMap = Prefs.recentsKeymap(this)
         val wheelBrightness = Prefs.wheelBrightness(this)

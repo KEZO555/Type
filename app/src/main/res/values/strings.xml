@@ -72,7 +72,7 @@
     <string name="setup_color_keymap_sub">Give the current app colour from a hardware key; grayscale returns when you leave it. Inactive on the home screen. Camera long-press keeps short-press opening the camera.</string>
     <string name="setup_recents_keymap_sub">Open the system recent-apps screen from a hardware key. Inactive on the home screen. If it shares a gesture with the colour keymap, colour wins.</string>
     <string name="setup_wheel_brightness">Wheel brightness</string>
-    <string name="setup_wheel_brightness_sub">Inside apps, the side wheel adjusts screen brightness instead of volume (on the home screen it keeps its stock behaviour). Avoid combining with volume-key keymaps. Needs "Modify system settings", asked for when you turn this on.</string>
+    <string name="setup_wheel_brightness_sub">Inside apps, rolling the side wheel adjusts screen brightness (on the home screen it keeps its stock behaviour). Needs "Modify system settings", asked for when you turn this on.</string>
     <string name="wheel_toast_no_permission">Allow "Modify system settings" for Type to control brightness</string>
     <string name="setup_key_test">Key test</string>
     <string name="setup_key_test_menu_sub">See what a hardware button or the wheel actually sends, for troubleshooting keymaps.</string>

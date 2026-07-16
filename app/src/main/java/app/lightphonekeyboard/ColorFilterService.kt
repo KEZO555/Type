@@ -115,40 +115,44 @@ class ColorFilterService : AccessibilityService() {
             if (!cameraBound) return false
             return onCameraKey(event)
         }
+
+        // The LP3's side wheel inside apps: LightOS emits KEYCODE_EMOJI_PICKER when rolled one way
+        // and KEYCODE_SCREENSHOT the other (verified with the Key test screen). Turn each click into
+        // a brightness step and swallow the key so the stock emoji/screenshot actions never fire.
+        if (code == KeyEvent.KEYCODE_EMOJI_PICKER || code == KeyEvent.KEYCODE_SCREENSHOT) {
+            if (!wheelBrightness) return false
+            if (event.action == KeyEvent.ACTION_DOWN) {
+                adjustBrightness(if (code == KeyEvent.KEYCODE_EMOJI_PICKER) 1 else -1)
+            }
+            return true
+        }
+
         if (code != KeyEvent.KEYCODE_VOLUME_UP && code != KeyEvent.KEYCODE_VOLUME_DOWN) return false
 
         when (event.action) {
             KeyEvent.ACTION_DOWN -> {
-                if (event.repeatCount == 0) {
-                    val now = event.eventTime
-                    if (code == KeyEvent.KEYCODE_VOLUME_UP) volumeUpHeld = true else volumeDownHeld = true
+                if (event.repeatCount > 0) return false
+                val now = event.eventTime
+                if (code == KeyEvent.KEYCODE_VOLUME_UP) volumeUpHeld = true else volumeDownHeld = true
 
-                    if (volumeUpHeld && volumeDownHeld && fireGesture(Prefs.COLOR_KEYMAP_VOLUME_CHORD)) {
-                        // Swallow the completing key so it doesn't also change the volume.
-                        return true
-                    }
-                    if (code == KeyEvent.KEYCODE_VOLUME_UP) {
-                        if (now - lastVolumeUpPress < DOUBLE_PRESS_WINDOW_MS) {
-                            fireGesture(Prefs.COLOR_KEYMAP_DOUBLE_VOLUME_UP)
-                        }
-                        lastVolumeUpPress = now
-                    } else {
-                        if (now - lastVolumeDownPress < DOUBLE_PRESS_WINDOW_MS) {
-                            fireGesture(Prefs.COLOR_KEYMAP_DOUBLE_VOLUME_DOWN)
-                        }
-                        lastVolumeDownPress = now
-                    }
-                }
-                // The LP3's side wheel arrives as volume keys: inside apps, turn it into brightness
-                // steps (repeats included, so rolling the wheel keeps stepping) and swallow the key.
-                if (wheelBrightness) {
-                    adjustBrightness(if (code == KeyEvent.KEYCODE_VOLUME_UP) 1 else -1)
+                if (volumeUpHeld && volumeDownHeld && fireGesture(Prefs.COLOR_KEYMAP_VOLUME_CHORD)) {
+                    // Swallow the completing key so it doesn't also change the volume.
                     return true
+                }
+                if (code == KeyEvent.KEYCODE_VOLUME_UP) {
+                    if (now - lastVolumeUpPress < DOUBLE_PRESS_WINDOW_MS) {
+                        fireGesture(Prefs.COLOR_KEYMAP_DOUBLE_VOLUME_UP)
+                    }
+                    lastVolumeUpPress = now
+                } else {
+                    if (now - lastVolumeDownPress < DOUBLE_PRESS_WINDOW_MS) {
+                        fireGesture(Prefs.COLOR_KEYMAP_DOUBLE_VOLUME_DOWN)
+                    }
+                    lastVolumeDownPress = now
                 }
             }
             KeyEvent.ACTION_UP -> {
                 if (code == KeyEvent.KEYCODE_VOLUME_UP) volumeUpHeld = false else volumeDownHeld = false
-                if (wheelBrightness) return true
             }
         }
         return false

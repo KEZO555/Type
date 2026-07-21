@@ -40,11 +40,12 @@ object Prefs {
     const val HAPTIC_STRONG = 3
 
     /** Colour-filter keymap gestures, in the order the setting cycles through them. */
+    // Hardware gestures any key-shortcut action (colour toggle / recents / back) can be bound to. Values
+    // are stored, so keep them stable; 3 and 4 were the retired double-volume gestures (now treated as off).
     const val COLOR_KEYMAP_NONE = 0
     const val COLOR_KEYMAP_CAMERA = 1
     const val COLOR_KEYMAP_VOLUME_CHORD = 2
-    const val COLOR_KEYMAP_DOUBLE_VOLUME_UP = 3
-    const val COLOR_KEYMAP_DOUBLE_VOLUME_DOWN = 4
+    const val COLOR_KEYMAP_WHEEL_LONG = 5
 
     /** Three-step levels shared by long-press delay, swipe sensitivity, and keyboard height. */
     const val LEVEL_LOW = 0
@@ -219,11 +220,16 @@ object Prefs {
     fun setWheelBrightness(c: Context, value: Boolean) =
         prefs(c).edit().putBoolean(KEY_WHEEL_BRIGHTNESS, value).apply()
 
-    /** Inside apps, long-pressing the wheel triggers the system Back action. */
-    fun wheelPressBack(c: Context): Boolean = prefs(c).getBoolean(KEY_WHEEL_PRESS_BACK, false)
-
-    fun setWheelPressBack(c: Context, value: Boolean) =
-        prefs(c).edit().putBoolean(KEY_WHEEL_PRESS_BACK, value).apply()
+    /** One-time move of the old "wheel long-press goes back" toggle into the unified keymap: if it was on
+     *  and Back isn't otherwise bound, bind Back to the wheel long-press gesture. Then retire the flag. */
+    fun migrateWheelBack(c: Context) {
+        val p = prefs(c)
+        if (!p.contains(KEY_WHEEL_PRESS_BACK)) return
+        if (p.getBoolean(KEY_WHEEL_PRESS_BACK, false) && backKeymap(c) == COLOR_KEYMAP_NONE) {
+            setBackKeymap(c, COLOR_KEYMAP_WHEEL_LONG)
+        }
+        p.edit().remove(KEY_WHEEL_PRESS_BACK).apply()
+    }
 
     /** Kill the apps used since the last lock whenever the screen locks. Off by default. */
     fun closeAppsOnLock(c: Context): Boolean = prefs(c).getBoolean(KEY_CLOSE_ON_LOCK, false)

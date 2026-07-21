@@ -142,9 +142,28 @@ class WordDictionary(
             val w = iter.next()
             val redundant = freq.containsKey(w) ||
                 (hebrew && TextOps.hebrewProcliticSplits(w).any { (_, stem) -> freq.containsKey(stem) })
-            if (redundant) { iter.remove(); removed++ }
+            if (redundant || (hebrew && isConfidentTypo(w))) { iter.remove(); removed++ }
         }
         if (removed > 0) { memo.clear(); scheduleSave() }   // persist the cleaned list
+    }
+
+    /** True if the learned, non-dictionary word [w] is a confident typo of a *common* word — one
+     *  transposition or adjacent-key slip from a dictionary word of substantial frequency (e.g. אנט→אני).
+     *  Older learning saved such slips, and — being "learned" — they were then never corrected; dropping
+     *  them lets the word autocorrect again. Conservative: only a cheap slip toward a genuinely common word,
+     *  so a rarer taught word (or one no cheap edit from a common word, like מאציו) stays. A word you truly
+     *  want is re-learned by typing it again. (Hebrew only; English's far larger counts would over-match.) */
+    private fun isConfidentTypo(w: String): Boolean {
+        if (freq.containsKey(w) || w.length < minCorrectLen) return false
+        val co = IntArray(1)
+        val fix = WordPredict.bestCorrection(
+            w, alphabet, adj,
+            isKnown = { x -> x != w && isWord(x) },
+            freqOf = { freq[it] ?: 0L },
+            isTarget = { x -> x != w && freq.containsKey(x) },
+            cheapIndel = cheapIndel, costOut = co,
+        ) ?: return false
+        return co[0] <= WordPredict.SHORT_WORD_MAX_COST && (freq[fix] ?: 0L) >= COMMON_WORD_FREQ
     }
 
     /** Load the curated typo→word overrides bundled at assets/confusions_<code>.txt (absent for most
@@ -633,6 +652,7 @@ class WordDictionary(
         val NO_SUBCOST: (Int, Char, Char) -> Int? = { _, _, _ -> null }   // no spatial info → grid costs
         const val TAP_HYBRID_MARGIN = 0.22   // how much worse a real word may fit the taps and still win (tune on device)
         const val CONTEXT_CORRECT_MIN = 2L   // min previous→neighbour count to override a valid typed word
+        const val COMMON_WORD_FREQ = 50_000L // a learned word one cheap slip from a word this frequent is a typo
 
         // Apostrophe-less → real contraction. Deliberately excludes forms that collide with common words
         // (its, were, well, ill, hell, shell, wed, shed, lets, id) so we never rewrite a word you meant.

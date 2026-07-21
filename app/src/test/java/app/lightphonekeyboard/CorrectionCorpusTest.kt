@@ -54,6 +54,17 @@ class CorrectionCorpusTest {
             val (cand, ctx) = WordPredict.bestContextNeighbor(word, adj, ::isDictWord) { pairCount(prev, it) } ?: return null
             return if (ctx >= 2L) cand else null
         }
+
+        // Mirrors WordDictionary.isConfidentTypo: a learned non-dict word one cheap slip from a common word.
+        fun isConfidentTypo(w: String): Boolean {
+            if (freq.containsKey(w) || w.length < minCorrectLen) return false
+            val co = IntArray(1)
+            val fix = WordPredict.bestCorrection(
+                w, alphabet, adj, { x -> x != w && isWord(x) }, { freq[it] ?: 0L },
+                isTarget = { x -> x != w && freq.containsKey(x) }, cheapIndel = cheapIndel, costOut = co,
+            ) ?: return false
+            return co[0] <= WordPredict.SHORT_WORD_MAX_COST && (freq[fix] ?: 0L) >= 50_000L
+        }
     }
 
     private fun loadBigrams(vararg candidates: String): Map<String, Map<String, Long>> {
@@ -198,6 +209,14 @@ class CorrectionCorpusTest {
             }
             assertTrue("no confusion entries checked for $name", checked > 0)
         }
+    }
+
+    @Test fun confidentTypoPruneTargetsRealTyposOnly() {
+        // A lingering learned typo one cheap slip from a common word is detected (so the prune drops it and
+        // it can autocorrect again); words with no cheap common fix, or real words, are left alone.
+        assertTrue(hebrew.isConfidentTypo("אנט"))     // one adjacent slip → אני (freq ~4.5M)
+        assertFalse(hebrew.isConfidentTypo("מאציו"))  // its only cheap fix is rare → left for the confusion map
+        assertFalse(hebrew.isConfidentTypo("כלב"))    // a real word, never a "typo"
     }
 
     @Test fun curatedConfusionsResolveToTheRightWord() {

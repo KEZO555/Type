@@ -105,10 +105,11 @@ class ColorFilterService : AccessibilityService() {
 
         val colorMap = Prefs.colorKeymap(this)
         val recentsMap = Prefs.recentsKeymap(this)
+        val backMap = Prefs.backKeymap(this)
         val wheelBrightness = Prefs.wheelBrightness(this)
         val wheelPressBack = Prefs.wheelPressBack(this)
         if (colorMap == Prefs.COLOR_KEYMAP_NONE && recentsMap == Prefs.COLOR_KEYMAP_NONE &&
-            !wheelBrightness && !wheelPressBack
+            backMap == Prefs.COLOR_KEYMAP_NONE && !wheelBrightness && !wheelPressBack
         ) {
             return false
         }
@@ -118,7 +119,8 @@ class ColorFilterService : AccessibilityService() {
         val code = event.keyCode
 
         if (code == KeyEvent.KEYCODE_CAMERA) {
-            val cameraBound = colorMap == Prefs.COLOR_KEYMAP_CAMERA || recentsMap == Prefs.COLOR_KEYMAP_CAMERA
+            val cameraBound = colorMap == Prefs.COLOR_KEYMAP_CAMERA ||
+                recentsMap == Prefs.COLOR_KEYMAP_CAMERA || backMap == Prefs.COLOR_KEYMAP_CAMERA
             if (!cameraBound) return false
             return onCameraKey(event)
         }
@@ -204,6 +206,7 @@ class ColorFilterService : AccessibilityService() {
         when (gesture) {
             Prefs.colorKeymap(this) -> toggleFilter()
             Prefs.recentsKeymap(this) -> performGlobalAction(GLOBAL_ACTION_RECENTS)
+            Prefs.backKeymap(this) -> performGlobalAction(GLOBAL_ACTION_BACK)
             else -> return false
         }
         return true

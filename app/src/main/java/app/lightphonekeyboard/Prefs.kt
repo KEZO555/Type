@@ -28,6 +28,7 @@ object Prefs {
     private const val KEY_WE_DISABLED = "color_we_disabled_filter"
     private const val KEY_COLOR_KEYMAP = "color_keymap"
     private const val KEY_RECENTS_KEYMAP = "recents_keymap"
+    private const val KEY_BACK_KEYMAP = "back_keymap"
     private const val KEY_CLOSE_ON_LOCK = "close_apps_on_lock"
     private const val KEY_WHEEL_BRIGHTNESS = "wheel_brightness"
     private const val KEY_WHEEL_PRESS_BACK = "wheel_press_back"
@@ -205,6 +206,12 @@ object Prefs {
 
     fun setRecentsKeymap(c: Context, value: Int) =
         prefs(c).edit().putInt(KEY_RECENTS_KEYMAP, value).apply()
+
+    /** Hardware key gesture that triggers the system Back action, one of COLOR_KEYMAP_*. */
+    fun backKeymap(c: Context): Int = prefs(c).getInt(KEY_BACK_KEYMAP, COLOR_KEYMAP_NONE)
+
+    fun setBackKeymap(c: Context, value: Int) =
+        prefs(c).edit().putInt(KEY_BACK_KEYMAP, value).apply()
 
     /** Inside apps, the side wheel (volume keys) adjusts screen brightness instead of volume. */
     fun wheelBrightness(c: Context): Boolean = prefs(c).getBoolean(KEY_WHEEL_BRIGHTNESS, false)

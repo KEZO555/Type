@@ -31,6 +31,9 @@ class ColorSettingsActivity : SettingsScreen() {
             cycleItem(c, "Recents keymap", R.string.setup_recents_keymap_sub,
                 listOf("Off", "Camera long-press", "Volume up + down", "Double volume up", "Double volume down"),
                 { Prefs.recentsKeymap(this) }, { Prefs.setRecentsKeymap(this, it) })
+            cycleItem(c, "Back keymap", R.string.setup_back_keymap_sub,
+                listOf("Off", "Camera long-press", "Volume up + down", "Double volume up", "Double volume down"),
+                { Prefs.backKeymap(this) }, { Prefs.setBackKeymap(this, it) })
             toggleItem(c, R.string.setup_wheel_brightness, R.string.setup_wheel_brightness_sub,
                 { Prefs.wheelBrightness(this) },
                 {

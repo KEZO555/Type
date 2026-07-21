@@ -4,6 +4,7 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import android.provider.Settings
+import android.widget.LinearLayout
 
 /**
  * Key shortcuts & more: the Light Phone utilities — pausing the always-on grayscale per app,
@@ -12,8 +13,25 @@ import android.provider.Settings
  */
 class ColorSettingsActivity : SettingsScreen() {
 
+    // The hardware gestures any key-shortcut action can be bound to, in display order. The values are the
+    // stored COLOR_KEYMAP_* ints (kept stable), so display order is independent of them. Every gesture is
+    // only active inside apps — on the LightOS home screen the keys keep their stock behaviour.
+    private val keymapValues = listOf(
+        Prefs.COLOR_KEYMAP_NONE, Prefs.COLOR_KEYMAP_WHEEL_LONG,
+        Prefs.COLOR_KEYMAP_VOLUME_CHORD, Prefs.COLOR_KEYMAP_CAMERA,
+    )
+    private val keymapNames = listOf("Off", "Long-press wheel", "Volume up + down", "Long-press camera")
+
+    /** A key-shortcut action bound to one of [keymapValues], cycling through them on tap. */
+    private fun keymapItem(c: LinearLayout, label: String, subRes: Int, get: () -> Int, set: (Int) -> Unit) {
+        LightUi.valueItem(c, label, getString(subRes),
+            value = { keymapNames[keymapValues.indexOf(get()).coerceAtLeast(0)] },
+            onClick = { set(keymapValues[(keymapValues.indexOf(get()).coerceAtLeast(0) + 1) % keymapValues.size]) })
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        Prefs.migrateWheelBack(this)   // fold the retired "wheel goes back" toggle into the Back keymap
         setContentView(LightUi.screen(this, getString(R.string.section_color)) { c ->
             LightUi.hint(c, getString(R.string.setup_color_blurb))
             if (!ColorFilter.hasPermission(this)) {
@@ -25,12 +43,12 @@ class ColorSettingsActivity : SettingsScreen() {
             LightUi.navItem(c, getString(R.string.setup_color_apps), getString(R.string.setup_color_apps_sub)) {
                 startActivity(Intent(this, ColorAppsActivity::class.java))
             }
-            cycleItem(c, "Colour keymap", R.string.setup_color_keymap_sub,
-                listOf("Off", "Camera long-press", "Volume up + down", "Double volume up", "Double volume down"),
+            keymapItem(c, "Colour toggle", R.string.setup_color_keymap_sub,
                 { Prefs.colorKeymap(this) }, { Prefs.setColorKeymap(this, it) })
-            cycleItem(c, "Recents keymap", R.string.setup_recents_keymap_sub,
-                listOf("Off", "Camera long-press", "Volume up + down", "Double volume up", "Double volume down"),
+            keymapItem(c, "Recent apps", R.string.setup_recents_keymap_sub,
                 { Prefs.recentsKeymap(this) }, { Prefs.setRecentsKeymap(this, it) })
+            keymapItem(c, "Go back", R.string.setup_back_keymap_sub,
+                { Prefs.backKeymap(this) }, { Prefs.setBackKeymap(this, it) })
             toggleItem(c, R.string.setup_wheel_brightness, R.string.setup_wheel_brightness_sub,
                 { Prefs.wheelBrightness(this) },
                 {
@@ -42,8 +60,6 @@ class ColorSettingsActivity : SettingsScreen() {
                         )
                     }
                 })
-            toggleItem(c, R.string.setup_wheel_back, R.string.setup_wheel_back_sub,
-                { Prefs.wheelPressBack(this) }, { Prefs.setWheelPressBack(this, it) })
             toggleItem(c, R.string.setup_close_on_lock, R.string.setup_close_on_lock_sub,
                 { Prefs.closeAppsOnLock(this) }, { Prefs.setCloseAppsOnLock(this, it) })
             LightUi.navItem(c, getString(R.string.setup_key_test), getString(R.string.setup_key_test_menu_sub)) {

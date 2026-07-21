@@ -32,8 +32,6 @@ class ColorFilterService : AccessibilityService() {
 
     private var volumeUpHeld = false
     private var volumeDownHeld = false
-    private var lastVolumeUpPress = 0L
-    private var lastVolumeDownPress = 0L
     private var lastToggle = 0L
 
     private var foregroundPackage: String? = null
@@ -45,7 +43,7 @@ class ColorFilterService : AccessibilityService() {
     }
 
     private val wheelLongPressRunnable = Runnable {
-        performGlobalAction(GLOBAL_ACTION_BACK)
+        fireGesture(Prefs.COLOR_KEYMAP_WHEEL_LONG)
     }
 
     /** Packages that handle the camera intent — the shutter key is theirs. */
@@ -67,6 +65,7 @@ class ColorFilterService : AccessibilityService() {
 
     override fun onServiceConnected() {
         super.onServiceConnected()
+        Prefs.migrateWheelBack(this)
         registerReceiver(screenOffReceiver, IntentFilter(Intent.ACTION_SCREEN_OFF))
     }
 
@@ -105,10 +104,10 @@ class ColorFilterService : AccessibilityService() {
 
         val colorMap = Prefs.colorKeymap(this)
         val recentsMap = Prefs.recentsKeymap(this)
+        val backMap = Prefs.backKeymap(this)
         val wheelBrightness = Prefs.wheelBrightness(this)
-        val wheelPressBack = Prefs.wheelPressBack(this)
         if (colorMap == Prefs.COLOR_KEYMAP_NONE && recentsMap == Prefs.COLOR_KEYMAP_NONE &&
-            !wheelBrightness && !wheelPressBack
+            backMap == Prefs.COLOR_KEYMAP_NONE && !wheelBrightness
         ) {
             return false
         }
@@ -118,7 +117,8 @@ class ColorFilterService : AccessibilityService() {
         val code = event.keyCode
 
         if (code == KeyEvent.KEYCODE_CAMERA) {
-            val cameraBound = colorMap == Prefs.COLOR_KEYMAP_CAMERA || recentsMap == Prefs.COLOR_KEYMAP_CAMERA
+            val cameraBound = colorMap == Prefs.COLOR_KEYMAP_CAMERA ||
+                recentsMap == Prefs.COLOR_KEYMAP_CAMERA || backMap == Prefs.COLOR_KEYMAP_CAMERA
             if (!cameraBound) return false
             return onCameraKey(event)
         }
@@ -134,10 +134,12 @@ class ColorFilterService : AccessibilityService() {
             return true
         }
 
-        // The wheel's press: holding it triggers Back. A consumed key can't be re-injected, so a
-        // short press is simply swallowed (it has no function inside apps anyway).
+        // The wheel's press: a long-press fires whatever action is bound to it. A consumed key can't be
+        // re-injected, so a short press is simply swallowed (it has no function inside apps anyway).
         if (code == KEYCODE_WHEEL_PRESS) {
-            if (!wheelPressBack) return false
+            val wheelBound = colorMap == Prefs.COLOR_KEYMAP_WHEEL_LONG ||
+                recentsMap == Prefs.COLOR_KEYMAP_WHEEL_LONG || backMap == Prefs.COLOR_KEYMAP_WHEEL_LONG
+            if (!wheelBound) return false
             when (event.action) {
                 KeyEvent.ACTION_DOWN ->
                     if (event.repeatCount == 0) handler.postDelayed(wheelLongPressRunnable, LONG_PRESS_MS)
@@ -152,23 +154,10 @@ class ColorFilterService : AccessibilityService() {
         when (event.action) {
             KeyEvent.ACTION_DOWN -> {
                 if (event.repeatCount > 0) return false
-                val now = event.eventTime
                 if (code == KeyEvent.KEYCODE_VOLUME_UP) volumeUpHeld = true else volumeDownHeld = true
-
                 if (volumeUpHeld && volumeDownHeld && fireGesture(Prefs.COLOR_KEYMAP_VOLUME_CHORD)) {
                     // Swallow the completing key so it doesn't also change the volume.
                     return true
-                }
-                if (code == KeyEvent.KEYCODE_VOLUME_UP) {
-                    if (now - lastVolumeUpPress < DOUBLE_PRESS_WINDOW_MS) {
-                        fireGesture(Prefs.COLOR_KEYMAP_DOUBLE_VOLUME_UP)
-                    }
-                    lastVolumeUpPress = now
-                } else {
-                    if (now - lastVolumeDownPress < DOUBLE_PRESS_WINDOW_MS) {
-                        fireGesture(Prefs.COLOR_KEYMAP_DOUBLE_VOLUME_DOWN)
-                    }
-                    lastVolumeDownPress = now
                 }
             }
             KeyEvent.ACTION_UP -> {
@@ -204,6 +193,7 @@ class ColorFilterService : AccessibilityService() {
         when (gesture) {
             Prefs.colorKeymap(this) -> toggleFilter()
             Prefs.recentsKeymap(this) -> performGlobalAction(GLOBAL_ACTION_RECENTS)
+            Prefs.backKeymap(this) -> performGlobalAction(GLOBAL_ACTION_BACK)
             else -> return false
         }
         return true
@@ -312,7 +302,6 @@ class ColorFilterService : AccessibilityService() {
     }
 
     companion object {
-        private const val DOUBLE_PRESS_WINDOW_MS = 400L
         private const val TOGGLE_DEBOUNCE_MS = 500L
         private const val LONG_PRESS_MS = 500L
         private const val KILL_DELAY_MS = 3000L

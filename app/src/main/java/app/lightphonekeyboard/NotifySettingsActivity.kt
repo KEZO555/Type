@@ -42,6 +42,8 @@ class NotifySettingsActivity : SettingsScreen() {
                 { Prefs.notifSwipe(this) }, { Prefs.setNotifSwipe(this, it) })
             toggleItem(c, R.string.notify_wake, R.string.notify_wake_sub,
                 { Prefs.notifWakeScreen(this) }, { Prefs.setNotifWakeScreen(this, it) })
+            toggleItem(c, R.string.notify_pocket, R.string.notify_pocket_sub,
+                { Prefs.notifPocketGuard(this) }, { Prefs.setNotifPocketGuard(this, it) })
             toggleItem(c, R.string.notify_lock, R.string.notify_lock_sub,
                 { Prefs.notifLockScreen(this) }, { Prefs.setNotifLockScreen(this, it) })
             toggleItem(c, R.string.notify_groups, R.string.notify_groups_sub,

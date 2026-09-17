@@ -37,6 +37,7 @@ object Prefs {
     private const val KEY_NOTIF_APPS = "notif_apps"
     private const val KEY_NOTIF_SWIPE = "notif_swipe"
     private const val KEY_NOTIF_WAKE = "notif_wake_screen"
+    private const val KEY_NOTIF_POCKET = "notif_pocket_guard"
     private const val KEY_NOTIF_LOCK = "notif_lock_screen"
     private const val KEY_NOTIF_GROUP = "notif_group_summaries"
     private const val KEY_NOTIF_STAY = "notif_stay_until_dismissed"
@@ -76,6 +77,8 @@ object Prefs {
     fun setNotifSwipe(c: Context, v: Boolean) = prefs(c).edit().putBoolean(KEY_NOTIF_SWIPE, v).apply()
     fun notifWakeScreen(c: Context) = prefs(c).getBoolean(KEY_NOTIF_WAKE, false)
     fun setNotifWakeScreen(c: Context, v: Boolean) = prefs(c).edit().putBoolean(KEY_NOTIF_WAKE, v).apply()
+    fun notifPocketGuard(c: Context) = prefs(c).getBoolean(KEY_NOTIF_POCKET, true)  // don't wake while covered
+    fun setNotifPocketGuard(c: Context, v: Boolean) = prefs(c).edit().putBoolean(KEY_NOTIF_POCKET, v).apply()
     fun notifLockScreen(c: Context) = prefs(c).getBoolean(KEY_NOTIF_LOCK, false)
     fun setNotifLockScreen(c: Context, v: Boolean) = prefs(c).edit().putBoolean(KEY_NOTIF_LOCK, v).apply()
     fun notifGroupSummaries(c: Context) = prefs(c).getBoolean(KEY_NOTIF_GROUP, false)

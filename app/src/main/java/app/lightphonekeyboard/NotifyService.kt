@@ -12,6 +12,10 @@ import android.content.SharedPreferences
 import android.graphics.Color
 import android.graphics.PixelFormat
 import android.graphics.drawable.GradientDrawable
+import android.hardware.Sensor
+import android.hardware.SensorEvent
+import android.hardware.SensorEventListener
+import android.hardware.SensorManager
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
@@ -49,10 +53,17 @@ class NotifyService : NotificationListenerService() {
     private val dismissRunnables = HashMap<String, Runnable>()
     private var wakeLock: PowerManager.WakeLock? = null
 
+    // Proximity sensor: "covered" means something is right in front of it — phone in a pocket / pouch /
+    // face-down — so we can skip waking the screen in that case. Updated live by [proximityListener].
+    private var sensors: SensorManager? = null
+    private var proximity: Sensor? = null
+    @Volatile private var covered = false
+
     // Cached settings (kept in sync by [prefsListener]).
     private var apps: Set<String> = emptySet()
     private var swipe = true
     private var wake = false
+    private var pocketGuard = true
     private var lock = false
     private var groups = false
     private var stay = false
@@ -80,6 +91,15 @@ class NotifyService : NotificationListenerService() {
         }
     }
 
+    // Proximity sensors report "near" as a distance below their max range (many report 0 vs. 5cm).
+    private val proximityListener = object : SensorEventListener {
+        override fun onSensorChanged(e: SensorEvent) {
+            val max = proximity?.maximumRange ?: return
+            covered = e.values.isNotEmpty() && e.values[0] < max
+        }
+        override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
+    }
+
     override fun onCreate() {
         super.onCreate()
         instance = this
@@ -87,6 +107,10 @@ class NotifyService : NotificationListenerService() {
         loadCaches()
         Prefs.shared(this).registerOnSharedPreferenceChangeListener(prefsListener)
         registerReceiver(screenOn, IntentFilter(Intent.ACTION_SCREEN_ON))
+        sensors = getSystemService(Context.SENSOR_SERVICE) as? SensorManager
+        proximity = sensors?.getDefaultSensor(Sensor.TYPE_PROXIMITY)
+        // On-change sensor: registering delivers the current value, so `covered` is correct immediately.
+        proximity?.let { sensors?.registerListener(proximityListener, it, SensorManager.SENSOR_DELAY_NORMAL) }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -99,6 +123,7 @@ class NotifyService : NotificationListenerService() {
     override fun onDestroy() {
         instance = null
         runCatching { unregisterReceiver(screenOn) }
+        runCatching { sensors?.unregisterListener(proximityListener) }
         runCatching { Prefs.shared(this).unregisterOnSharedPreferenceChangeListener(prefsListener) }
         clearAll()
         super.onDestroy()
@@ -108,6 +133,7 @@ class NotifyService : NotificationListenerService() {
         apps = Prefs.notifApps(this)
         swipe = Prefs.notifSwipe(this)
         wake = Prefs.notifWakeScreen(this)
+        pocketGuard = Prefs.notifPocketGuard(this)
         lock = Prefs.notifLockScreen(this)
         groups = Prefs.notifGroupSummaries(this)
         stay = Prefs.notifStay(this)
@@ -162,14 +188,17 @@ class NotifyService : NotificationListenerService() {
 
     private fun show(data: NotifyData) {
         main.post {
-            if (wake) acquireWake()
+            // Wake the screen — unless the pocket guard is on and the phone is covered (pocket / pouch).
+            if (wake && !(pocketGuard && covered)) acquireWake()
             val idx = notifs.indexOfFirst { it.key == data.key }
             if (idx >= 0) notifs[idx] = data else notifs.add(data)
             while (notifs.size > MAX_CARDS) notifs.removeAt(0)
             currentIndex = notifs.size - 1                 // page to the newest notification
 
             if (lock && isLocked()) {
-                startLockScreen()
+                // Covered → don't light up the lock screen now; the screen-on receiver shows it when the
+                // phone is next woken (taken out of the pocket / pouch).
+                if (!(pocketGuard && covered)) startLockScreen()
             } else {
                 if (Settings.canDrawOverlays(this) && overlay == null) addOverlay()
                 overlay?.let { runCatching { wm.updateViewLayout(it, params()) } }

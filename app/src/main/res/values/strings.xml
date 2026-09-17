@@ -90,6 +90,8 @@
     <string name="notify_horizontal_sub">Show multiple cards in a row instead of stacked.</string>
     <string name="notify_wake">Wake the screen</string>
     <string name="notify_wake_sub">Turn the screen on when a notification arrives.</string>
+    <string name="notify_pocket">Not while in pocket</string>
+    <string name="notify_pocket_sub">Skip waking the screen when the phone is covered — in a pocket, pouch, or face-down.</string>
     <string name="notify_lock">Show on lock screen</string>
     <string name="notify_lock_sub">Show notifications while the phone is locked.</string>
     <string name="notify_groups">Include group summaries</string>

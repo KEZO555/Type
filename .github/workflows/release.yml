@@ -31,6 +31,10 @@ jobs:
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
+        with:
+          # Don't install the obsolete "tools" package (the action's default) — Google removed it from
+          # the SDK repository, so requesting it fails. AGP pulls the platform / build-tools it needs.
+          packages: 'platform-tools'
 
       - name: Decode release keystore
         env:

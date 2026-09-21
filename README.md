@@ -22,8 +22,9 @@ learned words and next-word prediction.
 
 - **English** — QWERTY, built-in offline autocorrect, learns your words.
 - **Hebrew** — Standard Israeli layout (finals included); downloads offline autocorrect that understands
-  glued proclitics (ו/ה/ש/ב/כ/ל/מ — so "ושלום" is recognised and "ושל…" completes to "ושלום"); voice via
-  the phone's own service (`he-IL`).
+  glued proclitics (ו/ה/ש/ב/כ/ל/מ — so "ושלום" is recognised and "ושל…" completes to "ושלום"), and a
+  next-word model trained on everyday spoken Hebrew, so the bar leads with "טוב" after "בוקר" and
+  "כך" after "כל" before you have taught it anything; voice via the phone's own service (`he-IL`).
 - **Arabic** — standard Arabic layout (all 28 letters, hamza forms and harakat on the 123-key
   long-press); downloads offline autocorrect. No voice.
 - **Mandarin** — QWERTY **pinyin** (type romanized pinyin; `ü` and its tones on the 123-key long-press);

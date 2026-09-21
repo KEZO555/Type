@@ -29,7 +29,7 @@ class WordDictionary(
     private val assetName: String? = null,   // bundled source; null → downloaded file in filesDir
     private val bigramAsset: String? = null, // bundled pre-trained next-word model (English); null otherwise
     private val maxLearnLen: Int = 20,       // longest word we'll learn (Hebrew caps lower)
-    freqSizeHint: Int = 32_000,
+    private val freqSizeHint: Int = 32_000,
 ) {
     private val tag = "Dict-$code"
     private val learnedFile = "${code}_learned.txt"
@@ -60,6 +60,15 @@ class WordDictionary(
     private val memo = HashMap<String, String?>()   // word -> fix (null = checked, no correction)
     private var appContext: Context? = null
 
+    // Transient during load: canonicalises repeated word Strings so the frequency list, both bigram
+    // models and the learned words share one String object per word instead of thousands of copies.
+    // The frequency list loads first, so — because the next-word model is vocabulary-restricted (every
+    // pair's two words are dictionary entries) — its words reuse the dictionary's own Strings and add
+    // almost no new String objects. Dropped after load; the Strings it handed out stay referenced by
+    // the maps. This is what keeps the 400k-pair Hebrew model's heap modest.
+    private var interner: HashMap<String, String>? = null
+    private fun intern(s: String): String = interner?.getOrPut(s) { s } ?: s
+
     @Volatile
     var ready = false
         private set
@@ -79,12 +88,13 @@ class WordDictionary(
         appContext = app
         Thread {
             try {
+                interner = HashMap(freqSizeHint)   // shared across every load below; freq goes first
                 openReader(app).use { r ->
                     r.forEachLine { line ->
                         val sp = line.indexOf(' ')
                         if (sp <= 0) return@forEachLine
                         val c = line.substring(sp + 1).toLongOrNull() ?: return@forEachLine
-                        freq[line.substring(0, sp)] = c
+                        freq[intern(line.substring(0, sp))] = c
                     }
                 }
                 loadConfusions(app)
@@ -92,8 +102,10 @@ class WordDictionary(
                 loadBigrams(app)
                 loadTrigrams(app)
                 if (pretrained.isEmpty()) loadPretrainedBigrams(app)   // load once; survives reload()
+                interner = null                     // drop the pool; the interned Strings stay referenced
                 main.post { ready = true; loading = false; Log.i(tag, "loaded ${freq.size}+${learned.size}") }
             } catch (e: Throwable) {
+                interner = null
                 main.post { loading = false }
                 Log.e(tag, "load failed", e)
             }
@@ -123,7 +135,7 @@ class WordDictionary(
                 val sp = line.indexOf(' ')
                 if (sp <= 0) return@forEach
                 val c = line.substring(sp + 1).toLongOrNull() ?: return@forEach
-                learned[line.substring(0, sp)] = c
+                learned[intern(line.substring(0, sp))] = c
             }
         }
         pruneRedundantLearned()
@@ -195,7 +207,7 @@ class WordDictionary(
                 val b = line.indexOf(' ', a + 1); if (b <= a + 1) return@forEach
                 val c = line.indexOf(' ', b + 1); if (c <= b + 1) return@forEach
                 val cnt = line.substring(c + 1).toLongOrNull() ?: return@forEach
-                trigrams.getOrPut(line.substring(0, b)) { HashMap() }[line.substring(b + 1, c)] = cnt
+                trigrams.getOrPut(intern(line.substring(0, b))) { HashMap() }[intern(line.substring(b + 1, c))] = cnt
             }
         }
     }
@@ -218,7 +230,7 @@ class WordDictionary(
                 val a = line.indexOf(' '); if (a <= 0) return@forEach
                 val b = line.indexOf(' ', a + 1); if (b <= a + 1) return@forEach
                 val c = line.substring(b + 1).toLongOrNull() ?: return@forEach
-                into.getOrPut(line.substring(0, a)) { HashMap() }[line.substring(a + 1, b)] = c
+                into.getOrPut(intern(line.substring(0, a))) { HashMap() }[intern(line.substring(a + 1, b))] = c
             }
         }
     }

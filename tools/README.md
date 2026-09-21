@@ -38,11 +38,16 @@ for tb in HTB:he_htb IAHLTwiki:he_iahltwiki IAHLTknesset:he_iahltknesset; do
   done
 done
 python3 tools/build_he_bigrams.py -o dicts/he_bigrams.txt --vocab dicts/he.txt \
-    /tmp/he.txt.gz /tmp/he_*-ud-*.conllu          # ~25 min, ~6 GB RAM
+    /tmp/he.txt.gz /tmp/he_*-ud-*.conllu          # ~15 min, ~3 GB RAM
 ```
 
 Then **bump `DICT_VERSIONS["he"]` in `DictModel.kt`** — that's what makes phones that already hold
 an older copy re-download it.
+
+The corpus yields ~10M pairs seen twice or more; `--cap` keeps the commonest, and the default 400k
+is what ships (8.3 MB, every pair seen at least 60 times). The cap is the one real knob here: it
+trades download size and IME heap — both roughly linear in it — against how often the bar has
+anything useful to say. Re-score before moving it.
 
 OpenSubtitles supplies the conversational register people actually type in; the treebanks add
 newswire, encyclopedic and parliamentary breadth with gold word-segmentation. `--vocab` keeps only

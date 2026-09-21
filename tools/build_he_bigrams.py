@@ -140,7 +140,7 @@ def main():
     ap.add_argument("inputs", nargs="+", help="corpus files (.txt/.conllu, optionally .gz)")
     ap.add_argument("-o", "--out", default="dicts/he_bigrams.txt", help="output path")
     ap.add_argument("--min-count", type=int, default=2, help="drop pairs seen fewer times (default 2)")
-    ap.add_argument("--cap", type=int, default=120000, help="max pairs to keep, 0 = unlimited")
+    ap.add_argument("--cap", type=int, default=400000, help="max pairs to keep, 0 = unlimited")
     ap.add_argument("--vocab", help="unigram dictionary (dicts/he.txt): keep only pairs of listed words")
     ap.add_argument("--max-keys", type=int, default=40_000_000,
                     help="memory bound on the count table; 0 = unlimited (default 40M ≈ 4 GB)")

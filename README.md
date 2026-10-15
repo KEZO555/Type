@@ -6,7 +6,7 @@ A faithful recreation of the Light Phone 3 keyboard, as a system keyboard for an
 > Built on [**light-keyboard**](https://github.com/adam-weber/light-keyboard) by
 > [**Adam Weber**](https://github.com/adam-weber), extended with more languages, voice dictation, and more.
 
-**Languages (13):** English, Hebrew, Spanish, French, German, Italian, Portuguese, Arabic, Mandarin (QWERTY pinyin), Dutch (QWERTY + Belgian AZERTY), Russian, and Polish — each with its own layout and long-press accents. Only English is built in; every other language downloads its dictionary automatically when you enable it, then works fully offline.
+**Languages (18):** English, Hebrew, Spanish, French, German, Italian, Portuguese, Arabic, Mandarin (QWERTY pinyin), Dutch (QWERTY + Belgian AZERTY), Russian, Polish, Norwegian, Danish, Swedish, Finnish, and Icelandic — each with its own layout and long-press accents. Only English is built in; every other language downloads its dictionary automatically when you enable it, then works fully offline.
 
 **Typing:** offline autocorrect (keyboard-aware — it weighs where your finger actually landed — with a distance-2 fallback, uses the previous word as context, and splits run-on words like "thisis" → "this is") and learns your vocabulary in every language · a suggestion bar with next-word prediction · auto-capitalize · double-space for period · a numeric layout that opens automatically for number / phone fields · Hebrew final-letter forms.
 
@@ -40,6 +40,12 @@ learned words and next-word prediction.
   offline autocorrect and an offline voice model.
 - **Polish** — QWERTY with the Polish diacritics (ą ć ę ł ń ó ś ź ż) on the 123-key long-press; downloads
   offline autocorrect and an offline voice model.
+- **Norwegian / Danish / Swedish / Finnish** — QWERTY with the national letters where the physical
+  layouts put them (`å` right of P; `ø æ`, `æ ø` or `ö ä` right of L), and the neighbouring languages'
+  letters on the 123-key long-press; download offline autocorrect. The Norwegian dictionary is
+  bokmål-leaning — nynorsk words are learned as you type them. No voice yet (Vosk has no small model).
+- **Icelandic** — QWERTY with `ð` right of P, `æ ö` right of L and `þ` right of M; the acute vowels
+  (á é í ó ú ý) on the 123-key long-press; downloads offline autocorrect. No voice.
 
 ## Install
 
@@ -65,7 +71,7 @@ The settings below it:
 
 - **Languages**: choose which languages the globe key (bottom row) cycles through; the emoji key opens
   emoji. English, Hebrew, Spanish, French, German, Italian, Portuguese, Arabic, Mandarin pinyin, Dutch
-  (QWERTY + Belgian AZERTY), Russian and Polish. Only English's autocorrect dictionary is built in —
+  (QWERTY + Belgian AZERTY), Russian, Polish, Norwegian, Danish, Swedish, Finnish and Icelandic. Only English's autocorrect dictionary is built in —
   every other language **downloads** its dictionary automatically when you turn it on here, then works
   fully offline. Hebrew and Arabic are caseless, so they have no shift key.
 - **Autocorrect** (on by default): fixes misspellings as you type, using the active language's frequency
@@ -95,8 +101,8 @@ The settings below it:
   **Settings → Languages**. A mic appears on the period key — long-press it (or tap the mic) to speak
   instead of type, fully on-device. **English, Spanish, French, German, Italian, Portuguese, Dutch,
   Russian and Polish** have offline voice models (~30–50 MB each). **Hebrew** has no offline model, so it
-  falls back to the phone's own voice service (which a de-Googled Light Phone may not have). **Arabic and
-  Mandarin** have no voice. Tap a downloaded model again to delete it and reclaim the space.
+  falls back to the phone's own voice service (which a de-Googled Light Phone may not have). **Arabic, Mandarin
+  and the Nordic languages** have no voice. Tap a downloaded model again to delete it and reclaim the space.
 
 That is the whole setup.
 

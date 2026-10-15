@@ -9,7 +9,7 @@ Source: a hermitdave/FrequencyWords "word<space>count" list (already frequency-s
 
 Usage:  python3 gen_lang.py <code> <source.txt> <out.txt>
 """
-import re, sys, os
+import io, re, sys, os
 
 MAX_WORDS = 40000
 MIN_LEN, MAX_LEN = 1, 20
@@ -28,7 +28,45 @@ ALPHABETS = {
     "nl": "abcdefghijklmnopqrstuvwxyzëïöüéèêáàçóú",   # shared by both Dutch layouts (QWERTY + AZERTY)
     "ru": "абвгдеёжзийклмнопрстуфхцчшщъыьэюя",          # Russian (Cyrillic)
     "pl": "abcdefghijklmnopqrstuvwxyząćęłńóśźż",
+    # Nordic — each is the layout's letters plus its 123-key long-press accents (matches LangDef).
+    "no": "abcdefghijklmnopqrstuvwxyzåøæéèêóòôàäöü",    # Norwegian (bokmål-leaning subtitle corpus)
+    "da": "abcdefghijklmnopqrstuvwxyzåæøéäöü",          # Danish
+    "sv": "abcdefghijklmnopqrstuvwxyzåöäéàüæø",          # Swedish
+    "fi": "abcdefghijklmnopqrstuvwxyzåöäšžéüæø",         # Finnish
+    "is": "abcdefghijklmnopqrstuvwxyzðæöþáéíóúý",        # Icelandic
 }
+
+def _latin4_as_latin1(w):
+    """Undo a mis-decoding: text that was Latin-1 but read as ISO-8859-4, so ð→đ, þ→ū, ó→ķ, ý→ũ, ò→ō.
+    Words already holding real ð/þ can't be Latin-4-encoded and are returned unchanged."""
+    try:
+        return w.encode("iso8859_4").decode("latin1")
+    except UnicodeEncodeError:
+        return w
+
+# Per-language fix-ups for a damaged source. The FrequencyWords Icelandic list (content/2018/is) mixes
+# correctly encoded subtitles with Latin-1 ones that were read as Latin-4: "ađ" for "að", "ūú" for
+# "þú". Repairing and merging the two spellings recovers the real counts.
+REPAIRS = {
+    "is": _latin4_as_latin1,
+}
+
+def _read_repaired(src, repair):
+    """Read the whole source, repair each word, merge counts of words that now coincide, and return
+    (word, count) pairs in descending frequency — the order main() expects."""
+    merged = {}
+    with open(src, encoding="utf-8", errors="ignore") as f:
+        for line in f:
+            parts = line.split()
+            if len(parts) != 2:
+                continue
+            try:
+                count = int(parts[1])
+            except ValueError:
+                continue
+            w = repair(parts[0].lower())
+            merged[w] = merged.get(w, 0) + count
+    return sorted(merged.items(), key=lambda kv: (-kv[1], kv[0]))
 
 def main():
     code, src, out = sys.argv[1], sys.argv[2], sys.argv[3]
@@ -36,7 +74,11 @@ def main():
     word_re = re.compile(r"^[" + alpha + r"]+$")
     kept = []
     seen = set()
-    with open(src, encoding="utf-8", errors="ignore") as f:
+    if code in REPAIRS:
+        f = io.StringIO("".join(f"{w} {c}\n" for w, c in _read_repaired(src, REPAIRS[code])))
+    else:
+        f = open(src, encoding="utf-8", errors="ignore")
+    with f:
         for line in f:
             parts = line.split()
             if len(parts) != 2:

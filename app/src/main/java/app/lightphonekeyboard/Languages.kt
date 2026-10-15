@@ -223,8 +223,61 @@ object Languages {
         voiceUrl = voskUrl("vosk-model-small-pl-0.22.zip"), voiceSizeMb = 50,
     )
 
+    // Nordic — each is QWERTY with the national letters where the physical layouts put them: the key
+    // right of P on the top row, and the two keys right of L on the home row (Icelandic also has þ
+    // right of M). The Scandinavian and Finnish layouts carry their neighbours' letters on the 123-key
+    // long-press, so Swedish and Norwegian names can be typed from either. Typing + autocorrect; no voice yet — Vosk
+    // has no small model for these languages (its only Swedish model is ~290 MB).
+    private val NORDIC_Z_ROW = listOf(SH, "z", "x", "c", "v", "b", "n", "m", BK)
+    private fun nordicTop(extra: String) = listOf("q", "w", "e", "r", "t", "y", "u", "i", "o", "p", extra)
+    private fun nordicHome(a: String, b: String) =
+        listOf("a", "s", "d", "f", "g", "h", "j", "k", "l", a, b)
+
+    val NO = LangDef(
+        code = "no", name = "Norsk", rtl = false, hasCase = true,
+        rows = listOf(nordicTop("å"), nordicHome("ø", "æ"), NORDIC_Z_ROW),
+        accents = listOf("é", "è", "ê", "ó", "ò", "ô", "à", "ä", "ö", "ü"),
+        dictUrl = repoDictUrl("no"),
+    )
+
+    val DA = LangDef(
+        code = "da", name = "Dansk", rtl = false, hasCase = true,
+        rows = listOf(nordicTop("å"), nordicHome("æ", "ø"), NORDIC_Z_ROW),
+        accents = listOf("é", "ä", "ö", "ü"),
+        dictUrl = repoDictUrl("da"),
+    )
+
+    val SV = LangDef(
+        code = "sv", name = "Svenska", rtl = false, hasCase = true,
+        rows = listOf(nordicTop("å"), nordicHome("ö", "ä"), NORDIC_Z_ROW),
+        accents = listOf("é", "à", "ü", "æ", "ø"),
+        dictUrl = repoDictUrl("sv"),
+    )
+
+    // Finnish shares the Swedish layout; š and ž (used in loanwords) on the long-press.
+    val FI = LangDef(
+        code = "fi", name = "Suomi", rtl = false, hasCase = true,
+        rows = listOf(nordicTop("å"), nordicHome("ö", "ä"), NORDIC_Z_ROW),
+        accents = listOf("š", "ž", "é", "ü", "æ", "ø"),
+        dictUrl = repoDictUrl("fi"),
+    )
+
+    // Icelandic — ð right of P, æ right of L, þ right of M, as on the physical layout. Its ö lives on
+    // the number row there, which this keyboard doesn't have, so it takes the slot after æ instead.
+    // The acute vowels (dead key on desktop) are on the long-press.
+    val IS = LangDef(
+        code = "is", name = "Íslenska", rtl = false, hasCase = true,
+        rows = listOf(
+            nordicTop("ð"),
+            nordicHome("æ", "ö"),
+            listOf(SH, "z", "x", "c", "v", "b", "n", "m", "þ", BK),
+        ),
+        accents = listOf("á", "é", "í", "ó", "ú", "ý"),
+        dictUrl = repoDictUrl("is"),
+    )
+
     /** All supported languages, in the order the globe cycles them. */
-    val ALL = listOf(EN, HE, ES, FR, DE, IT, PT, AR, ZH, NL, NL_BE, RU, PL)
+    val ALL = listOf(EN, HE, ES, FR, DE, IT, PT, AR, ZH, NL, NL_BE, RU, PL, NO, DA, SV, FI, IS)
 
     fun byCode(code: String): LangDef = ALL.firstOrNull { it.code == code } ?: EN
 }

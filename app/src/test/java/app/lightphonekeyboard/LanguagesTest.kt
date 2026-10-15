@@ -63,6 +63,27 @@ class LanguagesTest {
         }
     }
 
+    @Test fun nordicLayoutsCarryTheirNationalLetters() {
+        // The national letters sit on the main rows (not the long-press), each layout downloads a
+        // dictionary, and none has voice yet.
+        val expected = mapOf(
+            Languages.NO to "åøæ", Languages.DA to "åæø", Languages.SV to "åöä",
+            Languages.FI to "åöä", Languages.IS to "ðæöþ",
+        )
+        for ((l, letters) in expected) {
+            val onRows = l.letterRows.joinToString("")
+            for (ch in letters) assertTrue("${l.code}: '$ch' missing from the main rows", ch in onRows)
+            assertNotNull("${l.code}: should have a downloadable dictionary", l.dictUrl)
+            assertTrue("${l.code}: dictionary should be dicts/${l.code}.txt",
+                l.dictUrl!!.endsWith("/dicts/${l.code}.txt"))
+            assertNull("${l.code}: no voice model yet", l.voiceUrl)
+            assertSame(l, Languages.byCode(l.code))
+        }
+        // Norwegian puts ø before æ; Danish the other way round.
+        assertEquals("asdfghjkløæ", Languages.NO.letterRows[1])
+        assertEquals("asdfghjklæø", Languages.DA.letterRows[1])
+    }
+
     @Test fun voiceModelConfigIsConsistent() {
         // A voice URL and its size hint must agree (both set or both absent). Hebrew has no Vosk model;
         // Arabic is typing-only (no voice).
